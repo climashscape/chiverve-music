@@ -12,7 +12,17 @@
           <span v-if="item.interval" :class="$style.duration">{{ item.interval }}</span>
         </div>
         <h4 :class="$style.name" :title="item.name">{{ item.name }}</h4>
-        <p :class="$style.meta" :title="item.singer">{{ item.singer }}</p>
+        <p :class="$style.meta" :title="item.singer">
+          <!-- 歌手名可点进歌手页；点名字不该顺带打开 MV，所以这里 stop -->
+          <template v-if="singersOf(item).length">
+            <template v-for="(singer, index) in singersOf(item)" :key="singer.mid || singer.name">
+              <span v-if="index" :class="$style.singerGap">、</span>
+              <span v-if="singer.mid" :class="$style.singerLink" @click.stop="toSinger(singer)">{{ singer.name }}</span>
+              <span v-else>{{ singer.name }}</span>
+            </template>
+          </template>
+          <template v-else>{{ item.singer }}</template>
+        </p>
         <p v-if="item.playCount" :class="$style.meta">{{ $t('mv__play_count') }}：{{ playText(item.playCount) }}</p>
       </li>
     </ul>
@@ -43,15 +53,26 @@
 
 <script lang="ts">
 import { computed, ref } from '@common/utils/vueTools'
+import { useRouter } from '@common/utils/vueRouter'
 import { formatPlayCount } from '@renderer/utils'
 import PlayerModal from './components/PlayerModal.vue'
-import useMv from './useMv'
+import useMv, { type MvInfo } from './useMv'
+
+/**
+ * MV 列表项**运行时**带 `singers`（`tx/mv.js` 的 toMvInfo 会塞进来），但 `MvInfo` 类型里没声明
+ * （那个接口是给弹窗与详情用的）。这里按需取「能跳歌手页」的那部分，类型上不假装它一定存在。
+ */
+const singersOf = (item: MvInfo): Array<{ mid: string, name: string }> => {
+  const list = (item as MvInfo & { singers?: Array<{ mid: string, name: string }> }).singers
+  return Array.isArray(list) ? list : []
+}
 
 export default {
   components: {
     PlayerModal,
   },
   setup() {
+    const router = useRouter()
     const { list, player, loadMvs, switchOrder, openMv, closePlayer, retryUrl } = useMv()
     // 列表状态在模块级：切走再回来直接显示上次的内容，不必再打一次请求（发现页同样处理）
     if (!list.list.length) void loadMvs(1, false)
@@ -63,6 +84,10 @@ export default {
       { order: 1, label: window.i18n.t('mv__order_hot') },
     ])
     const playText = (num: number) => formatPlayCount(num)
+    const toSinger = (singer: { mid: string, name: string }) => {
+      if (!singer.mid) return
+      void router.push({ path: '/singer', query: { mid: singer.mid } })
+    }
 
     return {
       list,
@@ -70,6 +95,8 @@ export default {
       order,
       orderTabs,
       playText,
+      singersOf,
+      toSinger,
       loadMvs,
       switchOrder,
       openMv,
@@ -147,6 +174,18 @@ export default {
   font-size: 11px;
   color: var(--color-font-label);
   .mixin-ellipsis-1();
+}
+// 歌手名可点（M6）
+.singerLink {
+  cursor: pointer;
+  transition: color @transition-fast;
+
+  &:hover {
+    color: var(--color-primary);
+  }
+}
+.singerGap {
+  color: var(--color-font-label);
 }
 
 .more {

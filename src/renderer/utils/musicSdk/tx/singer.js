@@ -141,7 +141,6 @@ export default {
    * @param {number} limit
    */
   getAlbumList(id, page = 1, limit = 10) {
-    if (page === 1) page = 0
     return createMusicuFetch({
       req: {
         module: 'music.musichallAlbum.AlbumListServer',
@@ -149,7 +148,10 @@ export default {
         param: {
           singerMid: id,
           order: 0,
-          begin: page * limit,
+          // begin 是**原始偏移量**（实测：begin=0 → 第 1 张，begin=100 → 第 101 张）。
+          // 曾经写成 `if (page === 1) page = 0` + `begin: page * limit`，那会让 page ≥ 2
+          // 整整跳掉一页（偏移 50–99 永远取不到）——别改回那种写法。
+          begin: (page - 1) * limit,
           num: limit,
           songNumTag: 0,
           singerID: 0,
@@ -175,7 +177,6 @@ export default {
    * @param {number} limit
    */
   getSongList(id, page = 1, limit = 100) {
-    if (page === 1) page = 0
     return createMusicuFetch({
       req: {
         module: 'musichall.song_list_server',
@@ -183,7 +184,9 @@ export default {
         param: {
           singerMid: id,
           order: 1,
-          begin: page * limit,
+          // 同 getAlbumList：begin 是原始偏移量，分页用 (page-1)*limit；
+          // 服务端对 num 的上限实测是 100
+          begin: (page - 1) * limit,
           num: limit,
         },
       },

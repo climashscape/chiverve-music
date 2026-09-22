@@ -19,7 +19,19 @@ div(:class="$style.container")
           p.select(:class="$style.comment_text") {{ item.text }}
           div(v-if="item.images?.length" :class="$style.comment_images")
             img(v-for="(url, index) in item.images" :key="index" :src="url" loading="lazy" decoding="async")
-      comment-floor(v-if="item.reply && item.reply.length" :class="$style.reply_floor" :comments="item.reply")
+          div(:class="$style.actions")
+            //- 没有 cmId 就不给「回复」：热评的回复项数据层拿不到裸 id（filterHotComment 的 sub 项没有 cmId），
+            //- 而后端只认裸 id 当 RepliedCmId —— 给了按钮只会发成一条新的根评论
+            button(v-if="item.cmId" type="button" :class="$style.actionBtn" @click="$emit('reply', item)") {{ $t('comment__reply') }}
+            button(v-if="canDelete(item)" type="button" :class="$style.actionBtn" @click="$emit('delete', item)") {{ $t('comment__delete') }}
+      comment-floor(
+        v-if="item.reply && item.reply.length"
+        :class="$style.reply_floor"
+        :comments="item.reply"
+        :can-delete="canDelete"
+        @reply="$emit('reply', $event)"
+        @delete="$emit('delete', $event)"
+      )
 </template>
 
 <script>
@@ -34,7 +46,16 @@ export default {
         return []
       },
     },
+    /**
+     * 「这条评论能不能删」。判断依据（当前账号的加密 uin）只有父组件知道，所以传函数进来：
+     * 每条评论都要单独判断，传布尔值表达不了。
+     */
+    canDelete: {
+      type: Function,
+      default: () => false,
+    },
   },
+  emits: ['reply', 'delete'],
   data() {
     return {
       commentDefImg,
@@ -149,6 +170,27 @@ export default {
 
   img {
     max-width: 240px;
+  }
+}
+
+// 「回复 / 删除」：做成低调的文字按钮——评论正文才是主角，操作不该抢视线
+.actions {
+  display: flex;
+  flex-flow: row nowrap;
+  gap: 12px;
+  margin-top: 4px;
+}
+.actionBtn {
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: 12px;
+  color: var(--color-font-label);
+  cursor: pointer;
+  transition: color @transition-normal;
+
+  &:hover {
+    color: var(--color-primary);
   }
 }
 

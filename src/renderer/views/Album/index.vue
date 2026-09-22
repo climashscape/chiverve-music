@@ -6,7 +6,17 @@
       </div>
       <div :class="$style.info">
         <h2 :class="$style.name" :title="detail.name">{{ detail.name || $t('music_album') }}</h2>
-        <p v-if="detail.singer" :class="$style.singer" :title="detail.singer">{{ detail.singer }}</p>
+        <p v-if="detail.singers.length || detail.singer" :class="$style.singer" :title="detail.singer">
+          <!-- 歌手名可点进歌手页：优先用接口给的 singers（带 mid），拿不到 mid 的名字保持纯文本 -->
+          <template v-if="detail.singers.length">
+            <template v-for="(singer, index) in detail.singers" :key="singer.mid || singer.name">
+              <span v-if="index" :class="$style.singerGap">、</span>
+              <span v-if="singer.mid" :class="$style.singerLink" @click.stop="toSinger(singer)">{{ singer.name }}</span>
+              <span v-else>{{ singer.name }}</span>
+            </template>
+          </template>
+          <template v-else>{{ detail.singer }}</template>
+        </p>
         <p :class="$style.meta">
           <span v-if="detail.publishDate">{{ $t('album__publish_date') }}：{{ detail.publishDate }}</span>
           <span v-if="detail.company">{{ $t('album__company') }}：{{ detail.company }}</span>
@@ -80,6 +90,11 @@ export default {
       loadSongPage(page)
     }
     const handleBack = () => { router.back() }
+    // 专辑详情的歌手条目带 mid（tx/album.js 的 toSinger），据此跳歌手页
+    const toSinger = (singer: { mid: string, name: string }) => {
+      if (!singer.mid) return
+      void router.push({ path: '/singer', query: { mid: singer.mid } })
+    }
 
     return {
       detail,
@@ -88,6 +103,7 @@ export default {
       handleTogglePage,
       handlePlayList,
       handleBack,
+      toSinger,
     }
   },
 }
@@ -138,6 +154,18 @@ export default {
   margin-top: 6px;
   font-size: 13px;
   .mixin-ellipsis-1();
+}
+// 歌手名可点（M6）：只做颜色过渡，不加下划线——专辑页是信息区，下划线会显得很吵
+.singerLink {
+  cursor: pointer;
+  transition: color @transition-fast;
+
+  &:hover {
+    color: var(--color-primary);
+  }
+}
+.singerGap {
+  color: var(--color-font-label);
 }
 .meta {
   margin-top: 6px;

@@ -63,6 +63,14 @@ const router = createRouter({
       },
     },
     {
+      path: '/singer',
+      name: 'Singer',
+      component: require('./views/Singer/index.vue').default,
+      meta: {
+        name: 'Singer',
+      },
+    },
+    {
       path: '/leaderboard',
       name: 'Leaderboard',
       component: require('./views/Leaderboard/index.vue').default,
