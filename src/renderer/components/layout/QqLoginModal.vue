@@ -9,7 +9,7 @@
       </div>
 
       <p :class="$style.tip">{{ tipText }}</p>
-      <p v-if="loginError" :class="[$style.tip, $style.error]">{{ loginError }}</p>
+      <p v-if="loginError" :class="[$style.tip, $style.errorText]">{{ loginError }}</p>
 
       <div :class="$style.actions">
         <base-btn min @click="refreshQrcode">{{ $t('qq_auth__refresh_qrcode') }}</base-btn>
@@ -91,8 +91,11 @@ const tipText = computed(() => {
   .mixin-ellipsis-2();
 }
 
-.error {
-  color: var(--color-error, #e04b4b);
+.errorText {
+  // 本仓库没有 error/warning 语义的配色 token，既有代码（如评论加载失败）
+  // 也用普通文案色。这里只比普通提示更醒目一档（用正文字色而非 label 色），
+  // 不新增 token。
+  color: var(--color-font);
 }
 
 .actions {
