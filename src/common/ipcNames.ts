@@ -169,6 +169,14 @@ const modules = {
     status: 'status',
     set_config: 'set_config',
   },
+  qqAuth: {
+    get_status: 'get_status',
+    get_credential: 'get_credential',
+    set_credential: 'set_credential',
+    refresh: 'refresh',
+    logout: 'logout',
+    status_change: 'status_change',
+  },
 }
 
 
@@ -193,3 +201,4 @@ export const DISLIKE_EVENT_NAME = modules.dislike
 export const WIN_MAIN_RENDERER_EVENT_NAME = modules.winMain
 export const WIN_LYRIC_RENDERER_EVENT_NAME = modules.winLyric
 export const HOTKEY_RENDERER_EVENT_NAME = modules.hotKey
+export const QQ_AUTH_EVENT_NAME = modules.qqAuth

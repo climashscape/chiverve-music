@@ -1,5 +1,5 @@
 import { rendererSend, rendererInvoke, rendererOn, rendererOff } from '@common/rendererIpc'
-import { HOTKEY_RENDERER_EVENT_NAME, WIN_MAIN_RENDERER_EVENT_NAME, CMMON_EVENT_NAME } from '@common/ipcNames'
+import { HOTKEY_RENDERER_EVENT_NAME, WIN_MAIN_RENDERER_EVENT_NAME, CMMON_EVENT_NAME, QQ_AUTH_EVENT_NAME } from '@common/ipcNames'
 import { type ProgressInfo, type UpdateDownloadedEvent, type UpdateInfo } from 'electron-updater'
 import { markRaw } from '@common/utils/vueTools'
 import * as hotKeys from '@common/hotKey'
@@ -22,6 +22,32 @@ export const onSettingChanged = (listener: LX.IpcRendererEventListenerParams<Par
 
 export const sendInited = () => {
   rendererSend(WIN_MAIN_RENDERER_EVENT_NAME.inited)
+}
+
+// ---------------------------------------------------------------- QQ 凭证（M1）
+// 主进程持有凭证的持久化与刷新调度；渲染侧只读取当前值用于构造取流请求。
+// 注意 rendererInvoke 的重载：无入参时用单类型参数形式 <返回值>(name)，
+// 有入参时用 <入参, 返回值>(name, params)。
+export const getQQAuthStatus = async(): Promise<LX.QQAuth.Status> => {
+  return rendererInvoke<LX.QQAuth.Status>(QQ_AUTH_EVENT_NAME.get_status)
+}
+export const getQQCredential = async(): Promise<LX.QQAuth.Credential | null> => {
+  return rendererInvoke<LX.QQAuth.Credential | null>(QQ_AUTH_EVENT_NAME.get_credential)
+}
+export const setQQCredential = async(credential: LX.QQAuth.SetCredentialParams): Promise<LX.QQAuth.Status> => {
+  return rendererInvoke<LX.QQAuth.SetCredentialParams, LX.QQAuth.Status>(QQ_AUTH_EVENT_NAME.set_credential, credential)
+}
+export const refreshQQCredential = async(): Promise<LX.QQAuth.RefreshResult> => {
+  return rendererInvoke<LX.QQAuth.RefreshResult>(QQ_AUTH_EVENT_NAME.refresh)
+}
+export const logoutQQ = async(): Promise<LX.QQAuth.Status> => {
+  return rendererInvoke<LX.QQAuth.Status>(QQ_AUTH_EVENT_NAME.logout)
+}
+export const onQQAuthStatusChange = (listener: LX.IpcRendererEventListenerParams<LX.QQAuth.Status>): RemoveListener => {
+  rendererOn(QQ_AUTH_EVENT_NAME.status_change, listener)
+  return () => {
+    rendererOff(QQ_AUTH_EVENT_NAME.status_change, listener)
+  }
 }
 
 export const getOtherSource = async(id: string): Promise<LX.Music.MusicInfoOnline[]> => {

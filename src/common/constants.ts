@@ -15,6 +15,8 @@ export const STORE_NAMES = {
   LRC_EDITED: 'lyrics_edited',
   THEME: 'theme',
   SOUND_EFFECT: 'sound_effect',
+  /** QQ 音乐登录凭证（明文 JSON，权限依赖数据目录；见 docs/specs/0001 §2.3） */
+  QQ_AUTH: 'qq_auth',
 } as const
 
 export const APP_EVENT_NAMES = {
