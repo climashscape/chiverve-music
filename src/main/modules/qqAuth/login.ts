@@ -22,7 +22,7 @@ import { setCredential } from './utils'
  * 只实现 QQ 扫码。微信扫码与手机验证码见 spec §4.5（M4 再补）。
  *
  * 安全：本流程的 cookie 与回调参数**全部来自上游响应**，且会被拼进请求头/参数，
- * 因此逐个做字符集校验（见 assertSafe* / parseSetCookie）。含 CRLF 的值会造成
+ * 因此逐个做字符集校验（见 assertSafe* / mergeSetCookie）。含 CRLF 的值会造成
  * 请求头注入。
  *
  * 用 `String.prototype.match` 而非 `RegExp.prototype.exec`：语义等价，但后者会被
@@ -52,8 +52,10 @@ const EVENTS: Record<number, LX.QQAuth.LoginEvent> = {
   68: 'REFUSE',
 }
 
-/** 登录会话。qrsig 是后续所有轮询的凭据，必须留在主进程内存里。 */
-let session: { qrsig: string, createdAt: number } | null = null
+/** 登录会话。qrsig 是后续所有轮询的凭据，必须留在主进程内存里。
+ *  jar 累积本流程各步的 Set-Cookie（ptqrshow → ptqrlogin → check_sig）：authorize
+ *  需要一整套登录态 cookie，只带 check_sig 那一步的会缺少前面几步种下的那些。 */
+let session: { qrsig: string, jar: Record<string, string>, createdAt: number } | null = null
 
 // ─────────────────────────────────────────────── 取值校验
 // 允许字符集取 RFC 6265 cookie-octet 的子集：不含分号、逗号、空白、控制字符。
@@ -64,6 +66,15 @@ const RE_SAFE_TOKEN = /^[A-Za-z0-9\-_%.~]{1,512}$/
 const RE_DIGITS = /^[0-9]{1,20}$/
 /** cookie 名。 */
 const RE_SAFE_NAME = /^[A-Za-z0-9_\-]{1,64}$/
+/**
+ * cookie 值里**绝不允许**出现的字符：控制字符、分隔符、空白、引号、反斜杠。
+ *
+ * 这里用黑名单而不是白名单：QQ 的 `skey`（值形如 `@xxx`）等 cookie 含 `@`、`*`、`=`
+ * 这类白名单外字符，按白名单过滤会把它们**静默丢掉**，于是 authorize 拿到不完整的
+ * 登录态 cookie、被拒后重定向到 www.qq.com（没有 code），报"获取 code 失败"——
+ * M2 实测踩过这个坑（见 commit 记录）。黑名单足以阻止请求头注入（CRLF 等都在其中）。
+ */
+const RE_UNSAFE_COOKIE_VALUE = /[\u0000-\u001f\u007f\s;,="\\]/
 
 const assertSafeToken = (value: string, label: string): string => {
   if (!RE_SAFE_TOKEN.test(value)) throw new Error(label + ' 含非法字符，已拒绝使用')
@@ -75,26 +86,28 @@ const assertDigits = (value: string, label: string): string => {
   return value
 }
 
-/** 从响应头解析 Set-Cookie。undici 把多个 Set-Cookie 放在数组里。 */
-const parseSetCookie = (headers: Record<string, unknown>): Record<string, string> => {
+/** 抹掉 URL 里的敏感参数值，只用于打日志（code / ptsigx 都算凭据）。 */
+const maskSecrets = (url: string): string =>
+  url.replace(/([?&](?:code|ptsigx|p_skey|skey|ptqrtoken)=)[^&]*/gi, '$1***')
+
+/** 把响应的 Set-Cookie 合并进 cookie jar。undici 把多个 Set-Cookie 放在数组里。 */
+const mergeSetCookie = (jar: Record<string, string>, headers: Record<string, unknown>): void => {
   const raw = headers['set-cookie']
   const list: string[] = Array.isArray(raw) ? raw as string[] : (raw == null ? [] : [String(raw)])
-  const jar: Record<string, string> = {}
   for (const line of list) {
     const pair = line.split(';')[0] ?? ''
     const idx = pair.indexOf('=')
     if (idx <= 0) continue
     const name = pair.slice(0, idx).trim()
     const value = pair.slice(idx + 1).trim()
-    // 不合规的值直接丢弃，而不是留在 jar 里等被拼进请求头
+    // 不合规的名字/值直接丢弃，而不是留在 jar 里等被拼进请求头
     if (!RE_SAFE_NAME.test(name)) continue
-    if (!RE_SAFE_TOKEN.test(value)) continue
+    if (value === '' || RE_UNSAFE_COOKIE_VALUE.test(value)) continue
     jar[name] = value
   }
-  return jar
 }
 
-/** 拼 Cookie 头。入参已在 parseSetCookie 里过滤过字符集。 */
+/** 拼 Cookie 头。入参已在 mergeSetCookie 里过滤过字符集。 */
 const toCookieHeader = (jar: Record<string, string>): string =>
   Object.keys(jar).map(name => name.concat('=', jar[name] ?? '')).join('; ')
 
@@ -138,8 +151,8 @@ const callCgi = async(module: string, method: string, param: Record<string, unkn
   return second.req_1 ?? second[module] ?? {}
 }
 
-/** 步骤 ③④⑤：用 uin + sigx 完成鉴权并拿到凭证。 */
-const authorize = async(rawUin: string, rawSigx: string): Promise<LX.QQAuth.Credential> => {
+/** 步骤 ③④⑤：用 uin + sigx 完成鉴权并拿到凭证。jar 由调用方传入并就地累积。 */
+const authorize = async(rawUin: string, rawSigx: string, jar: Record<string, string>): Promise<LX.QQAuth.Credential> => {
   const uin = assertDigits(rawUin, 'uin')
   const sigx = assertSafeToken(rawSigx, 'ptsigx')
 
@@ -169,10 +182,10 @@ const authorize = async(rawUin: string, rawSigx: string): Promise<LX.QQAuth.Cred
     timeout: 15000,
     maxRedirect: 0,
   })
-  const jar = parseSetCookie(sigRes.headers as unknown as Record<string, unknown>)
+  mergeSetCookie(jar, sigRes.headers as unknown as Record<string, unknown>)
   const pSkey = jar.p_skey
   if (pSkey == null || pSkey === '') throw new Error('获取 p_skey 失败')
-
+  log.info('[qqAuth] step ③ check_sig ok, cookies =', Object.keys(jar).sort().join(','))
   // ④ oauth2.0/authorize → 302 Location 里的 code。g_tk 用 p_skey 且种子为 5381。
   const authRes = await httpFetch<string>(OAUTH_URL, {
     method: 'POST',
@@ -196,8 +209,27 @@ const authorize = async(rawUin: string, rawSigx: string): Promise<LX.QQAuth.Cred
     maxRedirect: 0,
   })
   const location = String((authRes.headers as unknown as Record<string, unknown>).location ?? '')
-  const rawCode = location.match(/(?<=code=)(.+?)(?=&)/)?.[1] ?? ''
-  if (rawCode === '') throw new Error('获取 code 失败')
+  const pickCode = (text: string): string => text.match(/(?<=code=)(.+?)(?=&)/)?.[1] ?? ''
+  let rawCode = pickCode(location)
+  if (rawCode === '') {
+    // Location 可能整段被百分号编码，先解码再试一次
+    try {
+      rawCode = pickCode(decodeURIComponent(location))
+    } catch {}
+  }
+  // 兜底：极少数情况下 code 出现在响应体而不是 Location
+  if (rawCode === '') rawCode = pickCode(String(authRes.body ?? ''))
+  if (rawCode === '') {
+    const errorParam = location.match(/[?&]error=([^&]*)/)?.[1] ?? ''
+    log.error(
+      '[qqAuth] step ④ 未取到 code: status =', authRes.statusCode,
+      '| location =', maskSecrets(location),
+      '| error =', errorParam,
+      '| sent cookies =', Object.keys(jar).sort().join(','),
+    )
+    throw new Error('获取 code 失败（authorize 返回 ' + String(authRes.statusCode ?? '?') +
+      (errorParam === '' ? '' : '，error=' + errorParam) + '）')
+  }
   const code = assertSafeToken(rawCode, 'code')
 
   // ⑤ 换取凭证
@@ -240,11 +272,12 @@ export const startLogin = async(): Promise<LX.QQAuth.QrCode> => {
     needRaw: true,
     timeout: 15000,
   })
-  const jar = parseSetCookie(res.headers as unknown as Record<string, unknown>)
+  const jar: Record<string, string> = {}
+  mergeSetCookie(jar, res.headers as unknown as Record<string, unknown>)
   const qrsig = jar.qrsig
   if (qrsig == null || qrsig === '') throw new Error('获取二维码失败：未返回 qrsig')
 
-  session = { qrsig, createdAt: Date.now() }
+  session = { qrsig, jar, createdAt: Date.now() }
   const base64 = Buffer.from(res.raw as unknown as Uint8Array).toString('base64')
   log.info('[qqAuth] qrcode fetched')
   return { dataUrl: 'data:image/png;base64,'.concat(base64), createdAt: session.createdAt }
@@ -274,11 +307,13 @@ export const checkLogin = async(): Promise<LX.QQAuth.LoginCheckResult> => {
       pt_3rd_aid: PT_3RD_AID,
       has_onekey: '1',
     },
-    // qrsig 已在 parseSetCookie 里过了字符集校验
+    // qrsig 已在 mergeSetCookie 里过了字符集校验
     headers: { Referer: XUI_REFERER, Cookie: 'qrsig='.concat(session.qrsig) },
     timeout: 15000,
   })
 
+  // ptqrlogin 也会种 cookie，authorize 需要完整登录态
+  mergeSetCookie(session.jar, res.headers as unknown as Record<string, unknown>)
   const args = parsePtuiArgs(String(res.body ?? ''))
   const codeText = args[0] ?? ''
   if (!/^[0-9]{1,3}$/.test(codeText)) throw new Error('解析二维码状态失败：无效状态码')
@@ -291,7 +326,7 @@ export const checkLogin = async(): Promise<LX.QQAuth.LoginCheckResult> => {
   const rawUin = callback.match(/(?:\?|&)uin=(.+?)&service/)?.[1] ?? ''
   if (rawSigx === '' || rawUin === '') throw new Error('解析登录参数失败')
 
-  const credential = await authorize(rawUin, rawSigx)
+  const credential = await authorize(rawUin, rawSigx, session.jar)
   session = null
   log.info('[qqAuth] login succeeded')
   return { event, status: setCredential(credential) }
