@@ -9,14 +9,14 @@ const afterPack = require('./build-after-pack')
 * @see https://www.electron.build/configuration/configuration
 */
 const options = {
-  appId: 'cn.toside.music.desktop',
-  productName: 'lx-music-desktop',
+  appId: 'com.chiverve.music',
+  productName: 'chiverve-music',
   beforePack,
   afterPack,
   protocols: {
-    name: 'lx-music-protocol',
+    name: 'chiverve-music-protocol',
     schemes: [
-      'lxmusic',
+      'chiverve-music',
     ],
   },
   directories: {
@@ -46,8 +46,8 @@ const options = {
   publish: [
     {
       provider: 'github',
-      owner: 'lyswhut',
-      repo: 'lx-music-desktop',
+      owner: 'climashscape',
+      repo: 'chiverve-music',
     },
   ],
 }
@@ -86,11 +86,11 @@ const linuxOptions = {
       // https://specifications.freedesktop.org/desktop-entry-spec/latest/example.html
       // https://developer.gnome.org/documentation/guidelines/maintainer/integrating.html#desktop-files
       entry: {
-        Name: 'LX Music',
-        'Name[zh_CN]': 'LX Music',
-        'Name[zh_TW]': 'LX Music',
+        Name: 'Chiverve Music',
+        'Name[zh_CN]': 'Chiverve Music',
+        'Name[zh_TW]': 'Chiverve Music',
         Encoding: 'UTF-8',
-        MimeType: 'x-scheme-handler/lxmusic',
+        MimeType: 'x-scheme-handler/chiverve-music',
         StartupNotify: 'false',
       },
     },

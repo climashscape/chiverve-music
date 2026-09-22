@@ -1,4 +1,4 @@
-import { checkUpdate, getEnvParams, getViewPrevState, sendInited } from '@renderer/utils/ipc'
+import { getEnvParams, getViewPrevState, sendInited } from '@renderer/utils/ipc'
 
 import { proxy, isFullscreen, themeId } from '@renderer/store'
 import { appSetting } from '@renderer/store/setting'
@@ -71,7 +71,12 @@ export default () => {
       sendInited()
 
       handleListAutoUpdate()
-      if (window.lx.isProd && appSetting['common.isAgreePact']) checkUpdate()
+      // 独立衍生产品：关闭启动时自动更新检查。
+      // 原逻辑 checkUpdate() 会读 app-update.yml（由 build-pack.js 的 publish 生成）并检查发布源；
+      // 本仓库尚未发布 release 时该检查必然失败并弹出错误弹窗；
+      // 更重要的是，若不改 publish 而保留此调用，上游发布的新版本可能直接安装覆盖改造版。
+      // 需要在自有仓库发布后再启用时：恢复下面一行，并确保 publish 指向自有仓库。
+      // if (window.lx.isProd && appSetting['common.isAgreePact']) checkUpdate()
     })
   })
 }

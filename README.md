@@ -1,6 +1,19 @@
 <p align="center"><a href="https://github.com/lyswhut/lx-music-desktop"><img width="200" src="https://github.com/lyswhut/lx-music-desktop/blob/master/doc/images/icon.png" alt="lx-music logo"></a></p>
 
-<h1 align="center">LX Music 桌面版</h1>
+<h1 align="center">Chiverve Music</h1>
+
+> ## 关于本仓库
+>
+> 本仓库是 [LX Music 桌面版](https://github.com/lyswhut/lx-music-desktop)（作者 [lyswhut](https://github.com/lyswhut)，中文署名「落雪无痕」）的**独立衍生产品**，基于上游 `v2.12.6`（commit `ad95d509`）整树建立，**仅供个人自用**，不对外发布、不提供分发。
+>
+> - 改造目标：在桌面端内置完整的 QQ 音乐能力（登录、我的音乐、推荐、多音质取流等），详见 `docs/specs/`。
+> - 与上游关系：本仓库**不跟随上游 rebase**；已配置 `upstream` remote，上游的接口修复按需 `git cherry-pick`。
+> - 版权：代码沿用上游 Apache-2.0 许可证，上游署名完整保留在 `LICENSE` 与 `licenses/`。
+> - 下方 README 内容为上游原文，用于描述本仓库实际继承的代码与能力，尚未按本产品重写。
+
+<hr>
+
+<h1 align="center">LX Music 桌面版（上游原文）</h1>
 
 <p align="center">
   <a href="https://github.com/lyswhut/lx-music-desktop/releases"><img src="https://img.shields.io/github/release/lyswhut/lx-music-desktop" alt="Release version"></a>

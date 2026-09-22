@@ -6,15 +6,13 @@ import pkg from '../../../package.json'
 const author = pkg.author.name
 const name = pkg.name
 
+// 本仓库是独立衍生产品：版本检查只面向自有仓库，不再查询上游（lyswhut）的发布源。
+// 自有仓库需在 master 分支提供 publish/version.json 才会生效；未提供时检查失败，不影响使用。
 const address = [
   [`https://raw.githubusercontent.com/${author}/${name}/master/publish/version.json`, 'direct'],
-  ['https://registry.npmjs.org/lx-music-desktop-version-info/latest', 'npm'],
   [`https://cdn.jsdelivr.net/gh/${author}/${name}/publish/version.json`, 'direct'],
   [`https://fastly.jsdelivr.net/gh/${author}/${name}/publish/version.json`, 'direct'],
   [`https://gcore.jsdelivr.net/gh/${author}/${name}/publish/version.json`, 'direct'],
-  ['https://registry.npmmirror.com/lx-music-desktop-version-info/latest', 'npm'],
-  ['https://gitee.com/lyswhut/lx-music-desktop-versions/raw/master/version.json', 'direct'],
-  ['http://cdn.stsky.cn/lx-music/desktop/version.json', 'direct'],
 ]
 
 const request = async(url, retryNum = 0) => {

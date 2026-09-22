@@ -1,7 +1,7 @@
 {
-  "name": "lx-music-desktop",
+  "name": "chiverve-music",
   "version": "2.12.6",
-  "description": "一个免费的音乐查找助手",
+  "description": "基于 LX Music 改造的 QQ 音乐桌面客户端",
   "main": "./dist/main.js",
   "scripts": {
     "pack": "node build-config/pack.js && npm run pack:win:setup:x64",
@@ -76,21 +76,21 @@
   },
   "macLanguagesInfoPlistStrings": {
     "en": {
-      "CFBundleDisplayName": "LX Music",
-      "CFBundleName": "LX Music"
+      "CFBundleDisplayName": "Chiverve Music",
+      "CFBundleName": "Chiverve Music"
     },
     "zh_CN": {
-      "CFBundleDisplayName": "LX Music",
-      "CFBundleName": "LX Music"
+      "CFBundleDisplayName": "Chiverve Music",
+      "CFBundleName": "Chiverve Music"
     },
     "zh_TW": {
-      "CFBundleDisplayName": "LX Music",
-      "CFBundleName": "LX Music"
+      "CFBundleDisplayName": "Chiverve Music",
+      "CFBundleName": "Chiverve Music"
     }
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/lyswhut/lx-music-desktop.git"
+    "url": "git+https://github.com/climashscape/chiverve-music.git"
   },
   "keywords": [
     "music-player",
@@ -98,14 +98,13 @@
     "vuejs3"
   ],
   "author": {
-    "name": "lyswhut",
-    "email": "lyswhut@qq.com"
+    "name": "climashscape"
   },
   "license": "Apache-2.0",
   "bugs": {
-    "url": "https://github.com/lyswhut/lx-music-desktop/issues"
+    "url": "https://github.com/climashscape/chiverve-music/issues"
   },
-  "homepage": "https://github.com/lyswhut/lx-music-desktop#readme",
+  "homepage": "https://github.com/climashscape/chiverve-music#readme",
   "devDependencies": {
     "@tsconfig/recommended": "^1.0.13",
     "@types/better-sqlite3": "^7.6.13",
