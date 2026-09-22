@@ -13,7 +13,7 @@
           <h3 :class="$style.text" :aria-label="`${item.musicInfo.name} - ${item.musicInfo.singer}`">{{ item.musicInfo.name }} - {{ item.musicInfo.singer }}</h3>
           <h3 v-if="item.musicInfo.meta.albumName" :class="[$style.text, $style.albumName]" :aria-label="item.musicInfo.meta.albumName">{{ item.musicInfo.meta.albumName }}</h3>
         </div>
-        <div :class="$style.label">{{ item.musicInfo.source }}</div>
+        <div :class="$style.label">{{ getSourceName(item.musicInfo.source) }}</div>
         <div :class="$style.label">{{ item.musicInfo.interval }}</div>
         <div :class="$style.btns">
           <button type="button" :class="$style.btn" @click="handlePlay(index)">
@@ -39,7 +39,7 @@
 import { ref, watch, computed, markRawList } from '@common/utils/vueTools'
 import { playList } from '@renderer/core/player'
 import { getListMusics, removeListMusics } from '@renderer/store/list/action'
-import { isFullscreen } from '@renderer/store'
+import { isFullscreen, getSourceName } from '@renderer/store'
 import { appSetting } from '@renderer/store/setting'
 import { getFontSizeWithScreen } from '@renderer/utils'
 import { LIST_IDS } from '@common/constants'
@@ -105,6 +105,7 @@ export default {
       handleRemove,
       handlePlay,
       listName,
+      getSourceName,
     }
   },
 }

@@ -33,11 +33,12 @@ export const getMusicUrl = async({
   allowToggleSource?: boolean
 }): Promise<string> => {
   if ('progress' in musicInfo) {
-    return getDownloadMusicUrl({ musicInfo, isRefresh, onToggleSource, allowToggleSource })
+    return getDownloadMusicUrl({ musicInfo, isRefresh })
   } else if (musicInfo.source == 'local') {
     return getLocalMusicUrl({ musicInfo, isRefresh, onToggleSource, allowToggleSource })
   } else {
-    return getOnlineMusicUrl({ musicInfo, isRefresh, quality, onToggleSource, allowToggleSource })
+    // 在线源只剩 tx，在线歌曲不存在“换到别的源”，故不再接收换源相关参数
+    return getOnlineMusicUrl({ musicInfo, isRefresh, quality })
   }
 }
 
@@ -53,11 +54,11 @@ export const getPicPath = async({
   onToggleSource?: (musicInfo?: LX.Music.MusicInfoOnline) => void
 }): Promise<string> => {
   if ('progress' in musicInfo) {
-    return getDownloadPicUrl({ musicInfo, isRefresh, listId, onToggleSource })
+    return getDownloadPicUrl({ musicInfo, isRefresh, listId })
   } else if (musicInfo.source == 'local') {
     return getLocalPicUrl({ musicInfo, isRefresh, listId, onToggleSource })
   } else {
-    return getOnlinePicUrl({ musicInfo, isRefresh, listId, onToggleSource })
+    return getOnlinePicUrl({ musicInfo, isRefresh, listId })
   }
 }
 
@@ -71,10 +72,10 @@ export const getLyricInfo = async({
   onToggleSource?: (musicInfo?: LX.Music.MusicInfoOnline) => void
 }): Promise<LX.Player.LyricInfo> => {
   if ('progress' in musicInfo) {
-    return getDownloadLyricInfo({ musicInfo, isRefresh, onToggleSource })
+    return getDownloadLyricInfo({ musicInfo, isRefresh })
   } else if (musicInfo.source == 'local') {
     return getLocalLyricInfo({ musicInfo, isRefresh, onToggleSource })
   } else {
-    return getOnlineLyricInfo({ musicInfo, isRefresh, onToggleSource })
+    return getOnlineLyricInfo({ musicInfo, isRefresh })
   }
 }

@@ -89,20 +89,26 @@ export const getSourceI18nPrefix = () => {
 
 export const sourceNames = computed(() => {
   const prefix = getSourceI18nPrefix()
-  const sourceNames: Record<LX.OnlineSource | 'all', string> = {
-    kw: 'kw',
-    tx: 'tx',
-    kg: 'kg',
-    mg: 'mg',
-    wy: 'wy',
+  const names: Record<string, string> = {
     all: window.i18n.t(prefix + 'all' as any),
+    local: window.i18n.t('source_local' as any),
   }
-  for (const { id } of music.sources) {
-    sourceNames[id as LX.OnlineSource] = window.i18n.t(prefix + id as any)
-  }
-
-  return sourceNames
+  // 遍历注册表：加源时这里自动多一条（i18n 里补 source_<id>/source_alias_<id> 即可）
+  for (const { id } of music.sources) names[id] = window.i18n.t(prefix + id as any)
+  return names as Record<LX.Source | 'all', string>
 })
+
+/**
+ * 源的本地化显示名。
+ *
+ * 视图里要显示"这首歌/这个歌单来自哪"时**用它，不要直接渲染 `source` 值**——
+ * 那是 `'tx'` / `'local'` 这种内部标识，直接渲染会让用户看到 `tx`。
+ * （加源时：在 `sourceNames` 里补一条即可，视图不必改。）
+ */
+export const getSourceName = (source?: LX.Source | 'all' | null): string => {
+  if (source == null) return ''
+  return sourceNames.value[source] ?? String(source)
+}
 
 export const windowSizeList = markRaw(configWindowSizeList)
 

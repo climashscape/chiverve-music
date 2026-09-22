@@ -1,6 +1,7 @@
 import { httpFetch } from '../../request'
-import { decodeName, formatPlayTime, sizeFormate, dateFormat, formatPlayCount } from '../../index'
-import { formatSingerName } from '../utils'
+import { decodeName, dateFormat, formatPlayCount } from '../../index'
+import { createSong } from './utils/song'
+import { txCgi, buildComm, requireCredential } from './utils/request'
 
 export default {
   _requestObj_tags: null,
@@ -301,6 +302,7 @@ export default {
   async getListDetail(id, tryNum = 0) {
     if (tryNum > 2) return Promise.reject(new Error('try max num'))
 
+    // eslint-disable-next-line require-atomic-updates
     id = await this.getListId(id)
 
     const requestObj_listDetail = httpFetch(this.getListDetailUrl(id), {
@@ -313,7 +315,12 @@ export default {
 
     // console.log(body)
     if (body.code !== this.successCode) return this.getListDetail(id, ++tryNum)
-    if (body.subcode !== this.successCode || !body.cdlist) return this.getListDetail2(id)
+    // fcg_ucc 这条拿不到 cdlist 时（dir 型歌单如「我喜欢」就是这种情况），
+    // 先走登录态的 CgiGetDiss（实测 disstid=tid + dirid=0 对 dir 型同样有效），
+    // 最后才落到 legacy 的访客端点
+    if (body.subcode !== this.successCode || !body.cdlist) {
+      return this.getListDetailByCgi(id).catch(() => this.getListDetail2(id))
+    }
     const cdlist = body.cdlist[0]
     return {
       list: this.filterListDetail(cdlist.songlist),
@@ -333,58 +340,53 @@ export default {
   filterListDetail(rawList) {
     // console.log(rawList)
     return rawList.map(item => {
-      let types = []
-      let _types = {}
-      if (item.file.size_128mp3 !== 0) {
-        let size = sizeFormate(item.file.size_128mp3)
-        types.push({ type: '128k', size })
-        _types['128k'] = {
-          size,
-        }
-      }
-      if (item.file.size_320mp3 !== 0) {
-        let size = sizeFormate(item.file.size_320mp3)
-        types.push({ type: '320k', size })
-        _types['320k'] = {
-          size,
-        }
-      }
-      if (item.file.size_flac !== 0) {
-        let size = sizeFormate(item.file.size_flac)
-        types.push({ type: 'flac', size })
-        _types.flac = {
-          size,
-        }
-      }
-      if (item.file.size_hires !== 0) {
-        let size = sizeFormate(item.file.size_hires)
-        types.push({ type: 'flac24bit', size })
-        _types.flac24bit = {
-          size,
-        }
-      }
-      // types.reverse()
-      return {
-        singer: formatSingerName(item.singer, 'name'),
-        name: item.title,
-        albumName: item.album.name,
-        albumId: item.album.mid,
-        source: 'tx',
-        interval: formatPlayTime(item.interval),
-        songId: item.id,
-        albumMid: item.album.mid,
-        strMediaMid: item.file.media_mid,
-        songmid: item.mid,
-        img: (item.album.name === '' || item.album.name === '空')
-          ? item.singer?.length ? `https://y.gtimg.cn/music/photo_new/T001R500x500M000${item.singer[0].mid}.jpg` : ''
-          : `https://y.gtimg.cn/music/photo_new/T002R500x500M000${item.album.mid}.jpg`,
-        lrc: null,
-        otherSource: null,
-        types,
-        _types,
-        typeUrl: {},
-      }
+      return createSong(item)
     })
+  },
+
+  /**
+   * 歌单详情的登录态取法：`music.srfDissInfo.DissInfo/CgiGetDiss`，
+   * `disstid` 直接传歌单的 **tid**、`dirid` 传 0。
+   *
+   * 实测（2026-09-22）：`disstid=3802852742 & dirid=0` 能读到「我喜欢」
+   * （`code 0` + `dirinfo.title` + `songlist`），而 legacy 的 `fcg_ucc_getcdinfo_byids_cp`
+   * 与 `srfDissInfo.aiDissInfo` 对这类 dir 型歌单都取不到歌曲——所以它是回退链里
+   * 让"点开自己的歌单"能用的那一环。普通歌单走它也正常。
+   */
+  async getListDetailByCgi(id, page = 1, num = 30) {
+    const credential = await requireCredential()
+    const data = await txCgi({
+      module: 'music.srfDissInfo.DissInfo',
+      method: 'CgiGetDiss',
+      param: {
+        disstid: Number(id),
+        dirid: 0,
+        tag: true,
+        song_begin: num * (page - 1),
+        song_num: num,
+        userinfo: true,
+        orderlist: true,
+        enc_host_uin: credential.encryptUin,
+      },
+    }, buildComm(credential)).promise
+    const d = data?.data ?? {}
+    const list = (d.songlist ?? []).map(createSong)
+    if (!list.length) throw new Error('歌单为空或不可读')
+    const dir = d.dirinfo ?? {}
+    return {
+      list,
+      page,
+      limit: num,
+      total: Number(d.total ?? d.songlist_size ?? list.length),
+      source: 'tx',
+      info: {
+        name: dir.title ?? '',
+        img: dir.picurl ?? '',
+        desc: dir.desc ?? null,
+        author: '',
+        play_count: '',
+      },
+    }
   },
   getTags() {
     return Promise.all([this.getTag(), this.getHotTag()]).then(([tags, hotTag]) => ({ tags, hotTag, source: 'tx' }))
@@ -427,6 +429,78 @@ export default {
           source: 'tx',
         }
       })
+  },
+
+  // ── 我的歌单写操作（M6）──────────────────────────────────────────────
+  //
+  // 端点对照 QQMusicApi `modules/songlist.py:79-229`。都是登录态接口，凭证与 comm
+  // 走 tx/utils/request（`authst` 注入在 buildComm 里）。返回 code 语义：
+  // retCode 0 = 成功；80092 = 歌单里没有这首歌（删除时视为已达目标状态，不算失败）。
+
+  /**
+   * 创建歌单。重名不会失败（服务端自行加时间戳）。
+   * 返回 `{ dirId, tid, name }`——**实测**新歌单的 dirId/tid 在 `data.result` 里，
+   * 不在 `data.dirId`（那是删除接口的回显字段）。加歌/移歌要用返回的 `tid`。
+   */
+  async createList(dirName) {
+    const credential = await requireCredential()
+    const data = await txCgi({
+      module: 'music.musicasset.PlaylistBaseWrite',
+      method: 'AddPlaylist',
+      param: { dirName: String(dirName ?? '') },
+    }, buildComm(credential)).promise
+    const result = data?.data?.result ?? data?.result ?? {}
+    const dirId = Number(result.dirId ?? 0)
+    if (!dirId) throw new Error('创建歌单失败')
+    return { dirId, tid: Number(result.tid ?? 0), name: result.dirName ?? String(dirName ?? '') }
+  },
+
+  /** 删除自建歌单。成功时 `result.dirId` 回显被删的 dirId；删不存在的歌单返回 0。 */
+  async removeList(dirId) {
+    const credential = await requireCredential()
+    const data = await txCgi({
+      module: 'music.musicasset.PlaylistBaseWrite',
+      method: 'DelPlaylist',
+      param: { dirId: Number(dirId) },
+    }, buildComm(credential)).promise
+    const result = data?.data?.result ?? data?.result ?? {}
+    return Number(result.dirId ?? 0) !== 0
+  },
+
+  /**
+   * 往自建歌单里加歌。
+   * `songs` 每项要 `{ songId, songType }`——`songType` 是 QQ 的原始 `type`，
+   * 工厂（utils/song.js）已把它放在歌曲对象上，直接传 `musicInfo.songId/songType` 即可。
+   */
+  async addSongToList(dirId, songs, tid = 0) {
+    return this._writeSongList('AddSonglist', dirId, songs, tid)
+  },
+
+  /** 从自建歌单里移除歌曲。参数同 addSongToList。 */
+  async removeSongFromList(dirId, songs, tid = 0) {
+    return this._writeSongList('DelSonglist', dirId, songs, tid)
+  },
+
+  /** 增删歌曲的公共实现（两者只差 method）。 */
+  async _writeSongList(method, dirId, songs, tid = 0) {
+    const credential = await requireCredential()
+    const v_songInfo = (songs ?? []).map(song => ({
+      songId: Number(song.songId),
+      songType: Number(song.songType ?? 0),
+    }))
+    if (!v_songInfo.length) throw new Error('未选择歌曲')
+    const data = await txCgi({
+      module: 'music.musicasset.PlaylistDetailWrite',
+      method,
+      param: {
+        dirId: Number(dirId),
+        tid: Number(tid),
+        bFmtUtf8: true,
+        v_songInfo,
+      },
+    }, buildComm(credential)).promise
+    const retCode = data?.data?.retCode ?? data?.retCode
+    return retCode === 0 || retCode === 80092
   },
 }
 

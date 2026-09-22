@@ -4,7 +4,7 @@ import { addHistoryWord } from '@renderer/store/search/action'
 // import { useI18n } from '@renderer/plugins/i18n'
 // import { } from '@renderer/store/search/state'
 import type { SearchListInfo, ListInfoItem } from '@renderer/store/search/songlist'
-import { search as searchSongList, listInfos } from '@renderer/store/search/songlist'
+import { search as searchSongList, listInfos, normalizeSource } from '@renderer/store/search/songlist'
 
 export type SearchSource = LX.OnlineSource | 'all'
 
@@ -24,7 +24,7 @@ export default () => {
 
   const search = (text: string, source: SearchSource, page: number) => {
     // console.log(text, source, page)
-    listInfo.value = listInfos[source] as SearchListInfo
+    listInfo.value = listInfos[normalizeSource(source)] as SearchListInfo
     if (text.length) void addHistoryWord(text)
     void searchSongList(text, page, source).then((list: ListInfoItem[]) => {
       // console.log(list)

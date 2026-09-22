@@ -1,14 +1,12 @@
 import { httpFetch } from '../../request'
-import { formatPlayTime, sizeFormate } from '../../index'
+import { createSong } from './utils/song'
 
-const getSinger = (singers) => {
-  let arr = []
-  singers.forEach(singer => {
-    arr.push(singer.name)
-  })
-  return arr.join('、')
-}
-
+/**
+ * 按 songmid 查歌曲的完整信息（`music.pf_song_detail_svr`）。
+ *
+ * 被 `lyric.js` 与 `comment.js` 用来补数字 songId / 完整字段；字段映射统一走
+ * `utils/song.js` 的工厂（别再手写一遍）。
+ */
 export default (songmid) => {
   const requestObj = httpFetch('https://u.y.qq.com/cgi-bin/musicu.fcg', {
     method: 'post',
@@ -32,67 +30,10 @@ export default (songmid) => {
     },
   })
   return requestObj.promise.then(({ body }) => {
-    // console.log(body)
     if (body.code != 0 || body.req.code != 0) return Promise.reject(new Error('获取歌曲信息失败'))
     const item = body.req.data.track_info
     if (!item.file?.media_mid) return null
 
-    let types = []
-    let _types = {}
-    const file = item.file
-    if (file.size_128mp3 != 0) {
-      let size = sizeFormate(file.size_128mp3)
-      types.push({ type: '128k', size })
-      _types['128k'] = {
-        size,
-      }
-    }
-    if (file.size_320mp3 !== 0) {
-      let size = sizeFormate(file.size_320mp3)
-      types.push({ type: '320k', size })
-      _types['320k'] = {
-        size,
-      }
-    }
-    if (file.size_flac !== 0) {
-      let size = sizeFormate(file.size_flac)
-      types.push({ type: 'flac', size })
-      _types.flac = {
-        size,
-      }
-    }
-    if (file.size_hires !== 0) {
-      let size = sizeFormate(file.size_hires)
-      types.push({ type: 'flac24bit', size })
-      _types.flac24bit = {
-        size,
-      }
-    }
-    // types.reverse()
-    let albumId = ''
-    let albumName = ''
-    if (item.album) {
-      albumName = item.album.name
-      albumId = item.album.mid
-    }
-    return {
-      singer: getSinger(item.singer),
-      name: item.title,
-      albumName,
-      albumId,
-      source: 'tx',
-      interval: formatPlayTime(item.interval),
-      songId: item.id,
-      albumMid: item.album?.mid ?? '',
-      strMediaMid: item.file.media_mid,
-      songmid: item.mid,
-      img: (albumId === '' || albumId === '空')
-        ? item.singer?.length ? `https://y.gtimg.cn/music/photo_new/T001R500x500M000${item.singer[0].mid}.jpg` : ''
-        : `https://y.gtimg.cn/music/photo_new/T002R500x500M000${albumId}.jpg`,
-      types,
-      _types,
-      typeUrl: {},
-    }
+    return createSong(item)
   })
 }
-

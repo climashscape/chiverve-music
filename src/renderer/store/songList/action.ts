@@ -7,7 +7,6 @@ import {
   listInfo,
   listDetailInfo,
   selectListInfo,
-  isVisibleListDetail,
   openSongListInputInfo,
 } from './state'
 import type {
@@ -68,7 +67,7 @@ export const setSelectListInfo = (info: ListInfoItem) => {
 export const clearListDetail = () => {
   listDetailInfo.list = []
   listDetailInfo.id = ''
-  listDetailInfo.source = 'kw'
+  listDetailInfo.source = 'tx'
   listDetailInfo.total = 0
   listDetailInfo.limit = 30
   listDetailInfo.page = 1
@@ -201,10 +200,6 @@ export const getAndSetListDetail = async(id: string, source: LX.OnlineSource, pa
     console.log(error)
     throw error
   })
-}
-
-export const setVisibleListDetail = (visible: boolean) => {
-  isVisibleListDetail.value = visible
 }
 
 export const setOpenSongListInputInfo = (text: string, source: string) => {

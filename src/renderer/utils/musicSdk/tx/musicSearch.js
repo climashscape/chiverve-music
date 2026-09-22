@@ -1,6 +1,5 @@
-import { formatPlayTime, sizeFormate } from '../../index'
-import { formatSingerName } from '../utils'
 import { signRequest } from './utils'
+import { createSong } from './utils/song'
 
 export default {
   limit: 50,
@@ -66,63 +65,7 @@ export default {
     rawList.forEach(item => {
       if (!item.file?.media_mid) return
 
-      let types = []
-      let _types = {}
-      const file = item.file
-      if (file.size_128mp3 != 0) {
-        let size = sizeFormate(file.size_128mp3)
-        types.push({ type: '128k', size })
-        _types['128k'] = {
-          size,
-        }
-      }
-      if (file.size_320mp3 !== 0) {
-        let size = sizeFormate(file.size_320mp3)
-        types.push({ type: '320k', size })
-        _types['320k'] = {
-          size,
-        }
-      }
-      if (file.size_flac !== 0) {
-        let size = sizeFormate(file.size_flac)
-        types.push({ type: 'flac', size })
-        _types.flac = {
-          size,
-        }
-      }
-      if (file.size_hires !== 0) {
-        let size = sizeFormate(file.size_hires)
-        types.push({ type: 'flac24bit', size })
-        _types.flac24bit = {
-          size,
-        }
-      }
-      // types.reverse()
-      let albumId = ''
-      let albumName = ''
-      if (item.album) {
-        albumName = item.album.name
-        albumId = item.album.mid
-      }
-      list.push({
-        singer: formatSingerName(item.singer, 'name'),
-        // name: item.name + (item.title_extra ?? ''),
-        name: item.title,
-        albumName,
-        albumId,
-        source: 'tx',
-        interval: item.interval ? formatPlayTime(item.interval) : null,
-        songId: item.id,
-        albumMid: item.album?.mid ?? '',
-        strMediaMid: item.file.media_mid,
-        songmid: item.mid,
-        img: (albumId === '' || albumId === '空')
-          ? item.singer?.length ? `https://y.gtimg.cn/music/photo_new/T001R500x500M000${item.singer[0].mid}.jpg` : ''
-          : `https://y.gtimg.cn/music/photo_new/T002R500x500M000${albumId}.jpg`,
-        types,
-        _types,
-        typeUrl: {},
-      })
+      list.push(createSong(item))
     })
     // console.log(list)
     return list

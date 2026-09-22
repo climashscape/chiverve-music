@@ -7,7 +7,7 @@
       <ul v-if="lists.length" ref="dom_list" :class="$style.list">
         <li v-for="list in lists" :key="list.id" :class="[$style.listItem, {[$style.fetching]: fetchingListStatus[list.id]}]">
           <div :class="$style.listLeft">
-            <h3 :class="$style.text">{{ list.name }} <span :class="$style.label">{{ list.source }}</span></h3>
+            <h3 :class="$style.text">{{ list.name }} <span :class="$style.label">{{ getSourceName(list.source) }}</span></h3>
             <div>
               <base-checkbox
                 :id="`list_auto_update_${list.id}`" :model-value="updateInfo[list.id]?.isAutoUpdate == true"
@@ -37,6 +37,7 @@
 
 <script>
 import { computed, ref } from '@common/utils/vueTools'
+import { getSourceName } from '@renderer/store'
 import { userLists, fetchingListStatus, listUpdateTimes } from '@renderer/store/list/state'
 import handleSyncSourceList from '@renderer/store/list/syncSourceList'
 import musicSdk from '@renderer/utils/musicSdk'
@@ -87,6 +88,7 @@ export default {
       handleUpdate,
       handleChangeAutoUpdate,
       listUpdateTimes,
+      getSourceName,
     }
   },
 }

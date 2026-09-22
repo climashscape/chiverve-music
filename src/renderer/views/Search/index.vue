@@ -1,7 +1,6 @@
 <template>
   <div :class="$style.container">
     <div :class="$style.header">
-      <base-tab v-model="source" :list="sources" @change="handleSourceChange" />
       <base-tab v-model="searchType" :list="searchTypes" @change="handleTypeChange" />
     </div>
     <div :class="$style.main">
@@ -16,15 +15,14 @@
 import { useRoute, useRouter } from '@common/utils/vueRouter'
 import { searchText } from '@renderer/store/search/state'
 import { getSearchSetting, setSearchSetting } from '@renderer/utils/data'
-import { sources as _sources } from '@renderer/store/search/music'
+import { normalizeSource } from '@renderer/store/search/music'
 
 import MusicList from './MusicList/index.vue'
 import SongListList from './SongListList/index.vue'
 import BlankView from './components/BlankView.vue'
 import { computed, ref } from '@common/utils/vueTools'
-import { sourceNames } from '@renderer/store'
 
-const source = ref('kw')
+const source = ref('tx')
 const searchType = ref(null)
 const page = ref(1)
 
@@ -40,11 +38,11 @@ const verifyQueryParams = async(to, from, next) => {
 
     next({
       path: to.path,
-      query: { ...to.query, source: _source, type: _type, page: _page },
+      query: { ...to.query, source: normalizeSource(_source), type: _type, page: _page },
     })
     return
   }
-  source.value = _source
+  source.value = normalizeSource(_source)
   searchType.value = _type
 
   if (_page) page.value = parseInt(_page)
@@ -54,7 +52,7 @@ const verifyQueryParams = async(to, from, next) => {
     if (!_page) page.value = 1
   }
   next()
-  void setSearchSetting({ source: _source, type: _type })
+  void setSearchSetting({ source: source.value, type: _type })
 }
 
 export default {
@@ -68,23 +66,6 @@ export default {
   setup() {
     const route = useRoute()
     const router = useRouter()
-
-    const sources = _sources.map(id => {
-      return {
-        id,
-        label: sourceNames.value[id],
-      }
-    })
-    const handleSourceChange = (id) => {
-      void router.replace({
-        path: route.path,
-        query: {
-          ...route.query,
-          source: id,
-          page: 1,
-        },
-      })
-    }
 
     const searchTypes = computed(() => {
       return [
@@ -105,9 +86,7 @@ export default {
 
 
     return {
-      sources,
       source,
-      handleSourceChange,
       searchTypes,
       searchType,
       handleTypeChange,

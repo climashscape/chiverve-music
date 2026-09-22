@@ -45,7 +45,15 @@ declare namespace LX {
     [key: string]: boolean | number | string
   }
 
-  type OnlineSource = 'kw' | 'kg' | 'tx' | 'wy' | 'mg'
+  /**
+   * 本产品的在线音源只有 QQ 音乐一条线。
+   *
+   * 收敛成单值是有意的：多渠道的**结构**（musicSdk 的源注册表、api-source-info
+   * 的 supportQualitys、store 的按源分派）都保留着——将来要加源时按 AGENTS.md
+   * 「新增一个在线音源」的清单加即可。类型层面只承认已实现的源，这样任何"假设源
+   * 有多个"的代码在编译期就会报出来，不会留成隐藏分支。
+   */
+  type OnlineSource = 'tx'
   type Source = OnlineSource | 'local'
   type Quality = '128k' | '320k' | 'flac' | 'flac24bit' | '192k' | 'ape' | 'wav'
 

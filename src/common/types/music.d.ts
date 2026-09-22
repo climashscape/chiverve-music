@@ -4,17 +4,8 @@ declare namespace LX {
       type: LX.Quality
       size: string | null
     }
-    interface MusicQualityTypeKg { // {"type": "128k", size: "3.56M"}
-      type: LX.Quality
-      size: string | null
-      hash: string
-    }
     type _MusicQualityType = Partial<Record<Quality, {
       size: string | null
-    }>>
-    type _MusicQualityTypeKg = Partial<Record<Quality, {
-      size: string | null
-      hash: string
     }>>
 
 
@@ -50,40 +41,19 @@ declare namespace LX {
       meta: MusicInfoMeta_local
     }
 
-    interface MusicInfo_online_common extends MusicInfoBase<'kw' | 'wy'> {
-      meta: MusicInfoMeta_online
-    }
-
-    interface MusicInfoMeta_kg extends MusicInfoMeta_online {
-      qualitys: MusicQualityTypeKg[]
-      _qualitys: _MusicQualityTypeKg
-      hash: string // 歌曲hash
-      albumAudioId?: string // 专辑内歌曲ID(MixSongID)，用于歌词精确搜索
-    }
-    interface MusicInfo_kg extends MusicInfoBase<'kg'> {
-      meta: MusicInfoMeta_kg
-    }
-
     interface MusicInfoMeta_tx extends MusicInfoMeta_online {
       strMediaMid: string // 歌曲strMediaMid
       id?: number // 歌曲songId
       albumMid?: string // 歌曲albumMid
+      songType?: number // QQ 原始 type（歌单增删歌曲的写接口要它）
     }
     interface MusicInfo_tx extends MusicInfoBase<'tx'> {
       meta: MusicInfoMeta_tx
     }
 
-    interface MusicInfoMeta_mg extends MusicInfoMeta_online {
-      copyrightId: string // 歌曲copyrightId
-      lrcUrl?: string // 歌曲lrcUrl
-      mrcUrl?: string // 歌曲mrcUrl
-      trcUrl?: string // 歌曲trcUrl
-    }
-    interface MusicInfo_mg extends MusicInfoBase<'mg'> {
-      meta: MusicInfoMeta_mg
-    }
-
-    type MusicInfoOnline = MusicInfo_online_common | MusicInfo_kg | MusicInfo_tx | MusicInfo_mg
+    // 在线歌曲只有 QQ 音乐一条线（见 LX.OnlineSource 的说明）。将来加源时在此补
+    // `MusicInfoMeta_<源>` + `MusicInfo_<源>`，并把新类型并进这个联合即可。
+    type MusicInfoOnline = MusicInfo_tx
     type MusicInfo = MusicInfoOnline | MusicInfoLocal
 
     interface LyricInfo {

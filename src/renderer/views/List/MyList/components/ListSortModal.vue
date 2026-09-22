@@ -31,12 +31,6 @@
               need="need" value="interval" :disabled="disabledSortFislds" :label="$t('list_sort_modal_by_time')"
             />
           </li>
-          <li :class="$style.listItem">
-            <base-checkbox
-              id="list_sort_modal_field_source" v-model="sortField" name="list_sort_modal_field"
-              need="need" value="source" :disabled="disabledSortFislds" :label="$t('list_sort_modal_by_source')"
-            />
-          </li>
         </ul>
       </section>
       <section>

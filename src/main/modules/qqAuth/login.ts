@@ -65,7 +65,7 @@ const RE_SAFE_TOKEN = /^[A-Za-z0-9\-_%.~]{1,512}$/
 /** 纯数字（uin 是 QQ 号）。 */
 const RE_DIGITS = /^[0-9]{1,20}$/
 /** cookie 名。 */
-const RE_SAFE_NAME = /^[A-Za-z0-9_\-]{1,64}$/
+const RE_SAFE_NAME = /^[A-Za-z0-9_-]{1,64}$/
 /**
  * cookie 值里**绝不允许**出现的字符：控制字符、分隔符、空白、引号、反斜杠。
  *
@@ -74,6 +74,7 @@ const RE_SAFE_NAME = /^[A-Za-z0-9_\-]{1,64}$/
  * 登录态 cookie、被拒后重定向到 www.qq.com（没有 code），报"获取 code 失败"——
  * M2 实测踩过这个坑（见 commit 记录）。黑名单足以阻止请求头注入（CRLF 等都在其中）。
  */
+// eslint-disable-next-line no-control-regex -- 控制字符正是要拦的东西（防 CRLF 注入）
 const RE_UNSAFE_COOKIE_VALUE = /[\u0000-\u001f\u007f\s;,="\\]/
 
 const assertSafeToken = (value: string, label: string): string => {
@@ -327,6 +328,7 @@ export const checkLogin = async(): Promise<LX.QQAuth.LoginCheckResult> => {
   if (rawSigx === '' || rawUin === '') throw new Error('解析登录参数失败')
 
   const credential = await authorize(rawUin, rawSigx, session.jar)
+  // eslint-disable-next-line require-atomic-updates -- 会话已消费完，这里清掉是刻意的
   session = null
   log.info('[qqAuth] login succeeded')
   return { event, status: setCredential(credential) }

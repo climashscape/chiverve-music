@@ -121,6 +121,7 @@ export const refresh = async(force = false): Promise<LX.QQAuth.RefreshResult> =>
     // 刷新失败不登出：M0 实测刷新有过渡期，旧 key 短期仍可用，可重试
     return { ok: false, status: broadcast(), message }
   } finally {
+    // eslint-disable-next-line require-atomic-updates -- 与开头的 `refreshing = true` 配对，必须清掉
     refreshing = false
   }
 }

@@ -64,11 +64,7 @@ const useInitEnvParamPlay = () => {
           playList(targetList.id, getListPlayIndex(await getListMusics(targetList.id), params.index))
         }
         break
-      case 'kw':
-      case 'kg':
       case 'tx':
-      case 'mg':
-      case 'wy':
         void playSongListDetail(params.source, params.link, parseInt(params.index))
         break
     }

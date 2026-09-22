@@ -148,18 +148,17 @@ const getProxy = () => {
  */
 const saveMeta = (downloadInfo: LX.Download.ListItem) => {
   if (downloadInfo.metadata.quality === 'ape') return
-  const isUseOtherSource = appSetting['download.isUseOtherSource']
   const tasks: [Promise<string | null>, Promise<LX.Player.LyricInfo | null>] = [
     appSetting['download.isEmbedPic']
       ? downloadInfo.metadata.musicInfo.meta.picUrl
         ? Promise.resolve(downloadInfo.metadata.musicInfo.meta.picUrl)
-        : getPicUrl({ musicInfo: downloadInfo.metadata.musicInfo, isRefresh: false, allowToggleSource: isUseOtherSource }).catch(err => {
+        : getPicUrl({ musicInfo: downloadInfo.metadata.musicInfo, isRefresh: false }).catch(err => {
           console.log(err)
           return null
         })
       : Promise.resolve(null),
     appSetting['download.isEmbedLyric']
-      ? getLyricInfo({ musicInfo: downloadInfo.metadata.musicInfo, isRefresh: false, allowToggleSource: isUseOtherSource }).catch(err => {
+      ? getLyricInfo({ musicInfo: downloadInfo.metadata.musicInfo, isRefresh: false }).catch(err => {
         console.log(err)
         return null
       })
@@ -189,7 +188,6 @@ const downloadLyric = (downloadInfo: LX.Download.ListItem) => {
   void getLyricInfo({
     musicInfo: downloadInfo.metadata.musicInfo,
     isRefresh: false,
-    allowToggleSource: appSetting['download.isUseOtherSource'],
   }).then(lrcs => {
     if (lrcs.lyric) {
       lrcs.lyric = fixKgLyric(lrcs.lyric)
@@ -211,13 +209,11 @@ const getUrl = async(downloadInfo: LX.Download.ListItem, isRefresh: boolean = fa
     musicInfo: toggleMusicInfo,
     isRefresh,
     quality: downloadInfo.metadata.quality,
-    allowToggleSource: false,
   }) : Promise.reject(new Error('not found'))).catch(() => {
     return getMusicUrl({
       musicInfo: downloadInfo.metadata.musicInfo,
       isRefresh: false,
       quality: downloadInfo.metadata.quality,
-      allowToggleSource: appSetting['download.isUseOtherSource'],
     })
   }).catch(() => '')
 }
@@ -228,13 +224,11 @@ const handleRefreshUrl = (downloadInfo: LX.Download.ListItem) => {
     musicInfo: toggleMusicInfo,
     isRefresh: true,
     quality: downloadInfo.metadata.quality,
-    allowToggleSource: false,
   }) : Promise.reject(new Error('not found'))).catch(() => {
     return getMusicUrl({
       musicInfo: downloadInfo.metadata.musicInfo,
       isRefresh: true,
       quality: downloadInfo.metadata.quality,
-      allowToggleSource: appSetting['download.isUseOtherSource'],
     })
   })
     .catch(() => '')

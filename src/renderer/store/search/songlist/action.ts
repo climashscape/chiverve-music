@@ -1,9 +1,8 @@
 import { markRawList } from '@common/utils/vueTools'
 import music from '@renderer/utils/musicSdk'
-import { sortInsert, similar } from '@common/utils/common'
 
 import type { ListInfoItem } from './state'
-import { sources, maxPages, listInfos } from './state'
+import { listInfos, normalizeSource } from './state'
 
 interface SearchResult {
   list: ListInfoItem[]
@@ -13,54 +12,9 @@ interface SearchResult {
 }
 
 
-/**
- * 按搜索关键词重新排序列表
- * @param list 歌曲列表
- * @param keyword 搜索关键词
- * @returns 排序后的列表
- */
-const handleSortList = (list: ListInfoItem[], keyword: string) => {
-  let arr: any[] = []
-  for (const item of list) {
-    sortInsert(arr, {
-      num: similar(keyword, item.name),
-      data: item,
-    })
-  }
-  return arr.map(item => item.data).reverse()
-}
-
-
-let maxTotals: Partial<Record<LX.OnlineSource, number>> = {
-
-}
-const setLists = (results: SearchResult[], page: number, text: string): ListInfoItem[] => {
-  let totals = []
-  let limit = 0
-  let list = []
-  for (const source of results) {
-    list.push(...source.list)
-    totals.push(source.total)
-    maxTotals[source.source] = source.total
-    maxPages[source.source] = Math.ceil(source.total / source.limit)
-    limit = Math.max(source.limit, limit)
-  }
-  markRawList(list)
-
-  let listInfo = listInfos.all
-  const total = Math.max(0, ...totals)
-  if (page == 1 || (total && list.length)) listInfo.total = total
-  else listInfo.total = limit * page
-  listInfo.page = page
-  listInfo.list = handleSortList(list, text)
-  if (text && !list.length && page == 1) listInfo.noItemLabel = window.i18n.t('no_item')
-  else listInfo.noItemLabel = ''
-  return listInfo.list
-}
-
 const setList = (datas: SearchResult, page: number, text: string): ListInfoItem[] => {
-  // console.log(datas.source, datas.list)
-  let listInfo = listInfos[datas.source]!
+  let listInfo = listInfos[normalizeSource(datas.source)]
+  if (!listInfo) return []
   listInfo.list = markRawList(datas.list)
   if (page == 1 || (datas.total && datas.list.length)) listInfo.total = datas.total
   else listInfo.total = datas.limit * page
@@ -71,8 +25,8 @@ const setList = (datas: SearchResult, page: number, text: string): ListInfoItem[
   return listInfo.list
 }
 
-export const resetListInfo = (sourceId: LX.OnlineSource | 'all'): [] => {
-  let listInfo = listInfos[sourceId]
+export const resetListInfo = (sourceId?: string): [] => {
+  let listInfo = listInfos[normalizeSource(sourceId)]
   if (!listInfo) return []
   listInfo.page = 1
   listInfo.limit = 20
@@ -85,44 +39,22 @@ export const resetListInfo = (sourceId: LX.OnlineSource | 'all'): [] => {
   return []
 }
 
-export const search = async(text: string, page: number, sourceId: LX.OnlineSource | 'all'): Promise<ListInfoItem[]> => {
-  const listInfo = listInfos[sourceId]!
-  if (!text) return resetListInfo(sourceId)
-  const key = `${page}__${sourceId}__${text}`
+export const search = async(text: string, page: number, sourceId?: string): Promise<ListInfoItem[]> => {
+  const id = normalizeSource(sourceId)
+  const listInfo = listInfos[id]
+  if (!listInfo) return []
+  if (!text) return resetListInfo(id)
+  const key = `${page}__${id}__${text}`
   if (listInfo.key == key && listInfo.list.length) return listInfo.list
-  if (sourceId == 'all') {
-    listInfo.noItemLabel = window.i18n.t('list__loading')
-    listInfo.key = key
-    let task = []
-    for (const source of sources) {
-      if (source == 'all' || (page > 1 && page > (maxPages[source]!))) continue
-      task.push((music[source]?.songList.search(text, page, listInfos.all.limit) ?? Promise.reject(new Error('source not found: ' + source))).catch((error: any) => {
-        console.log(error)
-        return {
-          list: [],
-          total: 0,
-          limit: listInfos.all.limit,
-          source,
-        }
-      }))
-    }
-    return Promise.all(task).then((results: SearchResult[]) => {
-      if (key != listInfo.key) return []
-      return setLists(results, page, text)
-    })
-  } else {
-    if (listInfo?.key == key && listInfo?.list.length) return listInfo?.list
-    listInfo.noItemLabel = window.i18n.t('list__loading')
-    listInfo.key = key
-    return (music[sourceId]?.songList.search(text, page, listInfo.limit).then((data: SearchResult) => {
-      if (key != listInfo.key) return []
-      return setList(data, page, text)
-    }) ?? Promise.reject(new Error('source not found: ' + sourceId))).catch((error: any) => {
-      resetListInfo(sourceId)
-      listInfo.noItemLabel = window.i18n.t('list__load_failed')
-      console.log(error)
-      throw error
-    })
-  }
+  listInfo.noItemLabel = window.i18n.t('list__loading')
+  listInfo.key = key
+  return (music[id]?.songList.search(text, page, listInfo.limit).then((data: SearchResult) => {
+    if (key != listInfo.key) return []
+    return setList({ ...data, source: id }, page, text)
+  }) ?? Promise.reject(new Error('source not found: ' + id))).catch((error: any) => {
+    resetListInfo(id)
+    listInfo.noItemLabel = window.i18n.t('list__load_failed')
+    console.log(error)
+    throw error
+  })
 }
-

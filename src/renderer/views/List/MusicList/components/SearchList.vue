@@ -27,7 +27,6 @@
                   <h3 :class="$style.text">{{ item.name }} - {{ item.singer }}</h3>
                   <h3 v-if="item.meta.albumName" :class="[$style.text, $style.albumName]">{{ item.meta.albumName }}</h3>
                 </div>
-                <div :class="$style.source">{{ item.source }}</div>
               </li>
             </ul>
           </div>
@@ -350,15 +349,4 @@ export default {
   opacity: 0.6;
   .mixin-ellipsis-1();
 }
-.source {
-  flex: none;
-  font-size: 12px;
-  opacity: 0.5;
-  padding: 0 5px;
-  display: flex;
-  align-items: center;
-  // transform: rotate(45deg);
-  // background-color:
-}
-
 </style>

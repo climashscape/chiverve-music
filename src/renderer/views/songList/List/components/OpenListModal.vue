@@ -3,7 +3,6 @@
     <main class="scroll" :class="$style.main">
       <h2>{{ $t('songlist__import_input_title') }}</h2>
       <div :class="$style.inputContent">
-        <base-selection v-model="source" :class="$style.select" :list="props.sourceList" item-key="id" item-name="name" />
         <base-input
           ref="input"
           v-model.trim="text"
@@ -15,7 +14,6 @@
       <div :class="$style.footer">
         <div :class="$style.tips">
           <ul>
-            <li>{{ $t('songlist__import_input_tip_1') }}</li>
             <li>{{ $t('songlist__import_input_tip_2') }}</li>
             <li>{{ $t('songlist__import_input_tip_3') }}</li>
             <li>
@@ -34,19 +32,16 @@
   </material-modal>
 </template>
 
-<script setup>
-import { openSongListInputInfo } from '@renderer/store/songList/state'
+<script setup lang="ts">
+import { openSongListInputInfo, sources } from '@renderer/store/songList/state'
 import { setOpenSongListInputInfo } from '@renderer/store/songList/action'
+import { DEFAULT_SETTING } from '@common/constants'
 import { ref, watch } from '@common/utils/vueTools'
 import { useRoute, useRouter } from '@common/utils/vueRouter'
 import { openUrl } from '@common/utils/electron'
 
 const props = defineProps({
   modelValue: Boolean,
-  sourceList: {
-    type: Array,
-    required: true,
-  },
 })
 
 const emit = defineEmits(['update:model-value'])
@@ -54,11 +49,17 @@ const emit = defineEmits(['update:model-value'])
 const router = useRouter()
 const route = useRoute()
 const text = ref('')
-const source = ref('')
+const source = ref<LX.OnlineSource>('tx')
+
+// 只保留 tx 一个在线源，导入歌单时不再选择来源
+const normalizeSource = (source?: string): LX.OnlineSource => {
+  return sources.includes(source as LX.OnlineSource) ? source as LX.OnlineSource : (sources[0] ?? DEFAULT_SETTING.songList.source)
+}
 
 watch(() => props.modelValue, (visible) => {
   if (!visible) return
-  source.value = openSongListInputInfo.source || route.query.source
+  const querySource = route.query.source
+  source.value = normalizeSource(openSongListInputInfo.source || (typeof querySource == 'string' ? querySource : undefined))
   // text.value = openSongListInputInfo.text
 })
 
@@ -103,35 +104,8 @@ const handleSubmit = () => {
   display: flex;
   flex-flow: row nowrap;
 }
-.select {
-  width: auto;
-  :global {
-    .label-content {
-      height: 100%;
-      border-top-right-radius: 0;
-      border-bottom-right-radius: 0;
-    }
-
-    .selection-list {
-      li {
-        // background-color: var(--color-main-background);
-        text-align: center;
-        line-height: 32px;
-        font-size: 13px;
-        &:hover {
-          background-color: var(--color-button-background-hover);
-        }
-        &:active {
-          background-color: var(--color-button-background-active);
-        }
-      }
-    }
-  }
-}
 .input {
   flex: auto;
-  border-top-left-radius: 0;
-  border-bottom-left-radius: 0;
   // width: 100%;
   // height: 26px;
   padding: 8px 8px;

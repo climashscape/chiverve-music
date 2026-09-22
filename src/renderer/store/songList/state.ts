@@ -1,4 +1,4 @@
-import { reactive, markRaw, ref, shallowReactive } from '@common/utils/vueTools'
+import { reactive, markRaw, shallowReactive } from '@common/utils/vueTools'
 import music from '@renderer/utils/musicSdk'
 
 export interface SortInfo {
@@ -13,7 +13,9 @@ for (const source of music.sources) {
   const songList = music[source.id as LX.OnlineSource]?.songList
   if (!songList) continue
   sources.push(source.id as LX.OnlineSource)
-  sortList[source.id as LX.OnlineSource] = songList.sortList as SortInfo[]
+  // id 统一成字符串：各源排序 ID 有数字有字符串，而 store 里 sortId 一路是字符串
+  // （tx 的模块自己对 id 做 parseInt，见 tx/songList.js:38）
+  sortList[source.id as LX.OnlineSource] = songList.sortList.map(item => ({ name: item.name, id: String(item.id) }))
 }
 
 export interface TagInfoItem<T extends LX.OnlineSource = LX.OnlineSource> {
@@ -88,7 +90,7 @@ export const listInfo = reactive<ListInfo>({
   limit: 30,
   key: null,
   noItemLabel: '',
-  source: 'kw',
+  source: 'tx',
   tagId: '',
   sortId: '',
 })
@@ -101,7 +103,7 @@ export const listDetailInfo = reactive<ListDetailInfo>({
   page: 1,
   limit: 30,
   key: null,
-  source: 'kw',
+  source: 'tx',
   info: {},
   noItemLabel: '',
 })
@@ -115,10 +117,9 @@ export const selectListInfo = markRaw<ListInfoItem>({
   img: '',
   // grade: basic.favorcnt / 10,
   desc: '',
-  source: 'kw',
+  source: 'tx',
 })
 
-export const isVisibleListDetail = ref(false)
 export const openSongListInputInfo = markRaw({
   text: '',
   source: '',

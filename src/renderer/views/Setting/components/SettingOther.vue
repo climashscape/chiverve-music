@@ -27,16 +27,12 @@ dd
   h3#other_other_source {{ $t('setting__other_other_cache') }}
   div
     .p
-      | {{ $t('setting__other_other_source_label') }}
-      span.auto-hidden {{ otherSourceCount }}
-    .p
       | {{ $t('setting__other_music_url_label') }}
       span.auto-hidden {{ musicUrlCount }}
     .p
       | {{ $t('setting__other_lyric_raw_label') }}
       span.auto-hidden {{ lyricRawCount }}
     .p
-      base-btn.btn(min :disabled="isDisabledOtherSourceCacheClear" @click="handleClearOtherSourceCache") {{ $t('setting__other_other_source_clear_btn') }}
       base-btn.btn(min :disabled="isDisabledMusicUrlCacheClear" @click="handleClearMusicUrlCache") {{ $t('setting__other_music_url_clear_btn') }}
       base-btn.btn(min :disabled="isDisabledLyricRawCacheClear" @click="handleClearLyricRawCache") {{ $t('setting__other_lyric_raw_clear_btn') }}
 
@@ -71,7 +67,6 @@ dd
 import { ref, computed } from '@common/utils/vueTools'
 import {
   clearCache, getCacheSize,
-  getOtherSourceCount, clearOtherSource,
   getMusicUrlCount, clearMusicUrl,
   getLyricRawCount, clearLyricRaw,
   getLyricEditedCount, clearLyricEdited,
@@ -123,23 +118,6 @@ export default {
       })
     }
     refreshCacheSize()
-
-
-    const otherSourceCount = ref(0)
-    const isDisabledOtherSourceCacheClear = ref(false)
-    const refreshOtherSourceCount = () => {
-      void getOtherSourceCount().then(count => {
-        otherSourceCount.value = count
-      })
-    }
-    const handleClearOtherSourceCache = async() => {
-      isDisabledOtherSourceCacheClear.value = true
-      void clearOtherSource().then(() => {
-        refreshOtherSourceCount()
-        isDisabledOtherSourceCacheClear.value = false
-      })
-    }
-    refreshOtherSourceCount()
 
 
     const musicUrlCount = ref(0)
@@ -219,10 +197,6 @@ export default {
       cacheSize,
       isDisabledResourceCacheClear,
       clearResourceCache,
-
-      otherSourceCount,
-      isDisabledOtherSourceCacheClear,
-      handleClearOtherSourceCache,
 
       musicUrlCount,
       isDisabledMusicUrlCacheClear,

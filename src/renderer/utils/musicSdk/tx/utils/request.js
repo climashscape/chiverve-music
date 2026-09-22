@@ -1,4 +1,5 @@
 import { httpFetch } from '../../../request'
+import { getQQCredential } from '@renderer/utils/ipc'
 import { zzcSign } from './crypto'
 
 /**
@@ -27,16 +28,34 @@ const UA = 'QQMusic 14090508(android 12)'
 const REQ_KEY = 'req_1'
 
 /**
- * 按 §4.2 的 WEB 档案构造 comm，并注入登录态。
+ * 取凭证并校验登录态 —— 账户类（我的音乐）与写操作类（歌单增删）接口的公共前置。
+ *
+ * `encryptUin` 是必需的：QQ 的账户级接口基本都用它（euin）而不是数字 uin，
+ * 早期凭证或异常凭证里可能为空，这里直接拦掉并给出可操作的信息。
+ */
+export const requireCredential = async() => {
+  const credential = await getQQCredential()
+  if (credential == null) throw new Error('QQ 音乐未登录')
+  if (!credential.encryptUin) throw new Error('凭证缺少 encryptUin，请重新登录')
+  return credential
+}
+
+/**
+ * 按 §4.2 构造 comm，并注入登录态。
+ *
+ * `profile` 默认 `'web'`；**个别端点必须用安卓形态**（主页 `GetHomepageHeader`、
+ * 听歌基因 `GetProfileReport`——M0 实测 WEB 形态被拒 `code=10000`），那些调用点传
+ * `'android'`。两种形态都**不需要 QIMEI 设备指纹**（M0 结论），所以这里没有设备字段。
  *
  * `authst`（= musickey）与 `qq`（= musicid）是取流鉴权的关键：M0 实测过
  * 「vkey 靠 comm 里的 authst 鉴权，与平台档案无关」，缺了它们只会拿到空 purl。
  *
- * ⚠️ uin 一律转字符串（见 `loginUin` 的注释）：M3 实测踩过数字型 uin 的坑。
+ * ⚠️ uin 一律转字符串：M3 实测数字型 uin 会让 vkey 返回 code 10006。
  */
-export const buildComm = credential => ({
-  ct: 24,
-  cv: 0,
+export const buildComm = (credential, profile = 'web') => ({
+  ...(profile === 'android'
+    ? { ct: 11, cv: 14090008, v: 14090008, chid: '10003505' }
+    : { ct: 24, cv: 0 }),
   uin: String(credential.musicid ?? ''),
   authst: credential.musickey,
   qq: String(credential.musicid ?? ''),

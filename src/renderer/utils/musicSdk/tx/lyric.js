@@ -1,4 +1,5 @@
 import { httpFetch } from '../../request'
+import { requestMsg } from '../../message'
 import getMusicInfo from './musicInfo'
 import { decodeQrc } from './qrcDecode'
 
@@ -199,77 +200,122 @@ const parseTools = {
 }
 
 
+/**
+ * 歌词请求层。
+ *
+ * 三条实测结论（2026-09-22 真机核对，见 spec §5.4）：
+ *   1. `GetPlayLyricInfo` 一次就能拿四条轨：`lyric`（QRC 逐字）、`trans`（翻译）、
+ *      `roma`（音译 = rlyric）、`singingAnnotationsLyric`（助唱）。**日语歌才是音译的
+ *      主要来源**（如《残酷な天使のテーゼ》roma 有 7216 hex、解出 8406 字），
+ *      华语歌多数没有（`roma` 为 `""`，解析出空串是正常结果，不是失败）。
+ *   2. 四条轨都是 QRC 加密（hex），要过 `decodeQrc`（3DES + inflate）。
+ *   3. `code=0` 才有效；模块级 `req.code` 与顶层 `body.code` 都要看。
+ */
+const LYRIC_URL = 'https://u.y.qq.com/cgi-bin/musicu.fcg'
+
+/**
+ * 发歌词请求并解析（重试也放在这一层）。
+ *
+ * **为什么重试不放回 `getLyric`**：原来失败时递归 `this.getLyric(songId, ++retryNum)`，
+ * 把**数字 songId 当成 mInfo 又传回去**（`getSongId` 从数字里解构出 undefined → 拿
+ * 一个不存在的 songmid 去查歌曲详情），而且 `.then` 里返回的是"请求对象"而不是解析
+ * 结果——重试路径整体是坏的。这里改成在同一层重试，语义单一。
+ *
+ * `holder.requestObj` 是给外层 `cancelHttp` 用的：请求是在异步链路里才创建的，
+ * 外层拿不到它，只能通过 holder 暴露"当前这一次"请求。
+ */
+const fetchLyric = (api, songId, holder, retryNum = 0) => {
+  if (retryNum > 3) return Promise.reject(new Error('Get lyric failed'))
+
+  holder.requestObj = httpFetch(LYRIC_URL, {
+    method: 'post',
+    headers: {
+      referer: 'https://y.qq.com',
+      'user-agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.198 Safari/537.36',
+    },
+    body: {
+      comm: {
+        ct: '19',
+        cv: '1859',
+        uin: '0',
+      },
+      req: {
+        method: 'GetPlayLyricInfo',
+        module: 'music.musichallSong.PlayLyricInfo',
+        param: {
+          format: 'json',
+          crypt: 1,
+          ct: 19,
+          cv: 1873,
+          interval: 0,
+          lrc_t: 0,
+          qrc: 1,
+          qrc_t: 0,
+          roma: 1,
+          roma_t: 0,
+          songID: songId,
+          trans: 1,
+          trans_t: 0,
+          type: -1,
+        },
+      },
+    },
+  })
+  return holder.requestObj.promise.then(({ body }) => {
+    if (body.code != api.successCode || body.req?.code != api.successCode) return fetchLyric(api, songId, holder, ++retryNum)
+    const data = body.req.data
+    // 返回 { lyric, tlyric, rlyric, lxlyric }：rlyric 供 core/lyric.ts 的 extendedLyrics 拼装
+    return api.parseLyric(data.lyric, data.trans, data.roma)
+  })
+}
+
 export default {
   successCode: 0,
   async getSongId({ songId, songmid }) {
     if (songId) return songId
     if (songIdMap.has(songmid)) return songIdMap.get(songmid)
-    if (promises.has(songmid)) return (await promises.get(songmid)).songId
+    if (promises.has(songmid)) {
+      const info = await promises.get(songmid)
+      if (!info?.songId) throw new Error('Get song id failed')
+      return info.songId
+    }
     const promise = getMusicInfo(songmid)
-    promises.set(promise)
-    const info = await promise
-    songIdMap.set(songmid, info.songId)
-    promises.delete(songmid)
-    return info.songId
+    // key 必须是 songmid：原来写 `promises.set(promise)` 等于没去重（key 是 promise 对象），
+    // 两次并发查同一首歌会各发一次请求，还会留下永远命中不到的垃圾项
+    promises.set(songmid, promise)
+    try {
+      const info = await promise
+      if (!info?.songId) throw new Error('Get song id failed')
+      songIdMap.set(songmid, info.songId)
+      return info.songId
+    } finally {
+      // 失败也要清：否则一条查不到的歌会把后续同 mid 的请求永久钉在已 reject 的 promise 上
+      promises.delete(songmid)
+    }
   },
   async parseLyric(lrc, tlrc, rlrc) {
     const { lyric, tlyric, rlyric } = await decodeLyric(lrc, tlrc, rlrc)
-    // return {
-
-    // }
-    // console.log(lyric)
-    // console.log(tlyric)
-    // console.log(rlyric)
     return parseTools.parse(lyric, tlyric, rlyric)
   },
-  getLyric(mInfo, retryNum = 0) {
-    if (retryNum > 3) return Promise.reject(new Error('Get lyric failed'))
+  /**
+   * 取歌词。返回 `{ promise, cancelHttp }`（**不是裸 Promise**，见 §2.6 硬约束 1）。
+   * promise resolve `{ lyric, tlyric, rlyric, lxlyric }`。
+   *
+   * `cancelHttp` 原来是个空函数（切歌时取消不掉，旧歌的响应会白跑一遍解密+解析）；
+   * 这里按 `musicUrl.js` 的写法转发给"当前这一次"真实请求，并兼顾"请求还没创建就
+   * 被取消"的窗口（`cancelled` 标记）。
+   */
+  getLyric(mInfo) {
+    const holder = { requestObj: null, cancelled: false }
 
     return {
       cancelHttp() {
-
+        holder.cancelled = true
+        if (holder.requestObj?.cancelHttp) holder.requestObj.cancelHttp()
       },
       promise: this.getSongId(mInfo).then(songId => {
-        const requestObj = httpFetch('https://u.y.qq.com/cgi-bin/musicu.fcg', {
-          method: 'post',
-          headers: {
-            referer: 'https://y.qq.com',
-            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.198 Safari/537.36',
-          },
-          body: {
-            comm: {
-              ct: '19',
-              cv: '1859',
-              uin: '0',
-            },
-            req: {
-              method: 'GetPlayLyricInfo',
-              module: 'music.musichallSong.PlayLyricInfo',
-              param: {
-                format: 'json',
-                crypt: 1,
-                ct: 19,
-                cv: 1873,
-                interval: 0,
-                lrc_t: 0,
-                qrc: 1,
-                qrc_t: 0,
-                roma: 1,
-                roma_t: 0,
-                songID: songId,
-                trans: 1,
-                trans_t: 0,
-                type: -1,
-              },
-            },
-          },
-        })
-        return requestObj.promise.then(({ body }) => {
-          // console.log(body)
-          if (body.code != this.successCode || body.req.code != this.successCode) return this.getLyric(songId, ++retryNum)
-          const data = body.req.data
-          return this.parseLyric(data.lyric, data.trans, data.roma)
-        })
+        if (holder.cancelled) throw new Error(requestMsg.cancelRequest)
+        return fetchLyric(this, songId, holder)
       }),
     }
   },

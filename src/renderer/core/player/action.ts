@@ -91,20 +91,16 @@ const getMusicPlayUrl = async(musicInfo: LX.Music.MusicInfo | LX.Download.ListIt
   if (appSetting['player.autoSkipOnError']) addLoadTimeout()
 
   // const type = getPlayType(appSetting['player.highQuality'], musicInfo)
+  // 在线源只剩 tx，toggleMusicInfo 是用户手动指定的同源另一版本（如现场版），仍优先播放
   let toggleMusicInfo = ('progress' in musicInfo ? musicInfo.metadata.musicInfo : musicInfo).meta.toggleMusicInfo
 
   return (toggleMusicInfo ? getMusicUrl({
     musicInfo: toggleMusicInfo,
     isRefresh,
-    allowToggleSource: false,
   }) : Promise.reject(new Error('not found'))).catch(async() => {
     return getMusicUrl({
       musicInfo,
       isRefresh,
-      onToggleSource(mInfo) {
-        if (diffCurrentMusicInfo(musicInfo)) return
-        setAllStatus(window.i18n.t('toggle_source_try'))
-      },
     })
   }).then(url => {
     if (window.lx.isPlayedStop || diffCurrentMusicInfo(musicInfo)) return null

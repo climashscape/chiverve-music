@@ -29,12 +29,30 @@ export default {
       const size = iconSize.value
       return [
         {
+          to: '/discover',
+          tips: t('discover'),
+          icon: '#icon-discover',
+          iconSize: '0 0 448 448',
+          size,
+          name: 'Discover',
+          enable: true,
+        },
+        {
           to: '/search',
           tips: t('search'),
           icon: '#icon-search-2',
           iconSize: '0 0 425.2 425.2',
           size,
           name: 'Search',
+          enable: true,
+        },
+        {
+          to: '/user',
+          tips: t('user_center'),
+          icon: '#icon-user',
+          iconSize: '0 0 448 456',
+          size,
+          name: 'UserCenter',
           enable: true,
         },
         {

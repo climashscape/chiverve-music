@@ -135,21 +135,10 @@ export const getCachedLyricInfo = async(musicInfo: LX.Music.MusicInfo): Promise<
       //   commit('setLrc', { musicInfo, lyric: str, tlyric: musicInfo.tlrc, lxlyric: musicInfo.tlrc })
       // }
 
-      if (lrcInfo.lxlyric == null) {
-        switch (musicInfo.source) { // 以下源支持lxlyric 重新获取
-          case 'kg':
-          case 'kw':
-          case 'mg':
-          case 'wy':
-          case 'tx':
-            break
-          default:
-            return lrcInfo
-        }
-      } else if (lrcInfo.rlyric == null) {
-        // 以下源支持 rlyric 重新获取
-        if (!['wy', 'kg', 'tx'].includes(musicInfo.source)) return lrcInfo
-      } else return lrcInfo
+      // 在线源只有 tx，且 tx 的歌词两种扩展都支持（lxlyric 逐字 + rlyric 音译）：
+      // 缓存里缺任一项就继续往下走"重新获取"，都齐了才直接用缓存。
+      // 本地文件没有这两个扩展，命中缓存即可返回。
+      if (lrcInfo.lxlyric != null && lrcInfo.rlyric != null) return lrcInfo
     }
     if (musicInfo.source == 'local') return lrcInfo
   }
@@ -288,12 +277,10 @@ export const getOnlineOtherSourceMusicUrl = async({ musicInfos, quality, onToggl
 /**
  * 获取在线音乐URL
  */
-export const handleGetOnlineMusicUrl = async({ musicInfo, quality, onToggleSource, isRefresh, allowToggleSource }: {
+export const handleGetOnlineMusicUrl = async({ musicInfo, quality, isRefresh }: {
   musicInfo: LX.Music.MusicInfoOnline
   quality?: LX.Quality
   isRefresh: boolean
-  allowToggleSource: boolean
-  onToggleSource: (musicInfo?: LX.Music.MusicInfoOnline) => void
 }): Promise<{
   url: string
   musicInfo: LX.Music.MusicInfoOnline
@@ -312,24 +299,10 @@ export const handleGetOnlineMusicUrl = async({ musicInfo, quality, onToggleSourc
   }
   return reqPromise.then(({ url, type }: { url: string, type: LX.Quality }) => {
     return { musicInfo, url, quality: type, isFromCache: false }
-  }).catch(async(err: any) => {
+  }).catch((err: any) => {
     console.log(err)
-    if (!allowToggleSource || err.message == requestMsg.tooManyRequests) throw err
-    onToggleSource()
-    // eslint-disable-next-line @typescript-eslint/promise-function-async
-    return getOtherSource(musicInfo).then(otherSource => {
-      console.log('find otherSource', otherSource)
-      if (otherSource.length) {
-        return getOnlineOtherSourceMusicUrl({
-          musicInfos: [...otherSource],
-          onToggleSource,
-          quality,
-          isRefresh,
-          retryedSource: [musicInfo.source],
-        })
-      }
-      throw err
-    })
+    // 在线源只剩 tx，没有别的源可以重试，直接抛出原错误由上层提示
+    throw err
   })
 }
 
@@ -377,11 +350,9 @@ export const getOnlineOtherSourcePicUrl = async({ musicInfos, onToggleSource, is
 /**
  * 获取在线歌曲封面
  */
-export const handleGetOnlinePicUrl = async({ musicInfo, isRefresh, onToggleSource, allowToggleSource }: {
+export const handleGetOnlinePicUrl = async({ musicInfo, isRefresh }: {
   musicInfo: LX.Music.MusicInfoOnline
-  onToggleSource: (musicInfo?: LX.Music.MusicInfoOnline) => void
   isRefresh: boolean
-  allowToggleSource: boolean
 }): Promise<{
   url: string
   musicInfo: LX.Music.MusicInfoOnline
@@ -396,23 +367,10 @@ export const handleGetOnlinePicUrl = async({ musicInfo, isRefresh, onToggleSourc
   }
   return reqPromise.then((url: string) => {
     return { musicInfo, url, isFromCache: false }
-  }).catch(async(err: any) => {
+  }).catch((err: any) => {
     console.log(err)
-    if (!allowToggleSource) throw err
-    onToggleSource()
-    // eslint-disable-next-line @typescript-eslint/promise-function-async
-    return getOtherSource(musicInfo).then(otherSource => {
-      console.log('find otherSource', otherSource)
-      if (otherSource.length) {
-        return getOnlineOtherSourcePicUrl({
-          musicInfos: [...otherSource],
-          onToggleSource,
-          isRefresh,
-          retryedSource: [musicInfo.source],
-        })
-      }
-      throw err
-    })
+    // 在线源只剩 tx，没有别的源可以重试，直接抛出原错误由上层提示
+    throw err
   })
 }
 
@@ -469,11 +427,9 @@ export const getOnlineOtherSourceLyricInfo = async({ musicInfos, onToggleSource,
 /**
  * 获取在线歌词信息
  */
-export const handleGetOnlineLyricInfo = async({ musicInfo, onToggleSource, isRefresh, allowToggleSource }: {
+export const handleGetOnlineLyricInfo = async({ musicInfo, isRefresh }: {
   musicInfo: LX.Music.MusicInfoOnline
-  onToggleSource: (musicInfo?: LX.Music.MusicInfoOnline) => void
   isRefresh: boolean
-  allowToggleSource: boolean
 }): Promise<{
   musicInfo: LX.Music.MusicInfoOnline
   lyricInfo: LX.Music.LyricInfo | LX.Player.LyricInfo
@@ -494,23 +450,9 @@ export const handleGetOnlineLyricInfo = async({ musicInfo, onToggleSource, isRef
       lyricInfo,
       isFromCache: false,
     } : Promise.reject(new Error('failed'))
-  }).catch(async(err: any) => {
+  }).catch((err: any) => {
     console.log(err)
-    if (!allowToggleSource) throw err
-
-    onToggleSource()
-    // eslint-disable-next-line @typescript-eslint/promise-function-async
-    return getOtherSource(musicInfo).then(otherSource => {
-      console.log('find otherSource', otherSource)
-      if (otherSource.length) {
-        return getOnlineOtherSourceLyricInfo({
-          musicInfos: [...otherSource],
-          onToggleSource,
-          isRefresh,
-          retryedSource: [musicInfo.source],
-        })
-      }
-      throw err
-    })
+    // 在线源只剩 tx，没有别的源可以重试，直接抛出原错误由上层提示
+    throw err
   })
 }

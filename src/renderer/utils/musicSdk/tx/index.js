@@ -5,15 +5,25 @@ import musicSearch from './musicSearch'
 import { apis } from '../api-source'
 import hotSearch from './hotSearch'
 import comment from './comment'
-// import tipSearch from './tipSearch'
+import user from './user'
+import recommend from './recommend'
+import album from './album'
+import mv from './mv'
+import singer from './singer'
+import tipSearch from './tipSearch'
 
 const tx = {
-  // tipSearch,
+  tipSearch,
   leaderboard,
   songList,
   musicSearch,
   hotSearch,
   comment,
+  user,
+  recommend,
+  album,
+  mv,
+  singer,
 
   getMusicUrl(songInfo, type) {
     return apis('tx').getMusicUrl(songInfo, type)

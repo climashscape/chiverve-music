@@ -44,14 +44,13 @@
 <script lang="ts">
 import { ref, watch } from '@common/utils/vueTools'
 import { listDetailInfo } from '@renderer/store/songList/state'
-import { setVisibleListDetail } from '@renderer/store/songList/action'
 import { useRouter } from '@common/utils/vueRouter'
 import { addSongListDetail, playSongListDetail } from './action'
 import useList from './useList'
 import useKeyBack from './useKeyBack'
 
-
-const source = ref<LX.OnlineSource>('kw')
+// 初始值而已，真正的源由路由 query 决定（下面的 verifyQueryParams 会覆写它）
+const source = ref<LX.OnlineSource>('tx')
 const id = ref<string>('')
 const page = ref<number>(1)
 const picUrl = ref<string>('')
@@ -81,7 +80,6 @@ const verifyQueryParams = async function(this: any, to: { query: Query, path: st
       _page = listDetailInfo.page.toString()
       _picUrl = listDetailInfo.info.img
     } else {
-      setVisibleListDetail(false)
       next({ path: '/songList/list', query: {} })
       return
     }
@@ -93,7 +91,6 @@ const verifyQueryParams = async function(this: any, to: { query: Query, path: st
     return
   }
   next()
-  setVisibleListDetail(true)
   source.value = _source as LX.OnlineSource
   id.value = _id
   page.value = _page ? parseInt(_page) : 1
@@ -122,7 +119,6 @@ export default {
     }
 
     const handleBack = () => {
-      setVisibleListDetail(false)
       if (window.lx.songListInfo.fromName) void router.replace({ name: window.lx.songListInfo.fromName })
       else router.back()
     }

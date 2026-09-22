@@ -49,21 +49,24 @@ export const DATA_KEYS = {
   lastStartInfo: 'lastStartInfo',
 } as const
 
+// 在线源只有 tx（见 LX.OnlineSource 的说明）。这些默认值在首次进入对应页面时生效，
+// id 取自 tx 自己的清单：榜单见 tx/leaderboard.js 的 boardList（tx__26 = 热歌榜），
+// 歌单排序见 tx/songList.js 的 sortList（-1 推荐 / 3 最热 / 2 最新）。
 export const DEFAULT_SETTING = {
   leaderboard: {
-    source: 'kw',
-    boardId: 'kw__16',
+    source: 'tx',
+    boardId: 'tx__26',
   },
 
   songList: {
-    source: 'kw',
-    sortId: 'new',
+    source: 'tx',
+    sortId: '-1',
     tagId: '',
   },
 
   search: {
-    temp_source: 'kw',
-    source: 'all',
+    temp_source: 'tx',
+    source: 'tx',
     type: 'music',
   },
 

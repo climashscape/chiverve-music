@@ -1,24 +1,15 @@
 import apiSourceInfo from './api-source-info'
 import { apiSource, userApi } from '@renderer/store'
 import builtinTx from './tx/musicUrl'
-// import api_temp_kw from './kw/api-temp'
-// // import api_test_bd from './bd/api-test'
-// import api_test_tx from './tx/api-test'
-// import api_test_kg from './kg/api-test'
-// import api_test_kw from './kw/api-test'
-// import api_test_mg from './mg/api-test'
-// import api_test_wy from './wy/api-test'
 
+/**
+ * 取流实现注册表：key = `${api-source-info 里的 id}_${源 id}`。
+ *
+ * 这里是"换接口/加源"的扩展点：实现一个 `{ getMusicUrl }` 对象挂进来，再到
+ * `api-source-info.ts` 声明它覆盖哪些源与音质即可（三步清单见 AGENTS.md §3.7）。
+ */
 const allApi = {
-  // 内置 QQ 音乐取流（M3）。key 必须是 `${apiId}_${source}`，apiId 对应 api-source-info 的 id
   builtin_tx: builtinTx,
-  // temp_kw: api_temp_kw,
-  // // test_bd: api_test_bd,
-  // test_tx: api_test_tx,
-  // test_kg: api_test_kg,
-  // test_kw: api_test_kw,
-  // test_mg: api_test_mg,
-  // test_wy: api_test_wy,
 }
 
 const apiList = {}

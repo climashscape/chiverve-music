@@ -32,24 +32,12 @@ export const toNewMusicInfo = (oldMusicInfo: any): LX.Music.MusicInfo => {
       })
     }
 
-    switch (oldMusicInfo.source) {
-      case 'kg':
-        meta.hash = oldMusicInfo.hash
-        meta.albumAudioId = oldMusicInfo.albumAudioId
-        newInfo.id = oldMusicInfo.songmid + '_' + oldMusicInfo.hash
-        break
-      case 'tx':
-        meta.strMediaMid = oldMusicInfo.strMediaMid
-        meta.id = oldMusicInfo.songId
-        meta.albumMid = oldMusicInfo.albumMid
-        break
-      case 'mg':
-        meta.copyrightId = oldMusicInfo.copyrightId
-        meta.lrcUrl = oldMusicInfo.lrcUrl
-        meta.mrcUrl = oldMusicInfo.mrcUrl
-        meta.trcUrl = oldMusicInfo.trcUrl
-        break
-    }
+    // 在线源只有 tx（见 LX.OnlineSource）；将来加源时这里按源补字段映射
+    meta.strMediaMid = oldMusicInfo.strMediaMid
+    meta.id = oldMusicInfo.songId
+    meta.albumMid = oldMusicInfo.albumMid
+    // songType 是 QQ 歌单写操作（增删歌曲）要用的原始 type，别在中转时丢掉
+    meta.songType = oldMusicInfo.songType
   }
 
   return newInfo
@@ -77,23 +65,11 @@ export const toOldMusicInfo = (minfo: LX.Music.MusicInfo) => {
     oInfo.types = minfo.meta.qualitys
     oInfo._types = minfo.meta._qualitys
 
-    switch (minfo.source) {
-      case 'kg':
-        oInfo.hash = minfo.meta.hash
-        oInfo.albumAudioId = minfo.meta.albumAudioId
-        break
-      case 'tx':
-        oInfo.strMediaMid = minfo.meta.strMediaMid
-        oInfo.albumMid = minfo.meta.albumMid
-        oInfo.songId = minfo.meta.id
-        break
-      case 'mg':
-        oInfo.copyrightId = minfo.meta.copyrightId
-        oInfo.lrcUrl = minfo.meta.lrcUrl
-        oInfo.mrcUrl = minfo.meta.mrcUrl
-        oInfo.trcUrl = minfo.meta.trcUrl
-        break
-    }
+    // 在线源只有 tx（见 LX.OnlineSource）；将来加源时这里按源补字段映射
+    oInfo.strMediaMid = minfo.meta.strMediaMid
+    oInfo.albumMid = minfo.meta.albumMid
+    oInfo.songId = minfo.meta.id
+    oInfo.songType = minfo.meta.songType
   }
 
   return oInfo

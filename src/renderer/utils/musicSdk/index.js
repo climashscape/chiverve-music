@@ -1,52 +1,28 @@
-import kw from './kw/index'
-import kg from './kg/index'
 import tx from './tx/index'
-import wy from './wy/index'
-import mg from './mg/index'
-import bd from './bd/index'
-import xm from './xm'
 import { supportQuality } from './api-source'
 import { versionChars } from './versionChars'
 
-
+/**
+ * 在线音源注册表 —— **本文件是唯一的源清单**。
+ *
+ * 本产品只内置 QQ 音乐（tx）一条线，其余平台（kw/kg/wy/mg/bd/xm）的实现已移除。
+ * 结构仍按"多源"设计，所以将来加源是个小改动，按 AGENTS.md §3.7 走三步：
+ *   1. 新建 `musicSdk/<id>/index.js`，实现源契约（见 AGENTS.md §2.6 契约表：
+ *      musicSearch / getMusicUrl / getLyric / getPic / leaderboard / songList /
+ *      comment / hotSearch …）
+ *   2. 在本文件 import 并挂进 `sources`（`sources.sources` 是清单，平级键是模块）
+ *   3. 要能取流的话：`api-source-info.ts` 声明 `supportQualitys`，并把取流实现
+ *      注册进 `api-source.js` 的 `allApi`（key = `${apiId}_${source}`）
+ * store 与 UI 不用改：它们都按 `music.sources` / `music[source]` 动态取能力。
+ */
 const sources = {
   sources: [
-    {
-      name: '酷我音乐',
-      id: 'kw',
-    },
-    {
-      name: '酷狗音乐',
-      id: 'kg',
-    },
     {
       name: 'QQ音乐',
       id: 'tx',
     },
-    {
-      name: '网易音乐',
-      id: 'wy',
-    },
-    {
-      name: '咪咕音乐',
-      id: 'mg',
-    },
-    {
-      name: '虾米音乐',
-      id: 'xm',
-    },
-    // {
-    //   name: '百度音乐',
-    //   id: 'bd',
-    // },
   ],
-  kw,
-  kg,
   tx,
-  wy,
-  mg,
-  bd,
-  xm,
 }
 export default {
   ...sources,

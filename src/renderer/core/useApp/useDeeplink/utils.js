@@ -13,17 +13,17 @@ export const useDialog = () => {
   return errorDialog
 }
 
-export const sources = ['kw', 'kg', 'tx', 'wy', 'mg']
+// 在线源只有 tx（见 LX.OnlineSource）；将来加源时这里同步加 id
+export const sources = ['tx']
 export const sourceVerify = source => {
   if (!sources.includes(source)) throw new Error('Source no match')
 }
 
 export const qualitys = ['128k', '320k', 'flac', 'flac24bit']
 export const qualityFilter = (source, types) => {
-  types = types.filter(({ type }) => qualitys.includes(type)).map(({ type, size, hash }) => {
+  types = types.filter(({ type }) => qualitys.includes(type)).map(({ type, size }) => {
     if (size != null && typeof size != 'string') throw new Error(type + ' size type no match')
-    if (source == 'kg' && typeof hash != 'string') throw new Error(type + ' hash type no match')
-    return hash == null ? { type, size } : { type, size, hash }
+    return { type, size }
   })
   if (!types.length) throw new Error('quality no match')
   return types

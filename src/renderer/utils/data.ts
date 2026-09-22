@@ -17,6 +17,7 @@ import {
 import { throttle } from '@common/utils'
 import { type DEFAULT_SETTING, LIST_IDS } from '@common/constants'
 import { dateFormat } from './index'
+import music from '@renderer/utils/musicSdk'
 import { setUpdateTime } from '@renderer/store/list/action'
 
 let listPosition: LX.List.ListPositionInfo
@@ -144,9 +145,27 @@ export const overwriteListUpdateInfo = async(ids: string[]) => {
 }
 
 
+/**
+ * 把持久化数据里的源归一到"当前已注册的源"。
+ *
+ * 实测（2026-09-22）：单源化之后 `LxDatas/data.json` 里仍留着 `temp_source: 'kw'`，
+ * 而 `music['kw']` 已不存在 —— 搜索联想那类 `music[source].xxx` 的查找会拿到 undefined 并
+ * **静默失败**（错误被 .catch 吞掉，表现为"功能没反应"）。所以在数据出口统一归一，
+ * 而不是在每个消费者里各自判空。加源时本函数自动跟随源注册表。
+ */
+const pickRegisteredSource = (source?: string | null): LX.OnlineSource => {
+  const ids = music.sources.map(item => item.id) as LX.OnlineSource[]
+  return ids.includes(source as LX.OnlineSource) ? source as LX.OnlineSource : (ids[0] ?? 'tx')
+}
+
 export const getSearchSetting = async() => {
   // eslint-disable-next-line require-atomic-updates
   searchSetting ??= await getSearchSettingFromData()
+  const source = pickRegisteredSource(searchSetting.source)
+  const tempSource = pickRegisteredSource(searchSetting.temp_source)
+  if (source !== searchSetting.source || tempSource !== searchSetting.temp_source) {
+    void setSearchSetting({ source, temp_source: tempSource })
+  }
   return { ...searchSetting }
 }
 export const setSearchSetting = async(setting: Partial<typeof DEFAULT_SETTING['search']>) => {
@@ -164,6 +183,8 @@ export const setSearchSetting = async(setting: Partial<typeof DEFAULT_SETTING['s
 export const getSongListSetting = async() => {
   // eslint-disable-next-line require-atomic-updates
   songListSetting ??= await getSongListSettingFromData()
+  const source = pickRegisteredSource(songListSetting.source)
+  if (source !== songListSetting.source) void setSongListSetting({ source })
   return { ...songListSetting }
 }
 export const setSongListSetting = async(setting: Partial<typeof DEFAULT_SETTING['songList']>) => {

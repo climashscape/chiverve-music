@@ -24,13 +24,6 @@ dd
     p
       base-selection.gap-left(:class="$style.selectWidth" :model-value="appSetting['download.maxDownloadNum']" :list="maxNums" item-key="id" item-name="id" @change="handleUpdateMaxNum")
 
-dd
-  h3#download_use_other_source
-    | {{ $t('setting__download_use_other_source') }}
-    svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__download_use_other_source_tip')")
-  div
-    base-checkbox(id="setting_download_isUseOtherSource" :model-value="appSetting['download.isUseOtherSource']" :label="$t('setting__is_enable')" @update:model-value="updateSetting({'download.isUseOtherSource': $event})")
-  div
 dd(:aria-label="$t('setting__download_name_title')")
   h3#download_name {{ $t('setting__download_name') }}
   div

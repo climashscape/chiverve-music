@@ -11,7 +11,6 @@ export default ({
   handlePlayMusic,
   handlePlayMusicLater,
   handleSearch,
-  handleShowMusicToggleModal,
   handleShowMusicAddModal,
   handleShowMusicMoveModal,
   handleShowSortModal,
@@ -27,7 +26,6 @@ export default ({
     addTo: true,
     moveTo: true,
     sort: true,
-    toggleSource: true,
     download: true,
     search: true,
     dislike: true,
@@ -69,11 +67,6 @@ export default ({
         name: t('list__sort'),
         action: 'sort',
         disabled: !itemMenuControl.sort,
-      },
-      {
-        name: t('list__toggle_source'),
-        action: 'toggleSource',
-        disabled: !itemMenuControl.toggleSource,
       },
       {
         name: t('list__copy_name'),
@@ -148,9 +141,6 @@ export default ({
         break
       case 'sort':
         handleShowSortModal(index)
-        break
-      case 'toggleSource':
-        handleShowMusicToggleModal(index)
         break
       case 'download':
         handleShowDownloadModal(index)
