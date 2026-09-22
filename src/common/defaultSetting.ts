@@ -5,13 +5,15 @@ const isMac = process.platform == 'darwin'
 const isWin = process.platform == 'win32'
 
 const defaultSetting: LX.AppSetting = {
-  version: '2.1.0',
+  version: '2.1.1',
 
   'common.windowSizeId': 3,
   'common.fontSize': 16,
   'common.startInFullscreen': false,
   'common.langId': null,
-  'common.apiSource': 'temp',
+  // 内置 QQ 音乐取流（api-source-info 的 id）。上游默认的 'temp' 是个没有实现的占位，
+  // 留着它整条在线取流会失效（qualityList 为空 → 搜得到点不动）
+  'common.apiSource': 'builtin',
   'common.sourceNameType': 'alias',
   'common.font': '',
   'common.isShowAnimation': true,

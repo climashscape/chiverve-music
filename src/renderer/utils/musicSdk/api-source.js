@@ -1,5 +1,6 @@
 import apiSourceInfo from './api-source-info'
 import { apiSource, userApi } from '@renderer/store'
+import builtinTx from './tx/musicUrl'
 // import api_temp_kw from './kw/api-temp'
 // // import api_test_bd from './bd/api-test'
 // import api_test_tx from './tx/api-test'
@@ -9,6 +10,8 @@ import { apiSource, userApi } from '@renderer/store'
 // import api_test_wy from './wy/api-test'
 
 const allApi = {
+  // 内置 QQ 音乐取流（M3）。key 必须是 `${apiId}_${source}`，apiId 对应 api-source-info 的 id
+  builtin_tx: builtinTx,
   // temp_kw: api_temp_kw,
   // // test_bd: api_test_bd,
   // test_tx: api_test_tx,

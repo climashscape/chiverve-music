@@ -140,6 +140,15 @@ export default (setting: any): Partial<LX.AppSetting> => {
     setting.version = '2.1.0'
   }
 
+  // 迁移到本项目的内置音源：上游的 'temp' 没有任何实现，留着它在线取流整条失效
+  // （qualityList 为空）。这里只把"占位值"换成可用值，用户自选的其它音源不受影响。
+  if (compareVer(setting.version, '2.1.1') < 0) {
+    if (setting['common.apiSource'] == null || setting['common.apiSource'] === 'temp') {
+      setting['common.apiSource'] = 'builtin'
+    }
+    setting.version = '2.1.1'
+  }
+
 
   return setting
 }
