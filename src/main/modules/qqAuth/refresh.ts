@@ -67,7 +67,7 @@ const buildParam = (cred: LX.QQAuth.Credential): Record<string, unknown> => {
  *   camelCase : keyExpiresIn / musickeyCreateTime / loginType / encryptUin / musickey / musicid
  * 因此逐个显式映射，并对缺失字段回退到原值——刷新响应不保证每次字段齐全。
  */
-const toCredential = (data: Record<string, any>, prev: LX.QQAuth.Credential): LX.QQAuth.Credential => ({
+export const toCredential = (data: Record<string, any>, prev: LX.QQAuth.Credential): LX.QQAuth.Credential => ({
   musicid: data.musicid ?? prev.musicid,
   musickey: data.musickey ?? prev.musickey,
   refreshKey: data.refresh_key ?? prev.refreshKey,

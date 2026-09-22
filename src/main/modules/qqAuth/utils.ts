@@ -31,13 +31,31 @@ const CHECK_INTERVAL_MS = 30 * 60 * 1000
 let timer: NodeJS.Timeout | null = null
 let refreshing = false
 
-/** 计算过期时间戳。优先用 expiredAt，缺失时用 createTime + keyExpiresIn 推导。 */
+/**
+ * 计算 musickey 的失效时刻。
+ *
+ * ⚠️ 字段语义容易搞错（M2 实测踩到）：
+ *   - `expiredAt`（上游字段名 `expired_at`）实测是 **60 天后**——那是账号/session
+ *     级的有效期，**不是 musickey 的**。
+ *   - musickey 的有效期是 `musickeyCreateTime + keyExpiresIn`，实测 **3 天**。
+ *
+ * 因此**必须优先用后者**：若用 `expiredAt` 判定刷新时机，会得出「还有 60 天」而
+ * 永不刷新（反之若该字段被旧值污染，又会每次启动都刷）。
+ * `expiredAt` 只作为两者都缺失时的兜底。
+ */
 const expiresAtOf = (cred: LX.QQAuth.Credential | null): number | null => {
   if (cred == null) return null
-  if (typeof cred.expiredAt === 'number' && cred.expiredAt > 0) return cred.expiredAt
-  if (typeof cred.musickeyCreateTime === 'number' && typeof cred.keyExpiresIn === 'number') {
-    return cred.musickeyCreateTime + cred.keyExpiresIn
-  }
+  const createTime = toNumber(cred.musickeyCreateTime)
+  const lifetime = toNumber(cred.keyExpiresIn)
+  if (createTime != null && lifetime != null) return createTime + lifetime
+  const fallback = toNumber(cred.expiredAt)
+  return fallback != null && fallback > 0 ? fallback : null
+}
+
+/** 上游偶尔把时间戳以字符串返回，统一转成数字，避免类型判断悄悄失效。 */
+const toNumber = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && /^[0-9]+$/.test(value)) return Number(value)
   return null
 }
 

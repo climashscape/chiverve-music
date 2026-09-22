@@ -49,6 +49,16 @@ export const onQQAuthStatusChange = (listener: LX.IpcRendererEventListenerParams
     rendererOff(QQ_AUTH_EVENT_NAME.status_change, listener)
   }
 }
+// 扫码登录（M2）：流程在主进程跑，渲染侧只显示二维码并轮询
+export const getQQLoginQrcode = async(): Promise<LX.QQAuth.QrCode> => {
+  return rendererInvoke<LX.QQAuth.QrCode>(QQ_AUTH_EVENT_NAME.login_get_qrcode)
+}
+export const checkQQLogin = async(): Promise<LX.QQAuth.LoginCheckResult> => {
+  return rendererInvoke<LX.QQAuth.LoginCheckResult>(QQ_AUTH_EVENT_NAME.login_check)
+}
+export const cancelQQLogin = async(): Promise<void> => {
+  await rendererInvoke(QQ_AUTH_EVENT_NAME.login_cancel)
+}
 
 export const getOtherSource = async(id: string): Promise<LX.Music.MusicInfoOnline[]> => {
   return rendererInvoke<string, LX.Music.MusicInfoOnline[]>(WIN_MAIN_RENDERER_EVENT_NAME.get_other_source, id)

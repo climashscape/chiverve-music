@@ -12,6 +12,7 @@
     <layout-pact-modal />
     <layout-sync-mode-modal />
     <layout-sync-auth-code-modal />
+    <layout-qq-login-modal />
     <layout-play-detail />
   </div>
 </template>

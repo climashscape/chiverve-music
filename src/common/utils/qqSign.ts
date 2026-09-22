@@ -23,6 +23,24 @@ const PART_1_INDEXES = [23, 14, 6, 36, 16, 40, 7, 19]
 const PART_2_INDEXES = [16, 1, 32, 12, 19, 27, 8, 5]
 const SCRAMBLE_VALUES = [89, 39, 179, 150, 218, 82, 58, 252, 177, 52, 186, 123, 120, 64, 242, 133, 143, 161, 121, 179]
 
+/**
+ * QQ 的 hash33 滚动哈希。移植自 `qqmusic_api/utils/common.py:45-57`。
+ *
+ * 有两处不同的用法，**种子不同、不要混**：
+ *   - `hash33(qrsig)`              种子 0    → 扫码轮询的 `ptqrtoken`
+ *   - `hash33(p_skey, 5381)`       种子 5381 → `g_tk`
+ *
+ * 非密码学用途（输出是请求参数）；JS 的位运算天然是 32 位截断，
+ * 故与 Python 的 `2147483647 & h` 等价，无需 BigInt。
+ */
+export const hash33 = (text: string, seed = 0): number => {
+  let h = seed
+  for (let i = 0; i < text.length; i++) {
+    h = (h << 5) + h + text.charCodeAt(i)
+  }
+  return 2147483647 & h
+}
+
 export const zzcSign = (text: string): string => {
   const hash = crypto.createHash('sha1').update(text).digest('hex')
 

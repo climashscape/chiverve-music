@@ -39,6 +39,26 @@ declare namespace LX {
 
     type SetCredentialParams = Credential
 
+    /**
+     * 扫码登录状态事件。数值对照 QQMusicApi models/login.py:23-27。
+     * SCAN=未扫描等待中，CONF=已扫描待手机确认，DONE=登录完成。
+     */
+    type LoginEvent = 'DONE' | 'SCAN' | 'CONF' | 'TIMEOUT' | 'REFUSE'
+
+    /** 二维码以 data URL 返回，渲染侧可直接塞进 <img src>，无需落盘。 */
+    interface QrCode {
+      dataUrl: string
+      /** 生成时间戳（毫秒），供界面显示倒计时（QQ 二维码约 2 分钟失效） */
+      createdAt: number
+    }
+
+    interface LoginCheckResult {
+      event: LoginEvent
+      /** 仅在 event === 'DONE' 时返回 */
+      status?: Status
+      message?: string
+    }
+
     interface RefreshResult {
       ok: boolean
       status: Status

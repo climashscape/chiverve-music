@@ -10,6 +10,7 @@ import { getCredential, refresh, startTimer } from './utils'
  * 分层：本文件只做注册；IPC 适配在 rendererEvent.ts；业务在 utils.ts。
  */
 export * from './utils'
+export * from './login'
 
 export default () => {
   registerRendererEvent()

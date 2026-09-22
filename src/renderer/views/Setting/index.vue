@@ -53,6 +53,7 @@ import { useI18n } from '@renderer/plugins/i18n'
 import { useRoute } from '@common/utils/vueRouter'
 
 import SettingBasic from './components/SettingBasic.vue'
+import SettingQQAuth from './components/SettingQQAuth.vue'
 import SettingPlay from './components/SettingPlay.vue'
 import SettingPlayDetail from './components/SettingPlayDetail.vue'
 import SettingDesktopLyric from './components/SettingDesktopLyric.vue'
@@ -73,6 +74,7 @@ export default {
   name: 'Setting',
   components: {
     SettingBasic,
+    SettingQQAuth,
     SettingPlay,
     SettingPlayDetail,
     SettingDesktopLyric,
@@ -98,6 +100,7 @@ export default {
     const tocList = computed(() => {
       return [
         { id: 'SettingBasic', title: t('setting__basic') },
+        { id: 'SettingQQAuth', title: t('setting__qq_auth') },
         { id: 'SettingPlay', title: t('setting__play') },
         { id: 'SettingPlayDetail', title: t('setting__play_detail') },
         { id: 'SettingDesktopLyric', title: t('setting__desktop_lyric') },

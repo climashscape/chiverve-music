@@ -176,6 +176,9 @@ const modules = {
     refresh: 'refresh',
     logout: 'logout',
     status_change: 'status_change',
+    login_get_qrcode: 'login_get_qrcode',
+    login_check: 'login_check',
+    login_cancel: 'login_cancel',
   },
 }
 

@@ -2,6 +2,7 @@ import { mainHandle } from '@common/mainIpc'
 import { QQ_AUTH_EVENT_NAME } from '@common/ipcNames'
 import { getWebContents } from '@main/modules/winMain/main'
 import { getCredential, getStatus, setCredential, logout, refresh } from './utils'
+import { startLogin, checkLogin, cancelLogin } from './login'
 
 /**
  * qqAuth 的 IPC 适配层。
@@ -51,5 +52,24 @@ export const registerRendererEvent = (): void => {
   mainHandle<LX.QQAuth.Status>(QQ_AUTH_EVENT_NAME.logout, async({ event }: LX.IpcMainInvokeEvent) => {
     assertFromMainWindow(event)
     return logout()
+  })
+
+  // ---- 扫码登录（M2）。整个流程在主进程跑，渲染侧只负责显示二维码与轮询。 ----
+
+  /** 取二维码：返回 data URL，渲染侧直接塞进 <img src> 即可，无需落盘。 */
+  mainHandle<LX.QQAuth.QrCode>(QQ_AUTH_EVENT_NAME.login_get_qrcode, async({ event }: LX.IpcMainInvokeEvent) => {
+    assertFromMainWindow(event)
+    return startLogin()
+  })
+
+  /** 轮询一次状态。返回 DONE 时登录已完成、凭证已落盘（由 M1 的凭证层接管）。 */
+  mainHandle<LX.QQAuth.LoginCheckResult>(QQ_AUTH_EVENT_NAME.login_check, async({ event }: LX.IpcMainInvokeEvent) => {
+    assertFromMainWindow(event)
+    return checkLogin()
+  })
+
+  mainHandle(QQ_AUTH_EVENT_NAME.login_cancel, async({ event }: LX.IpcMainInvokeEvent) => {
+    assertFromMainWindow(event)
+    cancelLogin()
   })
 }
