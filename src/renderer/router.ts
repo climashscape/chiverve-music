@@ -15,6 +15,14 @@ const router = createRouter({
       },
     },
     {
+      path: '/radar',
+      name: 'Radar',
+      component: require('./views/Radar/index.vue').default,
+      meta: {
+        name: 'Radar',
+      },
+    },
+    {
       path: '/search',
       name: 'Search',
       component: require('./views/Search/index.vue').default,

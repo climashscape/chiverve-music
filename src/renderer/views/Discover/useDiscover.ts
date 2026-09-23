@@ -4,7 +4,10 @@ import music from '@renderer/utils/musicSdk'
 import type { ListInfo, ListInfoItem } from '@renderer/store/songList/state'
 
 /**
- * 发现页（M5）取数：首页 feed / 推荐歌单 / 新碟上架 / 新歌 / 猜你喜欢 / 雷达推荐。
+ * 发现页取数：首页 feed / 推荐歌单 / 新碟上架 / 新歌 / 猜你喜欢。
+ *
+ * 雷达推荐原在这个文件里，2026-09-23 搬去独立页（`views/Radar/useRadar.ts`）——
+ * 是搬走不是复制，这里不再保留任何雷达状态。
  *
  * 这个文件里的每个决定都是被下面四条约束逼出来的，改之前先读：
  *
@@ -141,14 +144,6 @@ const setSongs = (block: SongBlock, list: any[]) => {
   block.limit = next.length || 1
 }
 
-/** 追加（雷达的「加载更多」）。 */
-const appendSongs = (block: SongBlock, list: any[]) => {
-  const next = toOnlineSongs(list)
-  block.list.push(...next)
-  block.total = block.list.length
-  block.limit = block.list.length || 1
-}
-
 /** 失败文案：未登录与真失败分开，别把「没登录」说成「加载失败」。 */
 const errorLabel = (err: any) =>
   err?.message === 'QQ 音乐未登录' ? t('user_center__need_login') : t('list__load_failed')
@@ -220,9 +215,6 @@ let newSongKey = ''
 
 const guess = reactive<SongBlock>(createSongBlock())
 let guessKey = ''
-
-const radar = reactive<SongBlock & { moreError: string }>({ ...createSongBlock(), moreError: '' })
-let radarKey = ''
 
 const isInited = ref(false)
 
@@ -363,37 +355,7 @@ const loadGuess = async() => {
   }
 }
 
-/** 雷达推荐。分页是真的（page 换内容），hasMore 服务端恒 true，所以按钮一直在。 */
-const loadRadar = async(page = 1, more = false) => {
-  const key = `radar__${page}`
-  radarKey = key
-  radar.isLoading = true
-  radar.moreError = ''
-  if (!more) radar.noItemLabel = t('list__loading')
-  try {
-    const res = await music.tx.recommend.getRadarRecommend(page)
-    if (radarKey !== key) return
-    const list = res?.list ?? []
-    if (more) appendSongs(radar, list)
-    else setSongs(radar, list)
-    radar.page = page
-    radar.hasMore = res?.hasMore === true
-    finishLabel(radar, radar.list)
-  } catch (err: any) {
-    if (radarKey !== key) return
-    console.log('[discover] radar', err)
-    if (more) radar.moreError = errorLabel(err)
-    else {
-      setSongs(radar, [])
-      radar.hasMore = false
-      radar.noItemLabel = errorLabel(err)
-    }
-  } finally {
-    radar.isLoading = false
-  }
-}
-
-/** 首屏：6 个区块并发，各自兜自己的失败（所以 Promise.all 不会 reject）。 */
+/** 首屏：5 个区块并发，各自兜自己的失败（所以 Promise.all 不会 reject）。 */
 const initDiscover = async(force = false) => {
   if (isInited.value && !force) return
   isInited.value = true
@@ -403,7 +365,6 @@ const initDiscover = async(force = false) => {
     loadNewAlbums(1, newAlbums.area),
     loadNewSongs(newSongs.type),
     loadGuess(),
-    loadRadar(1, false),
   ])
 }
 
@@ -428,7 +389,6 @@ export default () => {
     newAlbums,
     newSongs,
     guess,
-    radar,
     isInited,
     newSongTabs,
     newAlbumTabs,
@@ -438,7 +398,6 @@ export default () => {
     loadNewAlbums,
     loadNewSongs,
     loadGuess,
-    loadRadar,
     switchNewSongType,
     switchNewAlbumArea,
   }

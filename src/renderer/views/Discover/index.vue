@@ -1,5 +1,11 @@
 <template>
   <div :class="$style.container" class="scroll">
+    <!-- 顶部入口区：雷达独立成页后（工单 01），这里是它最显眼的入口 -->
+    <div :class="$style.header">
+      <h3 :class="$style.title">{{ $t('discover') }}</h3>
+      <base-btn min @click="toRadar">{{ $t('radar__enter') }}</base-btn>
+    </div>
+
     <!-- 首页推荐：服务端给的楼层（shelf）流，卡片是异构的（单曲/歌单/节目/排行榜入口/功能入口） -->
     <section :class="$style.section">
       <h3 :class="$style.title">{{ $t('discover__feed') }}</h3>
@@ -96,26 +102,6 @@
         />
       </div>
     </section>
-
-    <!-- 雷达推荐：page 换内容，服务端 hasMore 恒 true，所以按钮一直在 -->
-    <section :class="$style.section">
-      <h3 :class="$style.title">{{ $t('discover__radar') }}</h3>
-      <div :class="$style.songList">
-        <material-online-list
-          :list="radar.list"
-          :page="radar.page"
-          :limit="radar.limit"
-          :total="radar.total"
-          :no-item="radar.noItemLabel"
-          check-api-source
-          @play-list="handlePlayRadar"
-        />
-      </div>
-      <div v-if="radar.hasMore" :class="$style.more">
-        <base-btn min :disabled="radar.isLoading" @click="loadRadar(radar.page + 1, true)">{{ $t('discover__load_more') }}</base-btn>
-      </div>
-      <p v-if="radar.moreError" :class="$style.error">{{ radar.moreError }}</p>
-    </section>
   </div>
 </template>
 
@@ -125,6 +111,9 @@ import { useRouter } from '@common/utils/vueRouter'
 import usePlay from '@renderer/components/material/OnlineList/usePlay'
 import SongCardGrid from '@renderer/views/songList/List/components/SongList.vue'
 import useDiscover, { type AlbumCard, type FeedCard } from './useDiscover'
+
+/** 音乐雷达入口卡的 id（`tx/recommend.js:48` 的实测记录：type 900、id 22000）。 */
+const RADAR_ENTRY_CARD_ID = '22000'
 
 export default {
   components: {
@@ -138,7 +127,6 @@ export default {
       newAlbums,
       newSongs,
       guess,
-      radar,
       newSongTabs,
       newAlbumTabs,
       initDiscover,
@@ -147,7 +135,6 @@ export default {
       loadNewAlbums,
       loadNewSongs,
       loadGuess,
-      loadRadar,
       switchNewSongType,
       switchNewAlbumArea,
     } = useDiscover()
@@ -169,17 +156,17 @@ export default {
     }
     const handlePlayNewSong = createPlay(newSongs)
     const handlePlayGuess = createPlay(guess)
-    const handlePlayRadar = createPlay(radar)
 
     // 新歌的 v-model 与区块状态分开：切换地区靠 @change 触发重拉，加载中也不该被外部改掉
     const newSongType = ref(newSongs.type)
     const newAlbumArea = ref(newAlbums.area)
 
     /**
-     * 卡片能跳到哪儿 —— 卡片是异构的，而**只有两种卡片有可验证的目标**（数据层文件头第 5 条）：
+     * 卡片能跳到哪儿 —— 卡片是异构的，而**只有三种卡片有可验证的目标**（数据层文件头第 5 条）：
      *   · 歌单卡（kind=playlist，id 是歌单 tid）→ 歌单详情页
      *   · 单曲卡（kind=song，带从封面里解析出的专辑 mid）→ 专辑页
-     * 其余（节目卡、排行榜入口、雷达/自定义入口、未知类型）的服务端字段对不上本仓任何路由，
+     *   · 音乐雷达入口卡（kind=entry，id=22000）→ 雷达页（工单 01 起有了落地页）
+     * 其余（节目卡、排行榜入口、未知类型）的服务端字段对不上本仓任何路由，
      * 一律不响应点击 —— 宁可不点，也不做点了没反应或跳错地方的假交互。
      */
     const toCardTarget = (card: FeedCard) => {
@@ -188,6 +175,9 @@ export default {
       }
       if (card.kind === 'song' && card.albumMid) {
         return { path: '/album', query: { mid: card.albumMid } }
+      }
+      if (card.kind === 'entry' && card.id === RADAR_ENTRY_CARD_ID) {
+        return { path: '/radar' }
       }
       return null
     }
@@ -199,10 +189,9 @@ export default {
      * 只渲染**有点击目标**的卡片（用户 2026-09-23 反馈后定的口径）：
      * 「一周听歌排行 / 8月听歌排行」这类排行榜卡（type 800）点不动，且 QQ 侧**没有对应端点**
      * （参考实现 QQMusicApi 当前版 + 全历史 + 上游最新版穷举均无个人听歌排行；卡上只有
-     * id="0_8"/"0_9"、subtype=810/811、jumptype=10042，没有目标 URL），做不出真交互；
-     * 「音乐雷达」入口卡（type 900）服务端连 title 都是空的。留着只是噪音，先整类不渲染。
-     * 将来某类卡有了目标（例：把雷达入口接到本仓的雷达推荐，端点同为 GetRadarSong），
-     * 在 toCardTarget 里放开即可，不用改这里。
+     * id="0_8"/"0_9"、subtype=810/811、jumptype=10042，没有目标 URL），做不出真交互，
+     * 所以整类不渲染；雷达入口卡（type 900，id=22000）自 2026-09-23 起在 toCardTarget
+     * 里有了目标（/radar），于是自动重新出现——过滤器不用改。
      */
     const visibleShelves = computed(() =>
       feed.shelves
@@ -213,6 +202,9 @@ export default {
       // mid 优先（详情接口两种参数都收，见 tx/album.js 文件头第 2 条）
       void router.push({ path: '/album', query: { mid: item.mid || item.id } })
     }
+    const toRadar = () => {
+      void router.push({ path: '/radar' })
+    }
 
     return {
       feed,
@@ -221,7 +213,6 @@ export default {
       newAlbums,
       newSongs,
       guess,
-      radar,
       newSongTabs,
       newAlbumTabs,
       newSongType,
@@ -229,15 +220,14 @@ export default {
       toCardTarget,
       handleCardClick,
       toAlbum,
+      toRadar,
       handlePlayNewSong,
       handlePlayGuess,
-      handlePlayRadar,
       loadFeed,
       loadRecommend,
       loadNewAlbums,
       loadNewSongs,
       loadGuess,
-      loadRadar,
       switchNewSongType,
       switchNewAlbumArea,
     }
@@ -263,6 +253,14 @@ export default {
   &:first-child {
     margin-top: 0;
   }
+}
+// 顶部入口区（页面标题 + 进入雷达），不是 section 的成员，所以单独给间距
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--color-000-alpha-700);
 }
 .sectionHeader {
   display: flex;
