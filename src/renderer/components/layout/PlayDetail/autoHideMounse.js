@@ -8,6 +8,8 @@ let isMouseDown = false
 const isControl = dom => {
   if (!dom || dom === document.body) return false
   // console.log(dom)
+  // 这里把「有 aria-label」当作「是交互控件」的判据 —— aria-label **不许为了省事删掉**：
+  // 图标键按 §2.5.1 必须同时写 aria-label（无障碍 + 本判据）与 title（提示）
   if (dom.getAttribute('aria-label') || dom.tagName == 'BUTTON') return true
   return isControl(dom.parentNode)
 }

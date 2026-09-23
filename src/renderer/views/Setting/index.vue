@@ -6,7 +6,7 @@
           <h2
             :class="[$style.tocH2, {[$style.active]: avtiveComponentName == h2.id }]"
             role="tab" :aria-selected="avtiveComponentName == h2.id"
-            :aria-label="h2.title" ignore-tip @click="toggleTab(h2.id)"
+            :aria-label="h2.title" @click="toggleTab(h2.id)"
           >
             <transition name="list-active">
               <svg-icon v-if="avtiveComponentName == h2.id" name="angle-right-solid" :class="$style.activeIcon" />

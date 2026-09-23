@@ -6,7 +6,7 @@
     <div :class="$style.listHeader">
       <h2 :class="$style.listsTitle">{{ $t('playlists__cloud_group') }}</h2>
       <div :class="$style.headerBtns">
-        <button :class="$style.listsAdd" :aria-label="$t('playlists__cloud_new')" @click="isShowNewCloudList = true">
+        <button :class="$style.listsAdd" :aria-label="$t('playlists__cloud_new')" :title="$t('playlists__cloud_new')" @click="isShowNewCloudList = true">
           <svg version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" height="70%" viewBox="0 0 24 24" space="preserve">
             <use xlink:href="#icon-list-add" />
           </svg>

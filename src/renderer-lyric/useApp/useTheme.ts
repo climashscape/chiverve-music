@@ -1,23 +1,14 @@
-import { onBeforeUnmount, watch } from '@common/utils/vueTools'
-import { setting } from '@lyric/store/state'
+import { onBeforeUnmount } from '@common/utils/vueTools'
 import { onThemeChange } from '@lyric/utils/ipc'
 import { resolveLyricColors } from '@lyric/utils/lyricColors'
 
 export default () => {
-  // 歌词文字色：设置项只在「与内置默认值不同」时才算用户覆盖，否则用主题派生色（见 utils/lyricColors.ts）
-  const applyLyricColors = () => {
-    window.setLyricColor(resolveLyricColors(setting))
-  }
+  // 歌词文字色只由主题派生（ADR-0007，见 utils/lyricColors.ts），注入一次就够：值是 `var(--color-*)`
+  // 间接引用，主题一变 CSS 自己重算，不需要再跑一遍 JS（也就没有「改主题要重启歌词窗」这回事）
+  window.setLyricColor(resolveLyricColors())
 
   const rThemeChange = onThemeChange(({ params: themeSetting }) => {
     window.setTheme(themeSetting.theme.colors)
-    // 主题派生色是 `var(--color-*)` 间接引用，主题一换 CSS 自己就跟着变；这里重算一次是为了
-    // 让「用户覆盖」的分支也能重新判定（三个颜色都没改过时结果不变，只是把同一份声明重写一遍）
-    applyLyricColors()
-  })
-
-  watch(() => [setting['desktopLyric.style.lyricUnplayColor'], setting['desktopLyric.style.lyricPlayedColor'], setting['desktopLyric.style.lyricShadowColor']], applyLyricColors, {
-    immediate: true,
   })
 
   onBeforeUnmount(() => {

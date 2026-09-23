@@ -12,14 +12,14 @@ dd(:aria-label="$t('setting__download_path_title')")
   div
     .p
       | {{ $t('setting__download_path_label') }}
-      span.auto-hidden.hover(:class="$style.savePath" :aria-label="$t('setting__download_path_open_label')" @click="openDirInExplorer(appSetting['download.savePath'])") {{ appSetting['download.savePath'] }}
+      span.auto-hidden.hover(:class="$style.savePath" :aria-label="$t('setting__download_path_open_label')" :title="$t('setting__download_path_open_label')" @click="openDirInExplorer(appSetting['download.savePath'])") {{ appSetting['download.savePath'] }}
     .p
       base-btn.btn(min @click="handleChangeSavePath") {{ $t('setting__download_path_change_btn') }}
 
 dd
   h3#download_max_num
     | {{ $t('setting__download_max_num') }}
-    svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__download_max_num_tooltip')")
+    svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__download_max_num_tooltip')" :title="$t('setting__download_max_num_tooltip')")
   div
     p
       base-selection.gap-left(:class="$style.selectWidth" :model-value="appSetting['download.maxDownloadNum']" :list="maxNums" item-key="id" item-name="id" @change="handleUpdateMaxNum")
@@ -55,7 +55,7 @@ dd(:aria-label="$t('setting__download_lyric_title')")
 dd
   h3#download_lyric_format
     | {{ $t('setting__download_lyric_format') }}
-    svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__download_lyric_format_tip')")
+    svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__download_lyric_format_tip')" :title="$t('setting__download_lyric_format_tip')")
   div
     base-checkbox.gap-left(
       v-for="item in lrcFormatList" :id="`setting_download_lrcFormat_${item.id}`" :key="item.id"

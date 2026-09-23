@@ -1,5 +1,4 @@
-// 歌词窗需要 LX.AppSetting：utils/lyricColors.ts 要拿内置默认歌词色做比对，
-// 而 types/desktop_lyric.d.ts 的属性类型本身就是 `LX.AppSetting[...]` 的引用。
+// 歌词窗需要 LX.AppSetting：types/desktop_lyric.d.ts 的属性类型本身就是 `LX.AppSetting[...]` 的引用。
 // 上游把它注掉是因为当时用不到；开了之后这份声明才在歌词窗的 ts 程序里可见。
 import '@common/types/app_setting'
 // import '@common/types/common'

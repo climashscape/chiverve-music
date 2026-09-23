@@ -1,12 +1,12 @@
 <template>
   <div :class="$style.controlBtn">
     <!-- <common-volume-bar /> -->
-    <button :class="$style.titleBtn" :aria-label="$t('player__add_music_to')" @click="addMusicTo">
+    <button :class="$style.titleBtn" :aria-label="$t('player__add_music_to')" :title="$t('player__add_music_to')" @click="addMusicTo">
       <svg version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" width="90%" viewBox="0 0 512 512" space="preserve">
         <use xlink:href="#icon-add-2" />
       </svg>
     </button>
-    <button :class="$style.titleBtn" :aria-label="toggleDesktopLyricBtnTitle" @click="toggleDesktopLyric" @contextmenu="toggleLockDesktopLyric">
+    <button :class="$style.titleBtn" :aria-label="toggleDesktopLyricBtnTitle" :title="toggleDesktopLyricBtnTitle" @click="toggleDesktopLyric" @contextmenu="toggleLockDesktopLyric">
       <svg v-show="appSetting['desktopLyric.enable']" version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" height="100%" viewBox="0 0 512 512" space="preserve">
         <use xlink:href="#icon-desktop-lyric-on" />
       </svg>

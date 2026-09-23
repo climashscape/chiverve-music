@@ -8,12 +8,13 @@
         </dl>
         <dl v-if="appSetting['search.isShowHistorySearch'] && historyList.length" :class="$style.noitemList">
           <dt :class="$style.noitemListTitle">
-            <span>{{ $t('history_search') }}</span><span :class="$style.historyClearBtn" :aria-label="$t('history_clear')" @click="clearHistoryList">
+            <span>{{ $t('history_search') }}</span><span :class="$style.historyClearBtn" :aria-label="$t('history_clear')" :title="$t('history_clear')" @click="clearHistoryList">
               <svg version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" height="100%" viewBox="0 0 512 512" space="preserve">
                 <use xlink:href="#icon-eraser" />
               </svg></span>
           </dt>
-          <dd v-for="(item, index) in historyList" :key="index + item" :class="$style.noitemListItem" :aria-label="$t('history_remove')" @contextmenu="removeHistoryWord(index)" @click="handleSearch(item)">{{ item }}</dd>
+          <!-- title 写的是**右击**这个隐藏操作（可见文本只是搜索词），与 aria 同值 -->
+          <dd v-for="(item, index) in historyList" :key="index + item" :class="$style.noitemListItem" :aria-label="$t('history_remove')" :title="$t('history_remove')" @contextmenu="removeHistoryWord(index)" @click="handleSearch(item)">{{ item }}</dd>
         </dl>
       </div>
       <div v-else :class="$style.noitem_label">

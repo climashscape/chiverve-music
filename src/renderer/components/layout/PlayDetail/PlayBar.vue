@@ -15,12 +15,12 @@
       <div :class="$style.timeLabel"><span :class="$style.status" style="margin-right: 15px">{{ status }}</span><span>{{ nowPlayTimeStr }}</span><span style="margin: 0 5px;">/</span><span>{{ maxPlayTimeStr }}</span></div>
     </div>
     <div :class="$style.playControl">
-      <div :class="$style.playBtn" :aria-label="$t('player__prev')" @click="playPrev()">
+      <div :class="$style.playBtn" :aria-label="$t('player__prev')" :title="$t('player__prev')" @click="playPrev()">
         <svg version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" height="100%" viewBox="0 0 1024 1024" space="preserve">
           <use xlink:href="#icon-prevMusic" />
         </svg>
       </div>
-      <div :class="$style.playBtn" :aria-label="isPlay ? $t('player__pause') : $t('player__play')" @click="togglePlay">
+      <div :class="$style.playBtn" :aria-label="isPlay ? $t('player__pause') : $t('player__play')" :title="isPlay ? $t('player__pause') : $t('player__play')" @click="togglePlay">
         <svg v-if="isPlay" version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" height="100%" viewBox="0 0 1024 1024" space="preserve">
           <use xlink:href="#icon-pause" />
         </svg>
@@ -28,7 +28,7 @@
           <use xlink:href="#icon-play" />
         </svg>
       </div>
-      <div :class="$style.playBtn" :aria-label="$t('player__next')" @click="playNext()">
+      <div :class="$style.playBtn" :aria-label="$t('player__next')" :title="$t('player__next')" @click="playNext()">
         <svg version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" height="100%" viewBox="0 0 1024 1024" space="preserve">
           <use xlink:href="#icon-nextMusic" />
         </svg>

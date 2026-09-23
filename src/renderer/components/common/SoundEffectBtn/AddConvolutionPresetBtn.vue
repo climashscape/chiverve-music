@@ -1,5 +1,5 @@
 <template>
-  <base-btn min :disabled="disabled" :class="[$style.newPreset, {[$style.editing]: isEditing}]" :aria-label="$t('player__sound_effect_biquad_filter_save_btn')" @click="handleEditing($event)">
+  <base-btn min :disabled="disabled" :class="[$style.newPreset, {[$style.editing]: isEditing}]" :aria-label="$t('player__sound_effect_biquad_filter_save_btn')" :title="$t('player__sound_effect_biquad_filter_save_btn')" @click="handleEditing($event)">
     <svg-icon name="plus" />
     <base-input ref="input" :class="$style.newPresetInput" :value="newPresetName" :placeholder="$t('player__sound_effect_biquad_filter_save_input')" @keyup.enter="handleSave($event)" @blur="handleSave($event)" />
   </base-btn>

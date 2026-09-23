@@ -4,7 +4,7 @@ dd
   div
     .gap-top
       base-checkbox(id="setting_transparent_window" :model-value="appSetting['common.transparentWindow']" :label="$t('setting__other_transparent_window')" @update:model-value="updateSetting({'common.transparentWindow': $event})")
-      svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__other_transparent_window_tip')")
+      svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__other_transparent_window_tip')" :title="$t('setting__other_transparent_window_tip')")
 
 dd
   h3#other_tray_theme {{ $t('setting__other_tray_theme') }}
@@ -15,7 +15,7 @@ dd
 dd
   h3#other_resource_cache
     | {{ $t('setting__other_resource_cache') }}
-    svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__other_resource_cache_tip')")
+    svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__other_resource_cache_tip')" :title="$t('setting__other_resource_cache_tip')")
   div
     .p
       | {{ $t('setting__other_resource_cache_label') }}

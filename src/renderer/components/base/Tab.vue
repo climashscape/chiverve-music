@@ -3,7 +3,7 @@
     <li
       v-for="item in list"
       :key="item[itemKey]" :class="[$style.listItem, {[$style.active]: modelValue == item[itemKey]}]" tabindex="-1" role="tab"
-      :aria-label="item[itemLabel]" ignore-tip :aria-selected="modelValue == item[itemKey]" @click="handleToggle(item[itemKey])"
+      :aria-label="item[itemLabel]" :aria-selected="modelValue == item[itemKey]" @click="handleToggle(item[itemKey])"
     >
       <span :class="$style.label">{{ item[itemLabel] }}</span>
     </li>

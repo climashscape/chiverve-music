@@ -18,9 +18,7 @@ export const setting = shallowReactive<LX.DesktopLyric.Config>({
   'desktopLyric.isHoverHide': false,
   'desktopLyric.direction': 'horizontal',
   'desktopLyric.style.align': 'center',
-  'desktopLyric.style.lyricUnplayColor': 'rgba(255, 255, 255, 1)',
-  'desktopLyric.style.lyricPlayedColor': 'rgba(7, 197, 86, 1)',
-  'desktopLyric.style.lyricShadowColor': 'rgba(0, 0, 0, 0.14)',
+  // 歌词未播/已播/阴影色没有镜像默认值：它们不是设置项，只由主题派生（ADR-0007）
   'desktopLyric.style.font': '',
   'desktopLyric.style.fontSize': 20,
   'desktopLyric.style.lineGap': 15,

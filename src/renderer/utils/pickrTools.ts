@@ -54,6 +54,9 @@ export const pickrTools: PickrTools = {
         'btn:cancel': window.i18n.t('theme_edit_modal__pick_cancel'),
 
         // Strings used for aria-labels
+        // 下面几条置空是上游原样：上游的悬停气泡插件按 `aria-label` 弹提示，置空可让 Pickr
+        // 内部按钮不弹英文原文。**应用气泡已在工单 11 删除**，置空对悬停不再有任何影响
+        // （原生提示只认 `title`，Pickr 不设它）；保留是为了不动第三方取色器的内部结构。
         'aria:btn:save': ' ',
         'aria:btn:cancel': ' ',
         'aria:input': ' ',

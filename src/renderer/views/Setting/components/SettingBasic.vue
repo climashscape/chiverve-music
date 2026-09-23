@@ -20,7 +20,8 @@ dd
       li(v-for="theme in themeList" :key="theme.id" :aria-label="theme.name" :style="theme.styles" :class="[$style.themeItem, {[$style.active]: themeId == theme.id}]" @click="toggleTheme(theme)" @contextmenu="handleEditTheme(theme)")
         div(:class="$style.bg")
         span(:class="$style.label") {{ theme.name }}
-      li(v-if="showAllTheme || themeId == 'auto'" :aria-label="$t('theme_auto_tip')" :style="autoTheme" :class="[$style.themeItem, $style.auto, {[$style.active]: themeId == 'auto'}]" @click="handleSetThemeAuto" @contextmenu="isShowThemeSelectorModal = true")
+      //- 「跟随系统」项的可见文本只有名字，`theme_auto_tip` 写的是它的**右击隐藏操作**，故补 title
+      li(v-if="showAllTheme || themeId == 'auto'" :aria-label="$t('theme_auto_tip')" :title="$t('theme_auto_tip')" :style="autoTheme" :class="[$style.themeItem, $style.auto, {[$style.active]: themeId == 'auto'}]" @click="handleSetThemeAuto" @contextmenu="isShowThemeSelectorModal = true")
         div(:class="$style.bg")
           div(:class="$style.bgContent")
             div(:class="$style.light")

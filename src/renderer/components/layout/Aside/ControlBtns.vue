@@ -1,11 +1,11 @@
 <template>
   <div v-show="!isFullscreen" ref="dom_btns" :class="$style.controlBtn">
-    <button type="button" :class="[$style.btn, $style.close]" :aria-label="$t('close')" ignore-tip :title="$t('close')" @click="closeWindow">
+    <button type="button" :class="[$style.btn, $style.close]" :aria-label="$t('close')" :title="$t('close')" @click="closeWindow">
       <svg :class="$style.controlBtniIcon" version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" width="100%" viewBox="0 0 24 24" space="preserve">
         <use xlink:href="#icon-window-close" />
       </svg>
     </button>
-    <button type="button" :class="[$style.btn, $style.min]" :aria-label="$t('min')" ignore-tip :title="$t('min')" @click="minWindow">
+    <button type="button" :class="[$style.btn, $style.min]" :aria-label="$t('min')" :title="$t('min')" @click="minWindow">
       <svg :class="$style.controlBtniIcon" version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" width="100%" viewBox="0 0 24 24" space="preserve">
         <use xlink:href="#icon-window-minimize" />
       </svg>

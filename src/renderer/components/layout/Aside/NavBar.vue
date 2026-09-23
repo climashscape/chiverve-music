@@ -13,6 +13,9 @@
       :class="[$style.list, { [$style.bottom]: group.bottom }]" role="toolbar"
     >
       <li v-for="item in group.items" :key="item.to" :class="$style.navItem" role="presentation">
+        <!-- aria-label 与 title 同值但都不能省：链接内容只有一个 svg 图标（无可见文本），
+             删 aria-label 会让 role=tab 的链接失去可访问名；title 是唯一的悬停提示来源
+             （应用级气泡插件已删，规矩见 §2.5.1）。 -->
         <router-link
           :class="[$style.link, {[$style.active]: $route.meta.name == item.name}]" role="tab"
           :aria-selected="$route.meta.name == item.name" :to="item.to"

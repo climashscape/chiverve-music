@@ -3,7 +3,7 @@
     <div class="player__sound_effect_title" :class="$style.header">
       <h3>
         {{ $t('player__sound_effect_pitch_shifter') }}
-        <svg-icon class="help-icon" name="information-slab-circle-outline" :aria-label="$t('player__sound_effect_pitch_shifter_tip')" />
+        <svg-icon class="help-icon" name="information-slab-circle-outline" :aria-label="$t('player__sound_effect_pitch_shifter_tip')" :title="$t('player__sound_effect_pitch_shifter_tip')" />
       </h3>
       <base-btn min @click="handleSetPreset(1)">{{ $t('player__sound_effect_pitch_shifter_reset_btn') }}</base-btn>
     </div>

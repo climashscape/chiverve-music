@@ -3,12 +3,12 @@
     <div :class="$style.progress">
       <common-progress-bar v-if="!isShowPlayerDetail" :class-name="$style.progressBar" :progress="progress" :handle-transition-end="handleTransitionEnd" :is-active-transition="isActiveTransition" />
     </div>
-    <div :class="$style.picContent" :aria-label="$t('player__pic_tip')" @contextmenu="handleToMusicLocation" @click="showPlayerDetail">
+    <div :class="$style.picContent" :aria-label="$t('player__pic_tip')" :title="$t('player__pic_tip')" @contextmenu="handleToMusicLocation" @click="showPlayerDetail">
       <img v-if="musicInfo.pic" :src="musicInfo.pic" decoding="async" @error="imgError">
       <div v-else :class="$style.emptyPic">L<span>X</span></div>
     </div>
     <div :class="$style.infoContent">
-      <div :class="$style.title" :aria-label="title + $t('copy_tip')" @click="handleCopy(title)">
+      <div :class="$style.title" :aria-label="title + $t('copy_tip')" :title="title + $t('copy_tip')" @click="handleCopy(title)">
         {{ title }}
       </div>
       <div :class="$style.status">{{ statusText }}</div>
@@ -21,12 +21,12 @@
     <!-- <play-progress /> -->
     <control-btns />
     <div :class="$style.playBtnContent">
-      <div :class="$style.playBtn" :aria-label="$t('player__prev')" @click="playPrev()">
+      <div :class="$style.playBtn" :aria-label="$t('player__prev')" :title="$t('player__prev')" @click="playPrev()">
         <svg version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" height="100%" viewBox="0 0 1024 1024" space="preserve">
           <use xlink:href="#icon-prevMusic" />
         </svg>
       </div>
-      <div :class="$style.playBtn" :aria-label="isPlay ? $t('player__pause') : $t('player__play')" @click="togglePlay">
+      <div :class="$style.playBtn" :aria-label="isPlay ? $t('player__pause') : $t('player__play')" :title="isPlay ? $t('player__pause') : $t('player__play')" @click="togglePlay">
         <svg v-if="isPlay" version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" height="100%" viewBox="0 0 1024 1024" space="preserve">
           <use xlink:href="#icon-pause" />
         </svg>
@@ -34,7 +34,7 @@
           <use xlink:href="#icon-play" />
         </svg>
       </div>
-      <div :class="$style.playBtn" :aria-label="$t('player__next')" @click="playNext()">
+      <div :class="$style.playBtn" :aria-label="$t('player__next')" :title="$t('player__next')" @click="playNext()">
         <svg version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" height="100%" viewBox="0 0 1024 1024" space="preserve">
           <use xlink:href="#icon-nextMusic" />
         </svg>

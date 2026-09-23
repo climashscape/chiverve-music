@@ -421,21 +421,6 @@ declare global {
       'desktopLyric.style.lineGap': number
 
       /**
-       * 桌面歌词未播放字体颜色
-       */
-      'desktopLyric.style.lyricUnplayColor': string
-
-      /**
-       * 桌面歌词已播放字体颜色
-       */
-      'desktopLyric.style.lyricPlayedColor': string
-
-      /**
-       * 桌面歌词字体阴影颜色
-       */
-      'desktopLyric.style.lyricShadowColor': string
-
-      /**
        * 桌面歌词加粗字体
        */
       // 'desktopLyric.style.fontWeight': boolean

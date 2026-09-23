@@ -9,7 +9,6 @@
         role="tab"
         tabindex="0"
         :aria-label="item[itemName]"
-        ignore-tip
         :disabled="item.disabled ? true : null"
         @click="menuClick(item)"
       >

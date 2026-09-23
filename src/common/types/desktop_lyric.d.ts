@@ -21,9 +21,7 @@ declare namespace LX {
       'desktopLyric.style.font': LX.AppSetting['desktopLyric.style.font']
       'desktopLyric.style.fontSize': LX.AppSetting['desktopLyric.style.fontSize']
       'desktopLyric.style.lineGap': LX.AppSetting['desktopLyric.style.lineGap']
-      'desktopLyric.style.lyricUnplayColor': LX.AppSetting['desktopLyric.style.lyricUnplayColor']
-      'desktopLyric.style.lyricPlayedColor': LX.AppSetting['desktopLyric.style.lyricPlayedColor']
-      'desktopLyric.style.lyricShadowColor': LX.AppSetting['desktopLyric.style.lyricShadowColor']
+      // 歌词未播/已播/阴影色只由主题派生（`renderer-lyric/utils/lyricColors.ts`），不经设置下发（ADR-0007）
       // 'desktopLyric.style.fontWeight': LX.AppSetting['desktopLyric.style.fontWeight']
       'desktopLyric.style.opacity': LX.AppSetting['desktopLyric.style.opacity']
       'desktopLyric.style.ellipsis': LX.AppSetting['desktopLyric.style.ellipsis']

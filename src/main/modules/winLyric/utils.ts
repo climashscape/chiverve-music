@@ -23,9 +23,7 @@ export const watchConfigKeys = [
   'desktopLyric.isHoverHide',
   'desktopLyric.direction',
   'desktopLyric.style.align',
-  'desktopLyric.style.lyricUnplayColor',
-  'desktopLyric.style.lyricPlayedColor',
-  'desktopLyric.style.lyricShadowColor',
+  // 歌词未播/已播/阴影色不在此列：只由主题派生，不下发给歌词窗（ADR-0007）
   'desktopLyric.style.font',
   'desktopLyric.style.fontSize',
   'desktopLyric.style.lineGap',

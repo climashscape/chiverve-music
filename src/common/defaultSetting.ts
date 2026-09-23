@@ -94,9 +94,7 @@ const defaultSetting: LX.AppSetting = {
   'desktopLyric.style.font': '',
   'desktopLyric.style.fontSize': 20,
   'desktopLyric.style.lineGap': 15,
-  'desktopLyric.style.lyricUnplayColor': 'rgba(255, 255, 255, 1)',
-  'desktopLyric.style.lyricPlayedColor': 'rgba(7, 197, 86, 1)',
-  'desktopLyric.style.lyricShadowColor': 'rgba(0, 0, 0, 0.18)',
+  // 歌词未播/已播/阴影色不是设置项：只由主题派生，见 renderer-lyric/utils/lyricColors.ts（ADR-0007）
   // 'desktopLyric.style.fontWeight': false,
   'desktopLyric.style.opacity': 95,
   'desktopLyric.style.ellipsis': false,
@@ -165,7 +163,6 @@ const defaultSetting: LX.AppSetting = {
 // 使用新年皮肤
 if (new Date().getMonth() < 2) {
   defaultSetting['theme.id'] = 'happy_new_year'
-  defaultSetting['desktopLyric.style.lyricPlayedColor'] = 'rgba(255, 57, 71, 1)'
 }
 
 

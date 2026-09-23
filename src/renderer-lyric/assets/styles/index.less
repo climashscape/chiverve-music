@@ -9,10 +9,12 @@ html {
 }
 
 :root {
-  --color-lyric-unplay: rgba(255, 255, 255, 1);
-  --color-lyric-played: rgba(7, 197, 86, 1);
-  --color-lyric-shadow: rgba(0, 0, 0, 0.14);
-  --color-lyric-shadow-font-mode: rgba(0, 0, 0, 0.07);
+  // 兜底值：与 utils/lyricColors.ts 的主题派生保持一致（JS 注入的那份声明在 body 里，文档顺序更靠后，会覆盖这里）。
+  // 不能再写死颜色——歌词色只由主题派生（ADR-0007）。
+  --color-lyric-unplay: var(--color-1000);
+  --color-lyric-played: var(--color-primary-dark-200);
+  --color-lyric-shadow: color-mix(in srgb, var(--color-000) 18%, transparent);
+  --color-lyric-shadow-font-mode: color-mix(in srgb, var(--color-000) 9%, transparent);
 }
 
 .nobreak {

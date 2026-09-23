@@ -3,10 +3,11 @@ div.comment(ref="dom_container" :class="$style.comment")
   div(:class="$style.commentHeader")
     h3 {{ $t('comment__title', { name: currentMusicInfo.name }) }}
     div(:class="$style.commentHeaderBtns")
-      div(:class="$style.commentHeaderBtn" :aria-label="$t('comment__refresh')" @click="handleShowComment")
+      div(:class="$style.commentHeaderBtn" :aria-label="$t('comment__refresh')" :title="$t('comment__refresh')" @click="handleShowComment")
         svg(version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" style="transform: rotate(45deg);" viewBox="0 0 24 24" space="preserve")
           use(xlink:href="#icon-refresh")
-      div(:class="$style.commentHeaderBtn" @click="$emit('close')")
+      //- 关闭键原先既无 aria-label 也无 title：图标键按 §2.5.1 补上（`close` 是既有 key）
+      div(:class="$style.commentHeaderBtn" :aria-label="$t('close')" :title="$t('close')" @click="$emit('close')")
         svg(version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" viewBox="0 0 24 24" space="preserve")
           use(xlink:href="#icon-close")
 

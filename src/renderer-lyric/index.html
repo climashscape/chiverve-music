@@ -26,7 +26,6 @@
         window.dom_style_theme.innerText = `:root {${(Object.entries(colors)).map(([key, value]) => `${key}:${value};`).join('')}}`
       }
       window.setLyricColor = colors => {
-        console.log(colors)
         window.dom_style_lyric.innerText = `:root {${(Object.entries(colors)).map(([key, value]) => `${key}:${value};`).join('')}}`
       }
       document.body.appendChild(window.dom_style_lyric)

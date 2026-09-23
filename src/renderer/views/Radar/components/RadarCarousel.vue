@@ -31,7 +31,7 @@
         </div>
 
         <!-- 中央的巨型播放/暂停键：正在播这首就是暂停键，否则是播放键 -->
-        <button :class="$style.playBtn" :aria-label="isCurrentPlaying ? $t('player__pause') : $t('player__play')" @click.stop="handlePlayClick" @pointerdown.stop>
+        <button :class="$style.playBtn" :aria-label="isCurrentPlaying ? $t('player__pause') : $t('player__play')" :title="isCurrentPlaying ? $t('player__pause') : $t('player__play')" @click.stop="handlePlayClick" @pointerdown.stop>
           <!-- ⚠️ 这两个图标的坐标系是 1024×1024（见 Icons.vue 的注释），按 512 渲染会把图形裁掉一半 -->
           <svg v-if="isCurrentPlaying" version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1024 1024" space="preserve">
             <use xlink:href="#icon-pause" />
