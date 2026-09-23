@@ -76,7 +76,12 @@ const winOptions = {
  */
 const linuxOptions = {
   linux: {
-    maintainer: 'lyswhut <lyswhut@qq.com>',
+    // Maintainer / Vendor 会写进 deb 的包元数据，是用户会看到的署名。
+    // 不能沿用上游作者（那会把问题反馈引向与本产品无关的人）；
+    // 也不能省略——省略时 electron-builder 会退回 package.json 的 author，
+    // 而 author 没写 email 会直接抛 authorEmailIsMissed（FpmTarget.js:85-96）。
+    maintainer: 'climashscape <climashscape@users.noreply.github.com>',
+    vendor: 'climashscape',
     // artifactName: '${productName}-${version}.${env.ARCH}.${ext}',
     icon: './resources/icons',
     category: 'Utility;AudioVideo;Audio;Player;Music;',
@@ -94,6 +99,27 @@ const linuxOptions = {
         StartupNotify: 'false',
       },
     },
+  },
+  deb: {
+    // electron-builder 的默认依赖表是硬编码的（FpmTarget.js 的
+    // ["libgtk-3-0", …, "libatspi2.0-0", …]），没有 t64 处理：
+    // Ubuntu 24.04+ / Mint 22+ 因 time_t 64 位迁移把这两个包改名为
+    // libgtk-3-0t64 / libatspi2.0-0t64，默认表在这类发行版上无法满足，
+    // `dpkg -i` 会以「依赖不满足」拒绝配置（实测 Mint 22.3/noble）。
+    // 用 `|` 备选名同时兼容新旧发行版；其余项与默认表逐项一致。
+    depends: [
+      'libgtk-3-0 | libgtk-3-0t64',
+      'libnotify4',
+      'libnss3',
+      'libxss1',
+      'libxtst6',
+      'xdg-utils',
+      'libatspi2.0-0 | libatspi2.0-0t64',
+      'libuuid1',
+      'libsecret-1-0',
+    ],
+    // 默认的 "default" 在 Debian 策略里不是合法 section（lintian 会报）
+    packageCategory: 'sound',
   },
   appImage: {
     license: './licenses/license_zh.txt',
