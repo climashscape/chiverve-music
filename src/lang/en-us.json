@@ -1,6 +1,8 @@
 {
   "action": "Actions",
   "album__company": "Label",
+  "album__desc_collapse": "Collapse",
+  "album__desc_expand": "Read more",
   "album__genre": "Genre",
   "album__language": "Language",
   "album__not_found": "Album not found or removed",

@@ -24,7 +24,10 @@
           <span v-if="detail.albumType">{{ $t('album__type') }}：{{ detail.albumType }}</span>
           <span v-if="detail.genre">{{ $t('album__genre') }}：{{ detail.genre }}</span>
         </p>
-        <p v-if="detail.desc" :class="$style.desc">{{ detail.desc }}</p>
+        <p v-if="detail.desc" ref="descEl" :class="[$style.desc, { [$style.descOpen]: isDescOpen }]">{{ detail.desc }}</p>
+        <base-btn v-if="detail.desc && isDescOverflow" min :class="$style.descToggle" @click="isDescOpen = !isDescOpen">
+          {{ isDescOpen ? $t('album__desc_collapse') : $t('album__desc_expand') }}
+        </base-btn>
       </div>
       <div :class="$style.actions">
         <base-btn @click="handleBack">{{ $t('back') }}</base-btn>
@@ -57,7 +60,7 @@
 </template>
 
 <script lang="ts">
-import { ref, watch } from '@common/utils/vueTools'
+import { ref, watch, nextTick } from '@common/utils/vueTools'
 import { useRoute, useRouter } from '@common/utils/vueRouter'
 import usePlay from '@renderer/components/material/OnlineList/usePlay'
 import useAlbum from './useAlbum'
@@ -90,6 +93,20 @@ export default {
       loadSongPage(page)
     }
     const handleBack = () => { router.back() }
+    // 专辑简介默认 3 行截断（.desc 的 mixin-ellipsis(3)），点按钮展开全文。
+    // 按钮只在**真的被截断**时出现：line-clamp 下 scrollHeight 仍是全文高度，
+    // 所以量 scrollHeight > clientHeight 就能判断（短简介不该出现一个点了没变化的按钮）。
+    const descEl = ref<HTMLElement | null>(null)
+    const isDescOpen = ref(false)
+    const isDescOverflow = ref(false)
+    const measureDesc = () => {
+      isDescOpen.value = false
+      void nextTick(() => {
+        const el = descEl.value
+        isDescOverflow.value = el != null && el.scrollHeight > el.clientHeight + 1
+      })
+    }
+    watch(() => detail.desc, measureDesc, { immediate: true })
     // 专辑详情的歌手条目带 mid（tx/album.js 的 toSinger），据此跳歌手页
     const toSinger = (singer: { mid: string, name: string }) => {
       if (!singer.mid) return
@@ -104,6 +121,9 @@ export default {
       handlePlayList,
       handleBack,
       toSinger,
+      descEl,
+      isDescOpen,
+      isDescOverflow,
     }
   },
 }
@@ -185,6 +205,16 @@ export default {
   line-height: 1.4;
   color: var(--color-font-label);
   .mixin-ellipsis(3);
+}
+// 展开态：解除 3 行截断（mixin 用的是 -webkit-box + line-clamp）
+.descOpen {
+  display: block;
+  overflow: visible;
+  -webkit-line-clamp: unset;
+}
+.descToggle {
+  margin-top: 4px;
+  align-self: flex-start;
 }
 .actions {
   flex: none;

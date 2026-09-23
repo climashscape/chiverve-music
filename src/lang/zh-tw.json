@@ -1,6 +1,8 @@
 {
   "action": "操作",
   "album__company": "發行公司",
+  "album__desc_collapse": "收起",
+  "album__desc_expand": "展開簡介",
   "album__genre": "流派",
   "album__language": "語言",
   "album__not_found": "專輯不存在或已下架",

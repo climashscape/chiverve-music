@@ -1,6 +1,8 @@
 {
   "action": "동작",
   "album__company": "발매사",
+  "album__desc_collapse": "접기",
+  "album__desc_expand": "소개 전체 보기",
   "album__genre": "장르",
   "album__language": "언어",
   "album__not_found": "앨범이 없거나 삭제되었습니다",

@@ -1,6 +1,8 @@
 {
   "action": "操作",
   "album__company": "发行公司",
+  "album__desc_collapse": "收起",
+  "album__desc_expand": "展开简介",
   "album__genre": "流派",
   "album__language": "语言",
   "album__not_found": "专辑不存在或已下架",
