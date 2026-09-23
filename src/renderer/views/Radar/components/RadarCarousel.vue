@@ -29,10 +29,11 @@
 
         <!-- 中央的巨型播放/暂停键：正在播这首就是暂停键，否则是播放键 -->
         <button :class="$style.playBtn" :aria-label="isCurrentPlaying ? $t('player__pause') : $t('player__play')" @click.stop="handlePlayClick" @pointerdown.stop>
-          <svg v-if="isCurrentPlaying" version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" viewBox="0 0 512 512" space="preserve">
+          <!-- ⚠️ 这两个图标的坐标系是 1024×1024（见 Icons.vue 的注释），按 512 渲染会把图形裁掉一半 -->
+          <svg v-if="isCurrentPlaying" version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1024 1024" space="preserve">
             <use xlink:href="#icon-pause" />
           </svg>
-          <svg v-else version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" viewBox="0 0 512 512" space="preserve">
+          <svg v-else :class="$style.playGlyph" version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1024 1024" space="preserve">
             <use xlink:href="#icon-play" />
           </svg>
         </button>
@@ -48,11 +49,45 @@
         >{{ current?.singer }}</p>
       </div>
 
-      <!-- 按钮组：居中的下方（换一批 / 播放雷达；到底了才需要手动加载） -->
+      <!-- 按钮组：居中的下方。五个按键**同尺寸同内部对齐**
+           （图标与文字的基线由 flex 对齐，别用 inline svg + vertical-align——那样必然歪） -->
       <div :class="$style.actions">
-        <base-btn min :disabled="isLoading" @click="$emit('refresh')">{{ $t('discover__refresh') }}</base-btn>
-        <base-btn :disabled="isLoading" @click="handlePlayAll">{{ $t('radar__play_all') }}</base-btn>
-        <base-btn v-if="needMore" min :disabled="isLoading" @click="$emit('load-more')">{{ $t('discover__load_more') }}</base-btn>
+        <base-btn min :disabled="isLoading" @click="$emit('refresh')">
+          <span :class="$style.btnInner">
+            <svg :class="$style.btnIcon" version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" viewBox="0 0 448 448" space="preserve"><use xlink:href="#icon-refresh" /></svg>
+            <span>{{ $t('discover__refresh') }}</span>
+          </span>
+        </base-btn>
+        <base-btn min :disabled="!current" @click="handleToggleLove">
+          <span :class="$style.btnInner">
+            <svg :class="[$style.btnIcon, { [$style.btnIconOn]: isLoved }]" version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" viewBox="0 0 444.87 391.18" space="preserve"><use xlink:href="#icon-love" /></svg>
+            <span>{{ isLoved ? $t('list__unlove') : $t('list__love') }}</span>
+          </span>
+        </base-btn>
+        <base-btn min :disabled="!current" @click="handleDislike">
+          <span :class="$style.btnInner">
+            <svg :class="$style.btnIcon" version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" viewBox="0 0 425.2 425.2" space="preserve"><use xlink:href="#icon-delete" /></svg>
+            <span>{{ $t('list__dislike') }}</span>
+          </span>
+        </base-btn>
+        <base-btn min :disabled="!current" @click="handleAddTo">
+          <span :class="$style.btnInner">
+            <svg :class="$style.btnIcon" version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" viewBox="0 0 425.2 425.2" space="preserve"><use xlink:href="#icon-list-add" /></svg>
+            <span>{{ $t('list__add_to') }}</span>
+          </span>
+        </base-btn>
+        <base-btn min :disabled="!current || !canDownload" @click="handleDownload">
+          <span :class="$style.btnInner">
+            <svg :class="$style.btnIcon" version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" viewBox="0 0 425.2 425.2" space="preserve"><use xlink:href="#icon-download-2" /></svg>
+            <span>{{ $t('list__download') }}</span>
+          </span>
+        </base-btn>
+        <!-- 只在自动续页失败时露出：正常运行不需要手动翻页 -->
+        <base-btn v-if="needMore" min :disabled="isLoading" @click="$emit('load-more')">
+          <span :class="$style.btnInner">
+            <span>{{ $t('discover__load_more') }}</span>
+          </span>
+        </base-btn>
       </div>
       <p v-if="moreError" :class="$style.error" v-text="moreError" />
     </template>
@@ -70,6 +105,11 @@ import { computed, ref, watch } from '@common/utils/vueTools'
 import { playMusicList, togglePlay } from '@renderer/core/player'
 import { musicInfo, isPlay } from '@renderer/store/player/state'
 import { addTempPlayList } from '@renderer/store/player/action'
+import { addListMusics, getListMusics, removeListMusics } from '@renderer/store/list/action'
+import { loveList } from '@renderer/store/list/state'
+import { addDislikeInfo, hasDislike } from '@renderer/core/dislikeList'
+import { dialog } from '@renderer/plugins/Dialog'
+import { useI18n } from '@renderer/plugins/i18n'
 import { LIST_IDS } from '@common/constants'
 import useMusicActions from '@renderer/components/material/OnlineList/useMusicActions'
 import useMusicAdd from '@renderer/components/material/OnlineList/useMusicAdd'
@@ -185,11 +225,60 @@ export default {
       }
       void playMusicList(RADAR_QUEUE_ID, [...list.value], centerIndex.value)
     }
-    const handlePlayAll = () => {
-      if (!list.value.length) return
-      centerIndex.value = 0
-      void playMusicList(RADAR_QUEUE_ID, [...list.value], 0)
+
+    // ── 底部按键都作用于「中央这一首」────────────────────────────────────
+    const t = useI18n()
+
+    // 收藏 = 收进本地「我的收藏」（与播放栏的收藏键、快捷键 music_love 同一套语义）。
+    // 「是否已收藏」要拿整张列表比：本地收藏是个真实列表，走 getListMusics 读（命中缓存就不发请求）
+    const lovedIds = ref<Set<string>>(new Set())
+    const refreshLoved = async() => {
+      const loved = await getListMusics(loveList.id)
+      lovedIds.value = new Set(loved.map(item => item.id))
     }
+    void refreshLoved()
+    const isLoved = computed(() => !!current.value && lovedIds.value.has(current.value.id))
+    const handleToggleLove = async() => {
+      const song = current.value
+      if (!song) return
+      if (isLoved.value) {
+        await removeListMusics({ listId: loveList.id, ids: [song.id] })
+      } else {
+        await addListMusics(loveList.id, [song])
+      }
+      // Set 原地改不会触发 computed，替换成新 Set
+      const next = new Set(lovedIds.value)
+      if (isLoved.value) next.delete(song.id)
+      else next.add(song.id)
+      lovedIds.value = next
+    }
+
+    /**
+     * 不喜欢：确认后写进不喜欢列表并**把游标挪到下一首**（推荐流里这一步才是重点）。
+     * 这里没复用 OnlineList 的 `useMusicActions.handleDislikeMusic`——它不告诉调用方
+     * 「用户是否真的确认了」，而我们要据此决定要不要前进。
+     */
+    const handleDislike = async() => {
+      const song = current.value
+      if (!song) return
+      if (hasDislike(song)) {
+        void dialog({ message: t('lists__dislike_music_tip', { name: song.name }), confirmButtonText: t('ok') })
+        return
+      }
+      const confirm = await dialog.confirm({
+        message: song.singer
+          ? t('lists__dislike_music_singer_tip', { name: song.name, singer: song.singer })
+          : t('lists__dislike_music_tip', { name: song.name }),
+        cancelButtonText: t('cancel_button_text_2'),
+        confirmButtonText: t('confirm_button_text'),
+      })
+      if (!confirm) return
+      await addDislikeInfo([{ name: song.name, singer: song.singer }])
+      if (canGoNext.value) centerIndex.value++
+    }
+
+    // 雷达列表只有在线的 tx 歌（`MusicInfoOnline` 的类型就是 tx），所以不必再判 local
+    const canDownload = computed(() => !!current.value && assertApiSupport(current.value.source))
 
     // ── 到底了就自动续（流式推荐），失败才露出「加载更多」──────────────
     const needMore = computed(() => !!moreError.value)
@@ -203,6 +292,10 @@ export default {
     const actions = useMusicActions({ props: { list: props.block.list, listId: RADAR_QUEUE_ID } })
     const { isShowListAdd, selectedAddMusicInfo, handleShowMusicAddModal } = useMusicAdd({ selectedList, props: props.block })
     const { isShowDownload, selectedDownloadMusicInfo, handleShowDownloadModal } = useMusicDownload({ selectedList, props: props.block })
+
+    // 底部两个按键直接复用上面这两个弹窗（`single=true` → 对「中央这一首」操作）
+    const handleAddTo = () => { handleShowMusicAddModal(centerIndex.value, true) }
+    const handleDownload = () => { handleShowDownloadModal(centerIndex.value, true) }
 
     const handlePlayMusicLater = (index: number) => {
       addTempPlayList([{ listId: LIST_IDS.PLAY_LATER, musicInfo: props.block.list[index] }])
@@ -256,10 +349,15 @@ export default {
       handlePointerUp,
       handleItemClick,
       handlePlayClick,
-      handlePlayAll,
       handleStageRightClick,
       handleMenuClick,
       handleSingerClick,
+      handleToggleLove,
+      isLoved,
+      handleDislike,
+      handleAddTo,
+      handleDownload,
+      canDownload,
 
       menus,
       menuLocation,
@@ -360,15 +458,16 @@ export default {
   fill: var(--color-font-label);
 }
 
-// 中央巨型播放/暂停键：压在封面正中
+// 中央巨型播放/暂停键：**白底 + 深色图形**（Spotify / Apple Music 那一路），压在任意封面上都干净。
+// 别用半透明黑底（发灰发脏）、也别加白色描边（像贴纸）——用户 2026-09-23 连着否掉这两版。
 .playBtn {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 96px;
-  height: 96px;
-  margin: -48px 0 0 -48px;
-  border-radius: 50%;
+  width: 84px;
+  height: 84px;
+  margin: -42px 0 0 -42px;
+  padding: 0;
   border: none;
   outline: none;
   cursor: pointer;
@@ -376,24 +475,48 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
-  // 半透明黑底 + 白图标：压在任意封面上都看得清（跟随主题色会在浅色封面上糊掉）
-  background-color: rgba(0, 0, 0, .52);
-  backdrop-filter: blur(2px);
+  border-radius: 50%;
+  color: #14161a;
+  background-color: rgba(255, 255, 255, .94);
+  box-shadow: 0 4px 18px 0 rgba(0, 0, 0, .28);
   transition: @transition-fast;
-  transition-property: transform, background-color;
+  transition-property: transform, box-shadow, background-color;
   svg {
-    width: 44%;
-    height: 44%;
+    width: 36%;
+    height: 36%;
     fill: currentColor;
   }
   &:hover {
-    transform: scale(1.06);
-    background-color: rgba(0, 0, 0, .66);
+    transform: scale(1.05);
+    background-color: #fff;
+    box-shadow: 0 6px 22px 0 rgba(0, 0, 0, .34);
   }
   &:active {
-    transform: scale(.96);
+    transform: scale(.97);
   }
+}
+// 三角形重心偏左，视觉居中要往右挪一点（暂停键的两条竖条不需要）
+.playGlyph {
+  transform: translateX(7%);
+}
+
+// 按钮内部：图标与文字用 flex 对齐（inline svg + vertical-align 必然对不齐）
+.btnInner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  // 等宽：五个按键排在一起才不像随手摆的
+  min-width: 84px;
+}
+.btnIcon {
+  width: 13px;
+  height: 13px;
+  flex: none;
+  fill: currentColor;
+}
+.btnIconOn {
+  fill: var(--color-primary);
 }
 
 .info {
