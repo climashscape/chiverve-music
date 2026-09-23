@@ -10,6 +10,7 @@ import recommend from './recommend'
 import album from './album'
 import mv from './mv'
 import singer from './singer'
+import songDetail from './songDetail'
 import tipSearch from './tipSearch'
 
 const tx = {
@@ -24,6 +25,7 @@ const tx = {
   album,
   mv,
   singer,
+  songDetail,
 
   getMusicUrl(songInfo, type) {
     return apis('tx').getMusicUrl(songInfo, type)
