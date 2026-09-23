@@ -117,6 +117,7 @@ import useMusicDownload from '@renderer/components/material/OnlineList/useMusicD
 import useMenu from '@renderer/components/material/OnlineList/useMenu'
 import { assertApiSupport } from '@renderer/store/utils'
 import useRadar, { RADAR_QUEUE_ID, type RadarBlock } from '../useRadar'
+import { DAILY_30_QUEUE_ID } from '../useDaily30'
 
 /**
  * 雷达的「居中轮播」形态（工单 07 的形态迭代，2026-09-23 用户要求：
@@ -137,17 +138,25 @@ export default {
       type: Object as () => RadarBlock,
       required: true,
     },
+    /** 当前 tab：决定游标槽与播放队列身份。父组件用 `:key="tab"` 重建本组件，故实例内视为常量。 */
+    tab: {
+      type: String as () => 'radar' | 'daily30',
+      default: 'radar',
+    },
   },
   emits: ['load-more', 'refresh'],
-  setup(props: { block: RadarBlock }, { emit }: { emit: (event: 'load-more' | 'refresh') => void }) {
+  setup(props: { block: RadarBlock, tab: 'radar' | 'daily30' }, { emit }: { emit: (event: 'load-more' | 'refresh') => void }) {
     const list = computed(() => props.block.list)
     const noItem = computed(() => props.block.noItemLabel)
     const isLoading = computed(() => props.block.isLoading)
     const moreError = computed(() => props.block.moreError)
 
     // 游标放在模块级（useRadar 的分槽状态）：路由页没有 keep-alive，切走再回来本组件会重建，
-    // 游标留在组件内 `ref` 里就会归零——「跳去歌手页再回来位置重置」就是这么来的（票 02）
-    const cursorSlot = 'radar'
+    // 游标留在组件内 `ref` 里就会归零——「跳去歌手页再回来位置重置」就是这么来的（票 02）。
+    // 两个 tab 各一槽（票 04），槽名就是 tab 名。
+    const cursorSlot = props.tab
+    /** 播放队列身份：两个 tab 是两批歌，队列标识分开，续播判定（useRadar.appendToPlayQueue）才不会串。 */
+    const queueId = props.tab === 'daily30' ? DAILY_30_QUEUE_ID : RADAR_QUEUE_ID
     const { getCursor, setCursor } = useRadar()
     const centerIndex = computed({
       get: () => getCursor(cursorSlot),
@@ -271,7 +280,7 @@ export default {
         togglePlay()
         return
       }
-      void playMusicList(RADAR_QUEUE_ID, [...list.value], centerIndex.value)
+      void playMusicList(queueId, [...list.value], centerIndex.value)
     }
 
     // ── 底部按键都作用于「中央这一首」────────────────────────────────────
@@ -338,7 +347,7 @@ export default {
 
     // ── 右键菜单：与表格同源（工单 02 的跳转/分享一并复用）────────────────
     const selectedList = ref<LX.Music.MusicInfoOnline[]>([])
-    const actions = useMusicActions({ props: { list: props.block.list, listId: RADAR_QUEUE_ID } })
+    const actions = useMusicActions({ props: { list: props.block.list, listId: queueId } })
     const { isShowListAdd, selectedAddMusicInfo, handleShowMusicAddModal } = useMusicAdd({ selectedList, props: props.block })
     const { isShowDownload, selectedDownloadMusicInfo, handleShowDownloadModal } = useMusicDownload({ selectedList, props: props.block })
 
@@ -365,7 +374,7 @@ export default {
       emit: () => {},
 
       handleShowDownloadModal,
-      handlePlayMusic: (index: number) => { void playMusicList(RADAR_QUEUE_ID, [...list.value], index) },
+      handlePlayMusic: (index: number) => { void playMusicList(queueId, [...list.value], index) },
       handlePlayMusicLater,
       handleSearch: actions.handleSearch,
       handleShowMusicAddModal,
