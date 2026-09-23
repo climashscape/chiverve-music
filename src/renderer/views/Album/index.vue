@@ -87,11 +87,12 @@ export default {
     // ⚠️ 传歌曲区块对象本身（不是 `{ list: songs.list }`）：usePlay 存的是 props.list 的数组
     // 引用，区块内写回全部走 splice，所以引用一直有效。
     const selectedList = ref<LX.Music.MusicInfoOnline[]>([])
+    // 队列身份（工单 06）：与模板上那个 :list-id 一致。`String(...)` 是为了吃掉
+    // route.query.mid 的 string | string[] 联合类型（免得模板字符串触发类型警告）
+    const queueListId = computed(() => `album__${String(route.query.mid ?? '')}`)
     const { handlePlayMusic } = usePlay({
       selectedList,
-      // 队列身份与模板上那个 :list-id 一致（工单 06）：两条播放入口（行内/双击 与 单击播放设置）
-      // 落到同一个队列标识上，换列表时才不会以为是同一个列表
-      props: { list: songs.list, listId: `album__${route.query.mid ?? ''}` },
+      props: { list: songs.list, listId: queueListId.value },
       removeAllSelect: () => { selectedList.value = [] },
       emit: () => {},
     })
