@@ -35,11 +35,24 @@ const setup = () => {
     userDataPath = path.join(app.getPath('appData'), appDirName)
   }
   app.setPath('userData', userDataPath)
+  resolvedUserDataPath = userDataPath
 
   global.lxOldDataPath = userDataPath
   global.lxDataPath = path.join(userDataPath, 'LxDatas')
   // recursive：开发版首次启动时 userData 目录本身还不存在
   if (!existsSync(global.lxDataPath)) mkdirSync(global.lxDataPath, { recursive: true })
+  // 日志目录：electron-log 的 file transport 用它（见 ./logInit 的 resolvePathFn）
+  const logsPath = path.join(userDataPath, 'logs')
+  if (!existsSync(logsPath)) mkdirSync(logsPath, { recursive: true })
 }
+
+let resolvedUserDataPath = ''
+
+/**
+ * 已固定的数据目录。给「需要在路径确定后再解析子路径」的模块用（当前是 `./logInit` 的日志路径）——
+ * 不要拿 `app.getPath('logs')` 之类去推导：那些是 Electron 按应用名在启动时算好的，
+ * 开发版运行期才 setName，对它无效（日志会落进正式目录，2026-09-23 实测）。
+ */
+export const getUserDataPath = () => resolvedUserDataPath
 
 setup()
