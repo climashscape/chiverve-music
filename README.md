@@ -1,5 +1,3 @@
-<p align="center"><a href="https://github.com/lyswhut/lx-music-desktop"><img width="200" src="https://github.com/lyswhut/lx-music-desktop/blob/master/doc/images/icon.png" alt="lx-music logo"></a></p>
-
 <h1 align="center">Chiverve Music</h1>
 
 > ## 关于本仓库
@@ -97,15 +95,13 @@
 
 默认情况下，软件的数据存储在：
 
-- Linux：`$XDG_CONFIG_HOME/lx-music-desktop` 或 `~/.config/lx-music-desktop`
-- macOS：`~/Library/Application Support/lx-music-desktop`
-- Windows：`%APPDATA%/lx-music-desktop`
+- Linux：`$XDG_CONFIG_HOME/chiverve-music` 或 `~/.config/chiverve-music`
+- macOS：`~/Library/Application Support/chiverve-music`
+- Windows：`%APPDATA%/chiverve-music`
 
 在 Windows 平台上，若程序文件夹中存在 `portable` 文件夹，则自动使用此文件夹作为数据存储文件夹（适用于 v1.17.0 及以上版本）。
 
 ## 用户界面
-
-<p><img width="100%" src="./doc/images/app.png" alt="lx-music desktop UI"></p>
 
 ## 贡献代码
 
