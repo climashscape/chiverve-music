@@ -197,7 +197,10 @@ export default {
 @import '@renderer/assets/styles/layout.less';
 
 .right {
-  flex: 0 0 60%;
+  // ⚠️ 与封面栏的 flex-basis 是一对：两者之和必须是 100%（56 + 44，见 index.vue 的 .left）。
+  // 上游是 40 + 60；封面放大到 44% 后这里若还留 60%，多出的 4% 会被 .main 的 overflow:hidden
+  // 裁掉——歌词行尾缺字、跳转按钮整块不可见（2026-09-24 修）
+  flex: 0 0 56%;
   // padding: 0 30px;
   position: relative;
   transition: flex-basis @transition-normal;
