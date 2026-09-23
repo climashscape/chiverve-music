@@ -23,10 +23,11 @@
             :class="$style.song"
             @click="handleToggle(item.id)"
           >
+            <!-- 传**布尔值**（受控显示），点击交给整行的 @click：传数组会让复选框自己维护一份
+                 状态并对不上（emit 被丢弃则勾选丢失，实测「点复选框没反应」） -->
             <base-checkbox
               :id="`add-cloud__${item.id}`"
-              :model-value="selectedIds"
-              :value="item.id"
+              :model-value="selectedIds.includes(item.id)"
               :label="''"
               @update:model-value="() => {}"
             />

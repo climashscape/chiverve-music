@@ -136,15 +136,19 @@ export const cloudListSongs = reactive<{
   page: number
   limit: number
   noItemLabel: string
-  /** 当前这份数据属于哪个歌单（切换时用来丢弃迟到的响应） */
-  dirId: string
+  /**
+   * 当前这份数据属于哪个歌单——存的是**歌单 tid**（`PlaylistCard.id`），不是 dirId。
+   * ⚠️ 读歌走 tid（`CgiGetDiss` 的 `disstid`）、写歌走 dirId，两者不能混（本轮踩过：
+   * 写完后拿 dirId 去比 tid，判定为「不是当前歌单」→ 不刷新、不清理）。
+   */
+  listTid: string
 }>({
   list: [],
   total: 0,
   page: 1,
   limit: CLOUD_LIST_PAGE_SIZE,
   noItemLabel: '',
-  dirId: '',
+  listTid: '',
 })
 
 /** 各区块的加载/失败文案（§2.11 的三段式：loading → 数据 → 失败文案）。 */

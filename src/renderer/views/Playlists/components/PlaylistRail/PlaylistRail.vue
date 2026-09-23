@@ -191,17 +191,19 @@ export default {
       cloudMenuLocation.value = { x: event.clientX, y: event.clientY }
       isShowCloudMenu.value = true
     }
-    const handleCloudMenuClick = (action) => {
+    // ⚠️ base-menu 的 menu-click 传的是**整个菜单项对象**（仓库既有写法都是取 `action.action`，
+    // 见 components/material/OnlineList/useMenu.js:105），不是 action 字符串
+    const handleCloudMenuClick = (menuItem) => {
       const item = rightClickCloudItem.value
       rightClickCloudItem.value = null
-      if (action !== 'remove' || item == null) return
+      if (menuItem?.action !== 'remove' || item == null) return
       void dialog.confirm({
         message: t('playlists__cloud_remove_tip', { name: item.name }),
         confirmButtonText: t('lists__remove_tip_button'),
       }).then(async(isRemove) => {
         if (!isRemove) return
         try {
-          await removeCloudList(item.dirId)
+          await removeCloudList(item)
           // 删掉的正是当前选中的那个 → 回到本地第一组（否则右侧会停在已不存在的歌单上）
           if (String(item.dirId) === props.cloudDirId) {
             void router.replace({ path: route.path, query: { id: userLists[0]?.id ?? LIST_IDS.DEFAULT } })

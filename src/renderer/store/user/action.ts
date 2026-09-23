@@ -221,11 +221,11 @@ export const refreshCreatedLists = async(): Promise<void> => {
  */
 export const loadCloudListSongs = async(id: string, page = 1, more = false): Promise<void> => {
   cloudListSongs.noItemLabel = more ? cloudListSongs.noItemLabel : t('list__loading')
-  if (!more) cloudListSongs.dirId = id
+  if (!more) cloudListSongs.listTid = id
   try {
     const res = await music.tx.songList.getListDetailByCgi(id, page, CLOUD_LIST_PAGE_SIZE)
     // 迟到的响应丢掉：期间用户可能已经切到别的歌单
-    if (cloudListSongs.dirId !== id) return
+    if (cloudListSongs.listTid !== id) return
     const list = toOnlineList(res.list ?? [])
     if (more) cloudListSongs.list.push(...list)
     else cloudListSongs.list.splice(0, cloudListSongs.list.length, ...list)
@@ -233,13 +233,17 @@ export const loadCloudListSongs = async(id: string, page = 1, more = false): Pro
     cloudListSongs.page = page
     cloudListSongs.noItemLabel = cloudListSongs.list.length ? '' : t('no_item')
   } catch (err: any) {
-    if (cloudListSongs.dirId !== id) return
+    if (cloudListSongs.listTid !== id) return
     console.log('[user] cloudListSongs', err)
     if (!more) cloudListSongs.list.splice(0, cloudListSongs.list.length)
     cloudListSongs.total = more ? cloudListSongs.total : 0
     cloudListSongs.noItemLabel = err?.message === 'QQ 音乐未登录'
       ? t('user_center__need_login')
-      : (more ? t('list__load_failed') : (err?.message || t('list__load_failed')))
+      // 空歌单不是失败：新建出来的歌单服务端会抛「歌单为空或不可读」，
+      // 真机上它被显示成一句像报错的话（实测），这里落空态
+      : (err?.message === '歌单为空或不可读'
+          ? t('no_item')
+          : (more ? t('list__load_failed') : (err?.message || t('list__load_failed'))))
   }
 }
 
@@ -250,13 +254,13 @@ export const createCloudList = async(name: string): Promise<{ dirId: number, tid
   return res
 }
 
-/** 删除云端歌单。 */
-export const removeCloudList = async(dirId: number): Promise<void> => {
-  const ok = await music.tx.songList.removeList(dirId)
+/** 删除云端歌单（传卡片：dirId 给接口，id=tid 用于比对当前正在看的歌单）。 */
+export const removeCloudList = async(card: PlaylistCard): Promise<void> => {
+  const ok = await music.tx.songList.removeList(Number(card.dirId))
   if (!ok) throw new Error(t('playlists__cloud_remove_failed'))
   // 当前正在看这个歌单的话，把歌曲也清掉（避免停在已删歌单的内容上）
-  if (String(dirId) === cloudListSongs.dirId) {
-    cloudListSongs.dirId = ''
+  if (String(card.id) === cloudListSongs.listTid) {
+    cloudListSongs.listTid = ''
     cloudListSongs.list.splice(0, cloudListSongs.list.length)
     cloudListSongs.total = 0
   }
@@ -275,14 +279,14 @@ export const addSongsToCloudList = async(card: PlaylistCard, songs: LX.Music.Mus
   const ok = await music.tx.songList.addSongToList(Number(card.dirId), toWriteSongs(songs), Number(card.id))
   if (!ok) throw new Error(t('playlists__cloud_add_failed'))
   // 正在看这个歌单就刷新一下，让新歌立刻出现
-  if (String(card.dirId) === cloudListSongs.dirId) await loadCloudListSongs(String(card.id), 1, false)
+  if (String(card.id) === cloudListSongs.listTid) await loadCloudListSongs(String(card.id), 1, false)
 }
 
 /** 从云端歌单删歌（多首）。 */
 export const removeSongsFromCloudList = async(card: PlaylistCard, songs: LX.Music.MusicInfoOnline[]): Promise<void> => {
   const ok = await music.tx.songList.removeSongFromList(Number(card.dirId), toWriteSongs(songs), Number(card.id))
   if (!ok) throw new Error(t('playlists__cloud_remove_song_failed'))
-  if (String(card.dirId) === cloudListSongs.dirId) await loadCloudListSongs(String(card.id), 1, false)
+  if (String(card.id) === cloudListSongs.listTid) await loadCloudListSongs(String(card.id), 1, false)
 }
 
 // ── 收藏 / 取消收藏（专辑 · 歌单，工单 08）─────────────────────────────────
