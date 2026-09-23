@@ -74,3 +74,6 @@ src/**/*-internal.js
 
 # Security scan hook runtime state (Mimosa)
 .mimosa/
+
+# ZCode 会话工具状态（plan 产物与 spec 重复，不入库）
+.zcode/plans/
