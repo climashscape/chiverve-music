@@ -64,6 +64,22 @@ let radarKey = ''
 
 const isInited = ref(false)
 
+/**
+ * 轮播游标（**按来源分槽**）。
+ *
+ * 放模块级的理由和列表数据一样：路由页没有 keep-alive，切走再回来组件会重建——
+ * 游标留在组件内 `ref` 里就会归零（用户 2026-09-23 报的「跳去歌手页再回来位置重置」）。
+ * 分槽是为「每日30首 / 雷达推荐」两个 Tab 各记一份（票 04），票 02 只落 `radar` 槽。
+ *
+ * 不落盘：重启不需要恢复（和列表滚动位置那种持久化不是一回事）。
+ */
+const cursors = reactive<Record<string, number>>({ radar: 0 })
+
+const getCursor = (slot = 'radar') => cursors[slot] ?? 0
+const setCursor = (index: number, slot = 'radar') => { cursors[slot] = index }
+/** 「换一批」后游标要回到第 1 张（否则会出现「换完停在原编号」的错位感）。 */
+const resetCursor = (slot = 'radar') => { cursors[slot] = 0 }
+
 /** 老式对象 → 新式模型 + 去重 + markRaw（列表不进深度代理，AGENTS §2.10）。 */
 const toOnlineSongs = (list: any[]): LX.Music.MusicInfoOnline[] => {
   const next = deduplicationList(list.map(item => toNewMusicInfo(item)) as LX.Music.MusicInfoOnline[])
@@ -75,6 +91,8 @@ const setSongs = (songs: LX.Music.MusicInfoOnline[]) => {
   radar.list.splice(0, radar.list.length, ...songs)
   radar.total = radar.list.length
   radar.limit = radar.list.length || 1
+  // 整块换掉（首屏 / 换一批 / 失败清空）后，原来的游标已经没有意义
+  resetCursor()
 }
 
 /** 追加（「加载更多」）。 */
@@ -149,5 +167,9 @@ export default () => {
     isInited,
     initRadar,
     loadRadar,
+    cursors,
+    getCursor,
+    setCursor,
+    resetCursor,
   }
 }

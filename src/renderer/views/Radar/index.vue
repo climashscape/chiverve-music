@@ -48,6 +48,8 @@ export default {
   color: var(--color-font);
   display: flex;
   flex-flow: column nowrap;
+  // 内容（矮窗口下舞台会被 clamp 压缩）永不外溢：溢出的部分会被播放栏盖住、连点都点不到（票 01）
+  overflow: hidden;
 }
 
 .header {

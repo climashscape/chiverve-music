@@ -1,5 +1,5 @@
 <template>
-  <div :class="$style.carousel">
+  <div :class="$style.carousel" @wheel="handleWheel">
     <p v-if="!list.length" :class="$style.empty" v-text="noItem" />
 
     <template v-else>
@@ -7,9 +7,6 @@
       <div
         :class="$style.stage"
         @pointerdown="handlePointerDown"
-        @pointermove="handlePointerMove"
-        @pointerup="handlePointerUp"
-        @pointercancel="handlePointerUp"
         @contextmenu="handleStageRightClick"
       >
         <div :class="$style.deck" :style="{ transform: `translateX(${dragX}px)` }">
@@ -119,7 +116,7 @@ import useMusicAdd from '@renderer/components/material/OnlineList/useMusicAdd'
 import useMusicDownload from '@renderer/components/material/OnlineList/useMusicDownload'
 import useMenu from '@renderer/components/material/OnlineList/useMenu'
 import { assertApiSupport } from '@renderer/store/utils'
-import { RADAR_QUEUE_ID, type RadarBlock } from '../useRadar'
+import useRadar, { RADAR_QUEUE_ID, type RadarBlock } from '../useRadar'
 
 /**
  * 雷达的「居中轮播」形态（工单 07 的形态迭代，2026-09-23 用户要求：
@@ -148,47 +145,95 @@ export default {
     const isLoading = computed(() => props.block.isLoading)
     const moreError = computed(() => props.block.moreError)
 
-    const centerIndex = ref(0)
+    // 游标放在模块级（useRadar 的分槽状态）：路由页没有 keep-alive，切走再回来本组件会重建，
+    // 游标留在组件内 `ref` 里就会归零——「跳去歌手页再回来位置重置」就是这么来的（票 02）
+    const cursorSlot = 'radar'
+    const { getCursor, setCursor } = useRadar()
+    const centerIndex = computed({
+      get: () => getCursor(cursorSlot),
+      set: (index: number) => { setCursor(index, cursorSlot) },
+    })
     const current = computed(() => list.value[Math.min(centerIndex.value, Math.max(list.value.length - 1, 0))])
 
-    // 列表变短（换一批）时把游标拉回范围
+    // 列表变短（换一批）时把游标拉回范围；immediate 是因为切回来时列表可能已经变短了
     watch(() => list.value.length, (len) => {
       if (centerIndex.value > len - 1) centerIndex.value = Math.max(len - 1, 0)
-    })
+    }, { immediate: true })
 
     // 正在播放的就是「中央这一首」时，大按钮变成暂停键
     const isCurrentPlaying = computed(() => !!current.value && musicInfo.id === current.value.id && isPlay.value)
 
-    // ── 滑动 ────────────────────────────────────────────────────────────────
+    // ── 滑动 / 滚轮：动作都是「换一张」────────────────────────────────────
     const dragX = ref(0)
     let dragStartX = 0
     let isDragging = false
+    /** 拖动刚结束的那次 click 不算点击（否则滑一下就把中央这首播了）。 */
+    let ignoreNextClick = false
     const SWIPE_THRESHOLD = 60
+    /** 位移超过它就算「拖过」，这次交互不再当点击处理。 */
+    const DRAG_SLOP = 6
 
     const canGoNext = computed(() => centerIndex.value < list.value.length - 1)
     const canGoPrev = computed(() => centerIndex.value > 0)
 
-    const handlePointerDown = (event: PointerEvent) => {
-      isDragging = true
-      dragStartX = event.clientX
-      dragX.value = 0
-      ;(event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId)
-    }
     const handlePointerMove = (event: PointerEvent) => {
       if (!isDragging) return
       dragX.value = event.clientX - dragStartX
+      if (Math.abs(dragX.value) > DRAG_SLOP) ignoreNextClick = true
     }
     const handlePointerUp = () => {
       if (!isDragging) return
       isDragging = false
+      document.removeEventListener('pointermove', handlePointerMove)
+      document.removeEventListener('pointerup', handlePointerUp)
+      document.removeEventListener('pointercancel', handlePointerUp)
       const dx = dragX.value
       dragX.value = 0
       if (dx <= -SWIPE_THRESHOLD && canGoNext.value) centerIndex.value++
       else if (dx >= SWIPE_THRESHOLD && canGoPrev.value) centerIndex.value--
     }
+    const handlePointerDown = (event: PointerEvent) => {
+      if (event.button !== 0) return // 右键留给菜单
+      isDragging = true
+      dragStartX = event.clientX
+      dragX.value = 0
+      ignoreNextClick = false
+      // 不用 setPointerCapture：capture 之后 Chromium 会把 click 的 target 重定向到捕获元素，
+      // 卡片自己的 @click 就失灵了（播放键当初靠 @pointerdown.stop 绕开的就是这个）。
+      // 改挂 document 监听：照样能拖出舞台，但不动 click 的语义。
+      document.addEventListener('pointermove', handlePointerMove)
+      document.addEventListener('pointerup', handlePointerUp)
+      document.addEventListener('pointercancel', handlePointerUp)
+    }
+
+    /**
+     * 滚轮 / 触控板横滚 = 换一张（用户 2026-09-23 报：雷达页原先只认鼠标拖动）。
+     * 触控板会连发一串 wheel（还有惯性），所以加冷却——一次滚动只走一张。
+     */
+    const WHEEL_COOLDOWN = 220
+    let lastWheelAt = 0
+    const handleWheel = (event: WheelEvent) => {
+      const delta = Math.abs(event.deltaX) >= Math.abs(event.deltaY) ? event.deltaX : event.deltaY
+      if (!delta) return
+      event.preventDefault()
+      const now = Date.now()
+      if (now - lastWheelAt < WHEEL_COOLDOWN) return
+      if (delta > 0) {
+        if (!canGoNext.value) return
+        centerIndex.value++
+      } else {
+        if (!canGoPrev.value) return
+        centerIndex.value--
+      }
+      lastWheelAt = now
+    }
 
     /** 点两翼 = 把那一张挪到中间（不播放） */
     const handleItemClick = (item: { offset: number }) => {
+      if (ignoreNextClick) {
+        ignoreNextClick = false
+        return
+      }
       if (item.offset === 0) {
         handlePlayClick()
         return
@@ -359,8 +404,7 @@ export default {
       visibleItems,
       itemStyle,
       handlePointerDown,
-      handlePointerMove,
-      handlePointerUp,
+      handleWheel,
       handleItemClick,
       handlePlayClick,
       handleStageRightClick,
@@ -418,8 +462,10 @@ export default {
   flex: none;
   width: 100%;
   max-width: 900px;
-  // 主视觉的尺寸（滑动时两翼按百分比位移，单位就是它的宽）
-  --cover: 300px;
+  // 主视觉的尺寸（滑动时两翼按百分比位移，单位就是它的宽）。
+  // 随窗口高度收缩：矮窗口（最小 920×600）下底部按键原本会被播放栏压住、点不到（票 01），
+  // clamp 的下限 180px 保证再矮也不会缩没。
+  --cover: clamp(180px, calc(100vh - 380px), 300px);
   height: calc(var(--cover) + 24px);
   overflow: hidden;
   cursor: grab;
@@ -456,9 +502,6 @@ export default {
 }
 .centerItem {
   cursor: default;
-}
-.sideItem {
-  cursor: pointer;
 }
 .cover {
   width: 100%;

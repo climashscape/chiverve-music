@@ -1,11 +1,7 @@
 <template>
   <div :class="$style.container" class="scroll">
-    <!-- 顶部入口区：雷达独立成页后（工单 01），这里是它最显眼的入口 -->
-    <div :class="$style.header">
-      <h3 :class="$style.title">{{ $t('discover') }}</h3>
-      <base-btn min @click="toRadar">{{ $t('radar__enter') }}</base-btn>
-    </div>
-
+    <!-- 不做页头：雷达入口撤掉后（交互批次 2 / 票 06），左栏导航与 feed 里的雷达卡已经够用，
+         这里再放一个「进入雷达」按钮只是重复入口 -->
     <!-- 首页推荐：服务端给的楼层（shelf）流，卡片是异构的（单曲/歌单/节目/排行榜入口/功能入口） -->
     <section :class="$style.section">
       <h3 :class="$style.title">{{ $t('discover__feed') }}</h3>
@@ -121,17 +117,12 @@ export default {
         .map(shelf => ({ ...shelf, cards: shelf.cards.filter(card => toCardTarget(card) != null) }))
         .filter(shelf => shelf.cards.length > 0),
     )
-    const toRadar = () => {
-      void router.push({ path: '/radar' })
-    }
-
     return {
       feed,
       guess,
       visibleShelves,
       toCardTarget,
       handleCardClick,
-      toRadar,
       handlePlayGuess,
       loadFeed,
       loadGuess,
@@ -150,14 +141,6 @@ export default {
   padding: 4px 0 30px;
   color: var(--color-font);
   overflow-y: auto;
-}
-
-.header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--color-000-alpha-700);
 }
 
 .section {
