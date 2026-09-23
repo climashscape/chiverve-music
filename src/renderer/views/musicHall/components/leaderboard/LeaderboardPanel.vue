@@ -10,13 +10,22 @@
 </template>
 
 <script>
-import { ref } from '@common/utils/vueTools'
+import { ref, watch } from '@common/utils/vueTools'
+import { useRouter, useRoute } from '@common/utils/vueRouter'
 import { DEFAULT_SETTING } from '@common/constants'
 import { getLeaderboardSetting, setLeaderboardSetting } from '@renderer/utils/data'
 import BoardList from './BoardList/index.vue'
 import MusicList from './MusicList/index.vue'
 import { sources } from '@renderer/store/leaderboard/state'
 
+/**
+ * 乐馆 → 排行榜 Tab。
+ *
+ * 原本是独立路由页（views/Leaderboard/index.vue），并入乐馆后**参数仍走 route.query**
+ * （source / boardId）：旧地址 `/leaderboard?boardId=x` 重定向进来能原样带上，
+ * 榜单左栏点选也还是改 query。区别只是原来的 `beforeRouteEnter/beforeRouteUpdate` 守卫
+ * 换成了组件内的 watch——面板不是路由组件，没有组件内守卫。
+ */
 
 const source = ref('tx')
 const boardId = ref(null)
@@ -28,36 +37,36 @@ const normalizeSource = (source) => {
 // 榜单 id 形如 `${source}__${bangId}`，属于已移除源的 id 会被接口取空
 const isStaleBoardId = (boardId, source) => typeof boardId == 'string' && !boardId.startsWith(`${source}__`)
 
-const verifyQueryParams = async function(to, from, next) {
-  const _source = to.query.source
-  const normalized = normalizeSource(_source)
-  let _boardId = to.query.boardId
-
-  if (_source !== normalized || (_boardId && isStaleBoardId(_boardId, normalized))) {
-    if (_source !== normalized) _boardId = (await getLeaderboardSetting()).boardId
-    next({
-      path: to.path,
-      query: { ...to.query, source: normalized, boardId: isStaleBoardId(_boardId, normalized) ? undefined : _boardId },
-    })
-    return
-  }
-  next()
-  source.value = normalized
-  boardId.value = _boardId
-  void setLeaderboardSetting({ source: normalized, boardId: _boardId })
-}
-
-
 export default {
   components: {
     BoardList,
     MusicList,
   },
-  beforeRouteEnter: verifyQueryParams,
-  beforeRouteUpdate: verifyQueryParams,
   setup() {
+    const router = useRouter()
+    const route = useRoute()
     const musicListRef = ref(null)
     const boardListRef = ref(null)
+
+    const applyQuery = async() => {
+      const rawSource = route.query.source
+      const normalized = normalizeSource(rawSource)
+      let nextBoardId = route.query.boardId
+
+      if (rawSource !== normalized || (nextBoardId && isStaleBoardId(nextBoardId, normalized))) {
+        if (rawSource !== normalized) nextBoardId = (await getLeaderboardSetting()).boardId
+        void router.replace({
+          path: route.path,
+          query: { ...route.query, source: normalized, boardId: isStaleBoardId(nextBoardId, normalized) ? undefined : nextBoardId },
+        })
+        return
+      }
+      source.value = normalized
+      boardId.value = nextBoardId
+      void setLeaderboardSetting({ source: normalized, boardId: nextBoardId })
+    }
+
+    watch(() => [route.query.source, route.query.boardId], () => { void applyQuery() }, { immediate: true })
 
     return {
       source,
@@ -77,31 +86,12 @@ export default {
   display: flex;
   position: relative;
 }
-.header {
-  flex: none;
-  width: 100%;
-  display: flex;
-  flex-flow: row nowrap;
-
-}
-.tab {
-  flex: auto;
-}
-.content {
-  flex: auto;
-  display: flex;
-  overflow: hidden;
-  flex-flow: column nowrap;
-}
 
 .lists {
   flex: none;
   width: 14.8%;
   display: flex;
   flex-flow: column nowrap;
-}
-.listsHeader {
-  position: relative;
 }
 
 .list {
@@ -111,9 +101,6 @@ export default {
   flex: auto;
   display: flex;
   flex-flow: column nowrap;
-  // .noItem {
-
-  // }
 }
 
 </style>

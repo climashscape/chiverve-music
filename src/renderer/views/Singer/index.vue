@@ -66,7 +66,7 @@
         <p v-if="albums.moreError" :class="$style.error">{{ albums.moreError }}</p>
       </section>
 
-      <!-- MV：点卡片用 MV 页已有的播放弹窗（复用 views/Mv 的 player，不另造播放器） -->
+      <!-- MV：点卡片用乐馆 MV 已有的播放弹窗（复用 store/mv 的 player，不另造播放器） -->
       <section :class="$style.section">
         <h3 :class="$style.title">{{ $t('singer__mvs') }}</h3>
         <ul v-show="!mvs.noItemLabel" :class="$style.cards">
@@ -123,7 +123,7 @@ import { ref, watch } from '@common/utils/vueTools'
 import { useRoute, useRouter } from '@common/utils/vueRouter'
 import { formatPlayCount } from '@renderer/utils'
 import usePlay from '@renderer/components/material/OnlineList/usePlay'
-import PlayerModal from '@renderer/views/Mv/components/PlayerModal.vue'
+import PlayerModal from '@renderer/components/common/MvPlayerModal.vue'
 import useSinger, { type SimilarSinger, type SingerAlbum } from './useSinger'
 
 export default {

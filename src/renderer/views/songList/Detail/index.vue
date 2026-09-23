@@ -64,6 +64,9 @@ interface Query {
   picUrl?: string
   refresh?: 'true'
   fromName?: string
+  fromTab?: string
+  /** 只在兜底跳转（无歌单可显示时跳乐馆歌单广场）里出现 */
+  tab?: string
 }
 
 const verifyQueryParams = async function(this: any, to: { query: Query, path: string }, from: any, next: (route?: { path: string, query: Query }) => void) {
@@ -80,7 +83,7 @@ const verifyQueryParams = async function(this: any, to: { query: Query, path: st
       _page = listDetailInfo.page.toString()
       _picUrl = listDetailInfo.info.img
     } else {
-      next({ path: '/songList/list', query: {} })
+      next({ path: '/musicHall', query: { tab: 'songlist' } })
       return
     }
 
@@ -97,6 +100,7 @@ const verifyQueryParams = async function(this: any, to: { query: Query, path: st
   picUrl.value = _picUrl ?? ''
   refresh.value = _refresh ? _refresh == 'true' : false
   if (to.query.fromName) window.lx.songListInfo.fromName = to.query.fromName
+  window.lx.songListInfo.fromTab = to.query.fromTab ?? ''
 }
 
 
@@ -119,14 +123,17 @@ export default {
     }
 
     const handleBack = () => {
-      if (window.lx.songListInfo.fromName) void router.replace({ name: window.lx.songListInfo.fromName })
-      else router.back()
+      // 回来源页时把 Tab 一起带上：乐馆里「歌单广场」是 tab=songlist，不带就回到排行榜
+      const fromTab = window.lx.songListInfo.fromTab
+      if (window.lx.songListInfo.fromName) {
+        void router.replace({ name: window.lx.songListInfo.fromName, query: fromTab ? { tab: fromTab } : {} })
+      } else router.back()
     }
 
     useKeyBack(handleBack)
 
     watch([source, id, page, refresh], async([_source, _id, _page, _refresh]) => {
-      if (!_source || !_id) return router.replace({ path: '/songList/list' })
+      if (!_source || !_id) return router.replace({ path: '/musicHall', query: { tab: 'songlist' } })
       // console.log(_source, _id, _page, _refresh, picUrl.value)
       // source.value = _source
       // id.value = _id

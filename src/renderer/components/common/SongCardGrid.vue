@@ -62,6 +62,8 @@ const toDetail = (info: ListInfoItem) => {
       id: info.id,
       picUrl: info.img,
       fromName: route.name as string,
+      // 来源页的 Tab：乐馆把排行榜/歌单广场/MV 装进一个路由，只记 fromName 会回不到原 Tab
+      ...(route.query.tab ? { fromTab: route.query.tab as string } : {}),
     },
   })
 }

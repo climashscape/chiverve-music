@@ -1,7 +1,7 @@
 import { markRawList, reactive, ref } from '@common/utils/vueTools'
 import { deduplicationList, toNewMusicInfo } from '@renderer/utils'
 import music from '@renderer/utils/musicSdk'
-import useMv, { type MvInfo } from '@renderer/views/Mv/useMv'
+import { player, openMv as openMvPlayer, closePlayer as closePlayerState, retryUrl as retryMvUrl, type MvInfo } from '@renderer/store/mv'
 
 /**
  * 歌手页（M6）取数：歌手信息 / 歌曲 / 专辑 / MV / 相似歌手。
@@ -25,8 +25,8 @@ import useMv, { type MvInfo } from '@renderer/views/Mv/useMv'
  *   4. **每个区块独立 try/catch**：五个接口互不依赖，一个挂掉不该让整页白屏（同发现页）。
  *      失败只落该区块的 noItemLabel 文案（三段式，§2.11）；「加载更多」失败只提示不清列表。
  *
- *   5. **MV 播放复用 MV 页的弹窗与播放器**（`views/Mv/useMv.ts` 的 `player` / `openMv`，
- *      组件是 `views/Mv/components/PlayerModal.vue`）：取详情、取流、直链过期重取、系统播放器
+ *   5. **MV 播放复用乐馆 MV 的弹窗与播放器**（`store/mv` 的 `player` / `openMv`，
+ *      组件是 `components/common/MvPlayerModal.vue`）：取详情、取流、直链过期重取、系统播放器
  *      打开这些逻辑都已经在那儿了，歌手页只需要把列表项映射成 `MvInfo` 再调 `openMv`。
  *      ⚠️ 歌手 MV 接口不给歌手名（`GetSingerMvList` 只回 title/picurl/duration…），
  *      所以映射时用**歌手页自己的歌手名**补上这个字段。
@@ -379,11 +379,8 @@ const loadMoreMvs = () => {
 }
 
 export default () => {
-  // MV 播放复用 MV 页的播放器（`views/Mv/useMv.ts` 的状态是模块级单例，这里拿到的是同一份）
-  const { player: mvPlayer, openMv: openPlayer, closePlayer: closePlayerState, retryUrl: retryMvUrl } = useMv()
-
   /**
-   * 打开歌手 MV：把列表项映射成 MV 页的 `MvInfo` 再交给它那套播放逻辑。
+   * 打开歌手 MV：把列表项映射成 MV 的 `MvInfo` 再交给乐馆那套播放逻辑。
    * 接口缺的字段按缺省补：`singer` 用歌手页自己的名字（MV 接口不回歌手名），
    * `subName` / `duration` 列表里没有（弹窗只展示 interval / playCount / pubDate，不受影响）。
    */
@@ -400,10 +397,10 @@ export default () => {
       playCount: item.playCount,
       pubDate: item.pubDate ?? undefined,
     }
-    openPlayer(info)
+    openMvPlayer(info)
   }
 
-  /** 关掉弹窗时清掉播放地址停止播放（与 MV 页的 closePlayer 同一份逻辑）。 */
+  /** 关掉弹窗时清掉播放地址停止播放（与乐馆 MV 的 closePlayer 是同一份逻辑）。 */
   const closeMv = () => { closePlayerState() }
 
   return {
@@ -413,7 +410,7 @@ export default () => {
     albums,
     mvs,
     similar,
-    mvPlayer,
+    mvPlayer: player,
     initSinger,
     loadMoreSongs,
     loadMoreAlbums,

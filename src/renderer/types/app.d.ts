@@ -22,6 +22,8 @@ interface Lx {
   isProd: boolean
   songListInfo: {
     fromName: string
+    /** 来源页的 Tab（乐馆的排行榜/歌单广场/MV 共用一个路由，光有 fromName 回不到原 Tab） */
+    fromTab: string
     searchKey: string | null
     searchPosition?: number
     songlistKey: string | null

@@ -9,7 +9,7 @@ import { watch } from '@common/utils/vueTools'
 import { searchText } from '@renderer/store/search/state'
 import { useRouter, useRoute } from '@common/utils/vueRouter'
 import useList, { type SearchSource } from './useList'
-import SongList from '@renderer/views/songList/List/components/SongList.vue'
+import SongList from '@renderer/components/common/SongCardGrid.vue'
 
 interface Props {
   sourceId: SearchSource

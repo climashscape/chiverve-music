@@ -147,27 +147,28 @@ export default {
     return list
   },
   async getBoards(retryNum = 0) {
-    // if (++retryNum > 3) return Promise.reject(new Error('try max num'))
-    // let response
-    // try {
-    //   response = await this.getBoardsData()
-    // } catch (error) {
-    //   return this.getBoards(retryNum)
-    // }
-    // // console.log(response.body)
-    // if (response.statusCode !== 200 || response.body.code !== 0) return this.getBoards(retryNum)
-    // const list = this.filterBoardsData(response.body.data.topList)
-    // console.log(list)
-    // console.log(JSON.stringify(list))
-    // this.list = list
-    // return {
-    //   list,
-    //   source: 'tx',
-    // }
-    this.list = boardList
-    return {
-      list: boardList,
-      source: 'tx',
+    // 榜单分类**来自服务端**（2026-09-23 实测该端点仍可用：code=0、data.topList 25 条，
+    // 字段 id/topTitle/picUrl/listenCount）。原来的实现是「直接返回硬编码清单」，
+    // 那份清单只有名字对得上，服务端新增/下架的榜单拿不到。
+    try {
+      const response = await this.getBoardsData()
+      if (response.statusCode !== 200 || response.body.code !== 0) throw new Error(`code ${response.body.code}`)
+      const list = this.filterBoardsData(response.body.data.topList)
+      if (!list.length) throw new Error('empty board list')
+      this.list = list
+      return {
+        list,
+        source: 'tx',
+      }
+    } catch (error) {
+      if (retryNum < 2) return this.getBoards(retryNum + 1)
+      // 拿不到就用内置清单兜底：榜单是浏览类入口，宁可给一份可能过期的清单，也别给空列表
+      console.log('[leaderboard] getBoards 回退到内置清单', error)
+      this.list = boardList
+      return {
+        list: boardList,
+        source: 'tx',
+      }
     }
   },
   getList(bangid, page, retryNum = 0) {

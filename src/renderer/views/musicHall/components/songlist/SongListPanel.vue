@@ -13,7 +13,8 @@
 </template>
 
 <script lang="ts">
-import { ref } from '@common/utils/vueTools'
+import { ref, watch } from '@common/utils/vueTools'
+import { useRouter, useRoute } from '@common/utils/vueRouter'
 import { DEFAULT_SETTING } from '@common/constants'
 import { getSongListSetting, setSongListSetting } from '@renderer/utils/data'
 import TagList from './components/TagList.vue'
@@ -21,6 +22,14 @@ import SortTab from './components/SortTab.vue'
 import OpenListModal from './components/OpenListModal.vue'
 import ListView from './ListView.vue'
 import { sources, listInfo } from '@renderer/store/songList/state'
+
+/**
+ * 乐馆 → 歌单广场 Tab。
+ *
+ * 原本是独立路由页（views/songList/List/index.vue），并入乐馆后**参数仍走 route.query**
+ * （source / tagId / sortId / page）：旧地址 `/songList/list?tagId=…` 重定向进来能原样带上。
+ * 原来的 `beforeRouteEnter/beforeRouteUpdate` 守卫换成组件内 watch（面板不是路由组件）。
+ */
 
 const source = ref<LX.OnlineSource>('tx')
 const tagId = ref<string>('')
@@ -32,49 +41,6 @@ const normalizeSource = (source?: string): LX.OnlineSource => {
   return sources.includes(source as LX.OnlineSource) ? source as LX.OnlineSource : (sources[0] ?? DEFAULT_SETTING.songList.source)
 }
 
-
-interface Query {
-  source?: string
-  tagId?: string
-  sortId?: string
-  page?: string
-}
-
-const verifyQueryParams = async function(this: any, to: { query: Query, path: string }, from: any, next: (route?: { path: string, query: Query }) => void) {
-  let _source = to.query.source
-  let _tagId = to.query.tagId
-  let _sortId = to.query.sortId
-  let _page: string | undefined = to.query.page
-
-  if (_source == null) {
-    if (listInfo.key) {
-      _source = listInfo.source
-      _tagId = listInfo.tagId
-      _sortId = listInfo.sortId
-      _page = listInfo.page.toString()
-    } else {
-      const setting = await getSongListSetting()
-      _source = setting.source
-      _tagId = setting.tagId
-      _sortId = setting.sortId
-      _page = '1'
-    }
-
-    next({
-      path: to.path,
-      query: { ...to.query, source: normalizeSource(_source), tagId: _tagId, sortId: _sortId, page: _page },
-    })
-    return
-  }
-  next()
-  source.value = normalizeSource(_source)
-  tagId.value = _tagId ?? ''
-  sortId.value = _sortId ?? ''
-  page.value = _page ? parseInt(_page) : 1
-  void setSongListSetting({ source: source.value, tagId: _tagId, sortId: _sortId })
-}
-
-
 export default {
   components: {
     TagList,
@@ -82,10 +48,53 @@ export default {
     ListView,
     OpenListModal,
   },
-  beforeRouteEnter: verifyQueryParams,
-  beforeRouteUpdate: verifyQueryParams,
   setup() {
+    const router = useRouter()
+    const route = useRoute()
     const visibleOpenSongListModal = ref(false)
+
+    const applyQuery = async() => {
+      const rawSource = route.query.source
+      const rawTagId = route.query.tagId
+      const rawSortId = route.query.sortId
+      const rawPage = route.query.page
+
+      // query 里没有 source（外部直接进 /musicHall?tab=songlist）时，用上次的选择或设置里的默认值补齐
+      if (rawSource == null) {
+        let nextTagId = rawTagId
+        let nextSortId = rawSortId
+        let nextPage = rawPage
+        if (listInfo.key) {
+          nextTagId = listInfo.tagId
+          nextSortId = listInfo.sortId
+          nextPage = listInfo.page.toString()
+        } else {
+          const setting = await getSongListSetting()
+          nextTagId = setting.tagId
+          nextSortId = setting.sortId
+          nextPage = '1'
+        }
+        void router.replace({
+          path: route.path,
+          query: {
+            ...route.query,
+            source: normalizeSource(route.query.source as string | undefined),
+            tagId: nextTagId,
+            sortId: nextSortId,
+            page: nextPage,
+          },
+        })
+        return
+      }
+
+      source.value = normalizeSource(rawSource as string)
+      tagId.value = (rawTagId as string) ?? ''
+      sortId.value = (rawSortId as string) ?? ''
+      page.value = rawPage ? parseInt(rawPage as string) : 1
+      void setSongListSetting({ source: source.value, tagId: rawTagId as string, sortId: rawSortId as string })
+    }
+
+    watch(() => [route.query.source, route.query.tagId, route.query.sortId, route.query.page], () => { void applyQuery() }, { immediate: true })
 
     return {
       source,
@@ -112,8 +121,6 @@ export default {
   width: 100%;
   display: flex;
   flex-flow: row nowrap;
-  // padding-right: 5px;
-  // box-sizing: border-box;
   padding-bottom: 5px;
 }
 .left {
@@ -130,6 +137,5 @@ export default {
     color: var(--color-primary-font-hover);
   }
 }
-
 
 </style>

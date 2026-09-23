@@ -109,7 +109,7 @@
 import { ref, computed } from '@common/utils/vueTools'
 import { useRouter } from '@common/utils/vueRouter'
 import usePlay from '@renderer/components/material/OnlineList/usePlay'
-import SongCardGrid from '@renderer/views/songList/List/components/SongList.vue'
+import SongCardGrid from '@renderer/components/common/SongCardGrid.vue'
 import useDiscover, { type AlbumCard, type FeedCard } from './useDiscover'
 
 /** 音乐雷达入口卡的 id（`tx/recommend.js:48` 的实测记录：type 900、id 22000）。 */

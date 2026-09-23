@@ -40,7 +40,7 @@
 import { computed, ref, watch } from '@common/utils/vueTools'
 import { openUrl } from '@common/utils/electron'
 import { formatPlayCount } from '@renderer/utils'
-import type { MvDetail, MvInfo } from '../useMv'
+import type { MvDetail, MvInfo } from '@renderer/store/mv'
 
 export default {
   props: {

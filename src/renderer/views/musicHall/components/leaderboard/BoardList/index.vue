@@ -49,9 +49,11 @@ const list = shallowReactive([])
 const rightClickItemIndex = ref(-1)
 
 const handleToggleList = (id) => {
+  // 保留 route.query 里其它键（`tab` 是乐馆的 Tab，丢了就跳回排行榜）
   void router.replace({
     path: route.path,
     query: {
+      ...route.query,
       source: props.source,
       boardId: id,
     },

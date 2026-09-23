@@ -7,7 +7,7 @@ import { watch, ref, nextTick } from '@common/utils/vueTools'
 import { listInfo } from '@renderer/store/songList/state'
 import { getAndSetList } from '@renderer/store/songList/action'
 import { useRouter, useRoute, onBeforeRouteLeave } from '@common/utils/vueRouter'
-import SongList from './components/SongList.vue'
+import SongList from '@renderer/components/common/SongCardGrid.vue'
 
 
 const props = defineProps<{

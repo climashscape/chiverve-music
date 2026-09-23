@@ -39,12 +39,26 @@ const router = createRouter({
       },
     },
     {
-      path: '/songList/list',
-      name: 'SongList',
-      component: require('./views/songList/List/index.vue').default,
+      path: '/musicHall',
+      name: 'MusicHall',
+      component: require('./views/musicHall/index.vue').default,
       meta: {
-        name: 'SongList',
+        name: 'MusicHall',
       },
+    },
+    // 旧地址保留为**重定向**（工单 04）：外部书签、播放栏入口与「返回来源页」都还在用它们，
+    // 不能留死链。redirect 是函数形式，好把原 query（boardId / tagId / sortId / page）一并带过去。
+    {
+      path: '/leaderboard',
+      redirect: to => ({ path: '/musicHall', query: { ...to.query, tab: 'leaderboard' } }),
+    },
+    {
+      path: '/songList/list',
+      redirect: to => ({ path: '/musicHall', query: { ...to.query, tab: 'songlist' } }),
+    },
+    {
+      path: '/mv',
+      redirect: to => ({ path: '/musicHall', query: { ...to.query, tab: 'mv' } }),
     },
     {
       path: '/songList/detail',
@@ -63,27 +77,11 @@ const router = createRouter({
       },
     },
     {
-      path: '/mv',
-      name: 'Mv',
-      component: require('./views/Mv/index.vue').default,
-      meta: {
-        name: 'Mv',
-      },
-    },
-    {
       path: '/singer',
       name: 'Singer',
       component: require('./views/Singer/index.vue').default,
       meta: {
         name: 'Singer',
-      },
-    },
-    {
-      path: '/leaderboard',
-      name: 'Leaderboard',
-      component: require('./views/Leaderboard/index.vue').default,
-      meta: {
-        name: 'Leaderboard',
       },
     },
     {

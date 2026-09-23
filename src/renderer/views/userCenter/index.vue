@@ -126,7 +126,7 @@
 import { computed, ref } from '@common/utils/vueTools'
 import { useRouter } from '@common/utils/vueRouter'
 import usePlay from '@renderer/components/material/OnlineList/usePlay'
-import SongCardGrid from '@renderer/views/songList/List/components/SongList.vue'
+import SongCardGrid from '@renderer/components/common/SongCardGrid.vue'
 import {
   createdLists, favAlbums, favLists, favSongs, followSingers, isLoading, labels, musicGene, pagers, profile, vip,
 } from '@renderer/store/user/state'

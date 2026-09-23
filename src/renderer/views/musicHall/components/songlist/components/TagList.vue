@@ -48,12 +48,15 @@ const t = useI18n()
 
 const list = shallowReactive([])
 const handleToggleTag = (id) => {
+  // 保留 route.query 里其它键（`tab` 是乐馆的 Tab，丢了就跳回排行榜），并复位到第 1 页
   void router.replace({
     path: route.path,
     query: {
+      ...route.query,
       source: props.source,
       tagId: id,
       sortId: props.sortId,
+      page: 1,
     },
   })
   handleHide()

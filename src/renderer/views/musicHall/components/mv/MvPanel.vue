@@ -1,6 +1,6 @@
 <template>
   <div :class="$style.container" class="scroll">
-    <!-- 只留排序：area / version 实测不生效（见 useMv.ts 文件头第 1 条），不做假筛选 -->
+    <!-- 只留排序：area / version 实测不生效（见 store/mv/state.ts 文件头第 1 条），不做假筛选 -->
     <div :class="$style.header">
       <base-tab v-model="order" :class="$style.tabs" :list="orderTabs" item-key="order" @change="switchOrder" />
     </div>
@@ -37,7 +37,7 @@
     <p v-if="list.moreError" :class="$style.error">{{ list.moreError }}</p>
 
     <!-- 详情 + 播放：一个弹窗搞定（列表项信息先显示，详情回来再补全） -->
-    <player-modal
+    <mv-player-modal
       :show="player.show"
       :mv="player.mv"
       :detail="player.detail"
@@ -55,8 +55,15 @@
 import { computed, ref } from '@common/utils/vueTools'
 import { useRouter } from '@common/utils/vueRouter'
 import { formatPlayCount } from '@renderer/utils'
-import PlayerModal from './components/PlayerModal.vue'
-import useMv, { type MvInfo } from './useMv'
+import MvPlayerModal from '@renderer/components/common/MvPlayerModal.vue'
+import { list, player, loadMvs, switchOrder, openMv, closePlayer, retryUrl, type MvInfo } from '@renderer/store/mv'
+
+/**
+ * 乐馆 → MV Tab。原本是独立路由页（views/Mv/index.vue，**当时没有任何入口**），
+ * 并入乐馆后第一次能被点进来。
+ *
+ * 列表与播放弹窗的状态在 `store/mv/`（歌手页也复用同一个播放器，所以不能留在页面里）。
+ */
 
 /**
  * MV 列表项**运行时**带 `singers`（`tx/mv.js` 的 toMvInfo 会塞进来），但 `MvInfo` 类型里没声明
@@ -69,12 +76,11 @@ const singersOf = (item: MvInfo): Array<{ mid: string, name: string }> => {
 
 export default {
   components: {
-    PlayerModal,
+    MvPlayerModal,
   },
   setup() {
     const router = useRouter()
-    const { list, player, loadMvs, switchOrder, openMv, closePlayer, retryUrl } = useMv()
-    // 列表状态在模块级：切走再回来直接显示上次的内容，不必再打一次请求（发现页同样处理）
+    // 列表状态在 store 里：切走再回来直接显示上次的内容，不必再打一次请求
     if (!list.list.length) void loadMvs(1, false)
 
     // 排序 tab 的 v-model 与区块状态分开：加载中不该被外部改掉
@@ -112,9 +118,6 @@ export default {
 
 .container {
   height: 100%;
-  // 根容器带左右 padding 时必须 border-box，否则溢出窗口右侧（见 userCenter/index.vue 同名注释）
-  box-sizing: border-box;
-  padding: 16px 22px 30px;
   color: var(--color-font);
   overflow-y: auto;
 }

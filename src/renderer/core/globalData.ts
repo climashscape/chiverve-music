@@ -17,6 +17,8 @@ window.lx = {
   },
   songListInfo: {
     fromName: '',
+    // 来源页的 Tab（乐馆把排行榜/歌单广场/MV 装进一个路由后，光有 fromName 回不到原 Tab）
+    fromTab: '',
     searchKey: '',
     searchPosition: 0,
     songlistKey: '',
