@@ -1,13 +1,19 @@
 <template>
   <teleport to="#root">
     <div ref="dom_menu" :class="$style.container" :style="menuStyles" :aria-hidden="!modelValue">
-      <!-- <div :class="$style.group">
-      <div :class="$style.title">{{ $t('lyric_menu__align') }}</div>
-      <div :class="$style.subGroup">
-        <div :class="[$style.btn, { [$style.active]: appSetting['playDetail.style.align'] == 'left' }]" role="button" @click="setFontAlign('left')" ignore-tip :aria-label="$t('lyric_menu__align_left')">{{ $t('lyric_menu__align_left') }}</div>
-        <div :class="[$style.btn, { [$style.active]: appSetting['playDetail.style.align'] == 'center' }]" role="button" @click="setFontAlign('center')" ignore-tip :aria-label="$t('lyric_menu__align_center')">{{ $t('lyric_menu__align_center') }}</div>
+      <!-- 歌词对齐（2026-09-23 从注释里放开）：上游把这一整块注释掉了，于是
+           「在歌词上切对齐」这个动作在界面上根本不存在 —— 用户只能去设置里改，
+           而设置里又有「播放详情页歌词」与「桌面歌词」两份，很容易改错地方（用户实测踩到）。
+           菜单里改的是**应用内歌词**的对齐（`playDetail.style.align`），与桌面歌词窗那份互不影响；
+           三档（居左/居中/居右）与设置面板保持一致，避免设置了居右时菜单里一个都不高亮。 -->
+      <div :class="$style.group">
+        <div :class="$style.title">{{ $t('lyric_menu__align') }}</div>
+        <div :class="$style.subGroup">
+          <div :class="[$style.btn, { [$style.active]: appSetting['playDetail.style.align'] == 'left' }]" role="button" ignore-tip :aria-label="$t('lyric_menu__align_left')" @click="setFontAlign('left')">{{ $t('lyric_menu__align_left') }}</div>
+          <div :class="[$style.btn, { [$style.active]: appSetting['playDetail.style.align'] == 'center' }]" role="button" ignore-tip :aria-label="$t('lyric_menu__align_center')" @click="setFontAlign('center')">{{ $t('lyric_menu__align_center') }}</div>
+          <div :class="[$style.btn, { [$style.active]: appSetting['playDetail.style.align'] == 'right' }]" role="button" ignore-tip :aria-label="$t('lyric_menu__align_right')" @click="setFontAlign('right')">{{ $t('lyric_menu__align_right') }}</div>
+        </div>
       </div>
-    </div> -->
       <div :class="$style.group">
         <div :class="$style.subGroup">
           <div :class="$style.title">{{ $t('lyric_menu__lrc_size', { size: appSetting['playDetail.style.fontSize'] }) }}</div>

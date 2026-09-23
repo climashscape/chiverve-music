@@ -47,10 +47,10 @@
 </template>
 
 <script>
-import { ref, computed, nextTick } from '@common/utils/vueTools'
+import { ref, computed, nextTick, watch } from '@common/utils/vueTools'
 // import { currentStting } from './setting'
 import { useI18n } from '@renderer/plugins/i18n'
-import { useRoute } from '@common/utils/vueRouter'
+import { useRoute, useRouter } from '@common/utils/vueRouter'
 
 import SettingBasic from './components/SettingBasic.vue'
 import SettingQQAuth from './components/SettingQQAuth.vue'
@@ -94,6 +94,7 @@ export default {
   setup() {
     const t = useI18n()
     const route = useRoute()
+    const router = useRouter()
 
     const dom_content_ref = ref(null)
 
@@ -125,6 +126,8 @@ export default {
 
     const toggleTab = id => {
       avtiveComponentName.value = id
+      // 把当前节写进地址：可分享、可深链（也顺手修掉「页内改 ?name= 不切节」的那半边）
+      if (route.query.name !== id) void router.replace({ path: route.path, query: { ...route.query, name: id } })
       void nextTick(() => {
         dom_content_ref.value?.scrollTo({
           top: 0,
@@ -132,6 +135,14 @@ export default {
         })
       })
     }
+
+    // 地址里的 ?name= 变了就跟着切节：原来只在 setup 里读一次，页内改 query（深链/自动化）
+    // 不会切节 —— 2026-09-23 排查歌词对齐问题时踩到
+    watch(() => route.query.name, (name) => {
+      if (!name || name === avtiveComponentName.value) return
+      if (!tocList.value.some(item => item.id === name)) return
+      avtiveComponentName.value = name
+    })
 
     return {
       tocList,

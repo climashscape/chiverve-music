@@ -230,7 +230,9 @@ export default {
   }
 }
 .left {
-  flex: 0 0 40%;
+  // 40% → 44%：封面在 300px 的 .info 上限里显得偏小（用户 2026-09-23 反馈），
+  // 这一档在窄窗口下也不会把右侧歌词挤坏（歌词列本来是 60%）
+  flex: 0 0 44%;
   display: flex;
   flex-flow: column nowrap;
   align-items: center;
@@ -243,7 +245,8 @@ export default {
   display: flex;
   flex-flow: column nowrap;
   justify-content: flex-start;
-  max-width: 300px;
+  // 封面（.img 是 min-width:100%）与歌曲信息都受这个上限约束，300 → 400 让封面明显大一圈
+  max-width: 400px;
   min-height: 0;
 }
 .img {
@@ -255,7 +258,7 @@ export default {
   opacity: .8;
 }
 .description {
-  max-width: 300px;
+  max-width: 400px;
   margin-top: 15px;
   padding-bottom: 15px;
   min-height: 0;
