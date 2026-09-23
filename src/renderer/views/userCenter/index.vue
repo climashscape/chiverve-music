@@ -1,6 +1,7 @@
 <template>
-  <div :class="$style.container" class="scroll">
-    <!-- 账号卡：昵称/头像/关注粉丝访客 + VIP -->
+  <div :class="$style.container">
+    <!-- 账号卡：昵称/头像/关注粉丝访客 + VIP。**固定在顶部**（工单 02）：它是 flex 列里
+         不可伸缩的第一行，下面的内容区自己滚动——不是 sticky（那会在滚动时露出下面的内容） -->
     <div :class="$style.profile">
       <div :class="$style.avatarBox">
         <img v-if="profile.avatar" :class="$style.avatar" :src="profile.avatar" alt="">
@@ -19,8 +20,34 @@
       <base-btn min :disabled="isLoading" @click="handleRefresh">{{ $t('user_center__refresh') }}</base-btn>
     </div>
 
-    <!-- 我喜欢：直接可播（分页加载更多） -->
-    <section :class="$style.section">
+    <div :class="$style.content" class="scroll">
+      <!-- 听歌基因：接口与状态早就有了（store/user 的 musicGene），这里把它显示出来 -->
+      <section v-if="hasGene || labels.musicGene" :class="$style.section">
+        <h3 :class="$style.title">{{ $t('user_center__music_gene') }}</h3>
+        <p v-if="musicGene.mainDescription" :class="$style.geneDesc">{{ musicGene.mainDescription }}</p>
+        <div v-if="musicGene.singers.length" :class="$style.geneRow">
+          <h4 :class="$style.geneLabel">{{ $t('user_center__gene_singers') }}</h4>
+          <ul :class="$style.geneList">
+            <li v-for="item in musicGene.singers" :key="`singer__${item.id}`" :class="$style.geneItem" :title="item.slogan || item.name">
+              <img :class="$style.geneImg" loading="lazy" decoding="async" :src="item.img" alt="">
+              <span :class="$style.geneName">{{ item.name }}</span>
+            </li>
+          </ul>
+        </div>
+        <div v-if="musicGene.genres.length" :class="$style.geneRow">
+          <h4 :class="$style.geneLabel">{{ $t('user_center__gene_genres') }}</h4>
+          <ul :class="$style.geneList">
+            <li v-for="item in musicGene.genres" :key="`genre__${item.id}`" :class="$style.geneItem" :title="item.slogan || item.name">
+              <img :class="$style.geneImg" loading="lazy" decoding="async" :src="item.img" alt="">
+              <span :class="$style.geneName">{{ item.name }}</span>
+            </li>
+          </ul>
+        </div>
+        <p v-if="labels.musicGene" :class="$style.tip">{{ labels.musicGene }}</p>
+      </section>
+
+      <!-- 我喜欢：直接可播（分页加载更多） -->
+      <section :class="$style.section">
       <h3 :class="$style.title">
         {{ $t('user_center__fav_songs') }}
         <span v-if="favSongs.total" :class="$style.count">{{ favSongs.total }}</span>
@@ -91,6 +118,7 @@
         <base-btn min @click="loadMoreFollowSingers">{{ $t('user_center__load_more') }}</base-btn>
       </div>
     </section>
+    </div>
   </div>
 </template>
 
@@ -100,7 +128,7 @@ import { useRouter } from '@common/utils/vueRouter'
 import usePlay from '@renderer/components/material/OnlineList/usePlay'
 import SongCardGrid from '@renderer/views/songList/List/components/SongList.vue'
 import {
-  createdLists, favAlbums, favLists, favSongs, followSingers, isLoading, labels, pagers, profile, vip,
+  createdLists, favAlbums, favLists, favSongs, followSingers, isLoading, labels, musicGene, pagers, profile, vip,
 } from '@renderer/store/user/state'
 import {
   initUserCenter, loadMoreFavAlbums, loadMoreFavLists, loadMoreFavSongs, loadMoreFollowSingers,
@@ -149,11 +177,16 @@ export default {
     const toAlbum = (item) => { void router.push({ path: '/album', query: { mid: item.id } }) }
     const toSinger = (item) => { void router.push({ path: '/singer', query: { mid: item.id } }) }
 
+    // 「无数据时不出现空白块」：有歌手或曲风才算有基因（接口未登录时会抛错，那时只留 labels 文案）
+    const hasGene = computed(() => !!(musicGene.singers.length || musicGene.genres.length || musicGene.mainDescription))
+
     return {
       profile,
       vip,
       labels,
       isLoading,
+      musicGene,
+      hasGene,
       favSongs,
       favLists,
       favAlbums,
@@ -183,12 +216,24 @@ export default {
   // 路由页根容器带左右 padding 时必须 border-box：View.vue 给的是 width:100% + 默认 content-box，
   // 否则整块比窗口宽出 2×padding，右侧内容（按钮等）被挤出可视区
   box-sizing: border-box;
-  padding: 16px 22px 30px;
+  padding: 16px 22px 0;
   color: var(--color-font);
+  // 账号卡固定、内容区自己滚（工单 02）——整页滚动的写法是 sticky 或整块 overflow，
+  // 这里用最省事的 flex 列：第一行不可伸缩，第二行吃掉剩余高度并滚动
+  display: flex;
+  flex-flow: column nowrap;
+}
+
+// 内容区：`.scroll` 是全局类（滚动条样式），这里只负责高度与滚动
+.content {
+  flex: auto;
+  min-height: 0;
   overflow-y: auto;
+  padding-bottom: 30px;
 }
 
 .profile {
+  flex: none;
   display: flex;
   align-items: center;
   padding-bottom: 14px;
@@ -248,6 +293,49 @@ export default {
 
 .section {
   margin-top: 18px;
+}
+
+// ---------- 听歌基因 ----------
+.geneDesc {
+  margin-bottom: 10px;
+  font-size: 12px;
+  color: var(--color-font-label);
+}
+.geneRow {
+  margin-top: 8px;
+}
+.geneLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-font-label);
+  margin-bottom: 6px;
+}
+.geneList {
+  display: flex;
+  flex-wrap: wrap;
+}
+.geneItem {
+  display: flex;
+  align-items: center;
+  width: 168px;
+  margin: 0 12px 10px 0;
+  padding: 4px 8px 4px 4px;
+  border-radius: @radius-border;
+  background-color: var(--color-button-background);
+}
+.geneImg {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  object-fit: cover;
+  background-color: var(--color-content-background);
+}
+.geneName {
+  min-width: 0;
+  padding-left: 8px;
+  font-size: 12px;
+  .mixin-ellipsis-1();
 }
 .title {
   font-size: 14px;
