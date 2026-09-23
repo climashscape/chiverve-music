@@ -1,8 +1,24 @@
 <template>
   <div ref="dom_menu" :class="$style.menu">
-    <ul :class="$style.list" role="toolbar">
-      <li v-for="item in menus" :key="item.to" :class="$style.navItem" role="presentation">
-        <router-link :class="[$style.link, {[$style.active]: $route.meta.name == item.name}]" role="tab" :aria-selected="$route.meta.name == item.name" :to="item.to" :aria-label="item.tips">
+    <!--
+      左栏三分组（工单 11）：在线（雷达 / 发现 / 乐馆）→ 我的（我的音乐 / 我的收藏 / 我的歌单 /
+      我的下载）→ 设置（贴底）。组标题是轻量小标签（上游留了注释掉的 dt 写法，这里启用），
+      组间留白、设置组 margin-top:auto 贴底。
+
+      「搜索」不再占左栏位：工具栏的搜索框（`components/layout/Toolbar/SearchInput.vue`）
+      在**任何窗口宽度下都渲染**，左栏这个入口本来就是重复的（工单 11 的验收项）。
+    -->
+    <ul
+      v-for="(group, index) in menuGroups" :key="group.titleKey || `group__${index}`"
+      :class="[$style.list, { [$style.bottom]: group.bottom }]" role="toolbar"
+    >
+      <dt v-if="group.titleKey" :class="$style.groupTitle">{{ $t(group.titleKey) }}</dt>
+      <li v-for="item in group.items" :key="item.to" :class="$style.navItem" role="presentation">
+        <router-link
+          :class="[$style.link, {[$style.active]: $route.meta.name == item.name}]" role="tab"
+          :aria-selected="$route.meta.name == item.name" :to="item.to"
+          :aria-label="item.tips" :title="item.tips"
+        >
           <svg version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" :viewBox="item.iconSize" :height="item.size" :width="item.size" space="preserve">
             <use :xlink:href="item.icon" />
           </svg>
@@ -25,86 +41,103 @@ export default {
     const dom_menu = ref<HTMLElement>()
     const iconSize = useIconSize(dom_menu, 0.32)
 
-    const menus = computed(() => {
+    const menuGroups = computed(() => {
       const size = iconSize.value
       return [
         {
-          to: '/discover',
-          tips: t('discover'),
-          icon: '#icon-discover',
-          iconSize: '0 0 448 448',
-          size,
-          name: 'Discover',
-          enable: true,
+          titleKey: 'nav_group_online',
+          items: [
+            {
+              to: '/radar',
+              tips: t('radar'),
+              icon: '#icon-radar',
+              iconSize: '0 0 448 448',
+              size,
+              name: 'Radar',
+              enable: true,
+            },
+            {
+              to: '/discover',
+              tips: t('discover'),
+              icon: '#icon-discover',
+              iconSize: '0 0 448 448',
+              size,
+              name: 'Discover',
+              enable: true,
+            },
+            {
+              to: '/musicHall',
+              tips: t('music_hall'),
+              icon: '#icon-leaderboard',
+              iconSize: '0 0 425.22 425.2',
+              size,
+              name: 'MusicHall',
+              enable: true,
+            },
+          ],
         },
         {
-          to: '/search',
-          tips: t('search'),
-          icon: '#icon-search-2',
-          iconSize: '0 0 425.2 425.2',
-          size,
-          name: 'Search',
-          enable: true,
+          titleKey: 'nav_group_mine',
+          items: [
+            {
+              to: '/user',
+              tips: t('user_center'),
+              icon: '#icon-user',
+              iconSize: '0 0 448 456',
+              size,
+              name: 'UserCenter',
+              enable: true,
+            },
+            {
+              to: '/favorites',
+              tips: t('favorites'),
+              icon: '#icon-love',
+              iconSize: '0 0 444.87 391.18',
+              size,
+              name: 'Favorites',
+              enable: true,
+            },
+            {
+              to: '/playlists',
+              tips: t('playlists'),
+              icon: '#icon-album',
+              iconSize: '0 0 425.2 425.2',
+              size,
+              name: 'Playlists',
+              enable: true,
+            },
+            {
+              to: '/download',
+              tips: t('download'),
+              icon: '#icon-download-2',
+              iconSize: '0 0 425.2 425.2',
+              size,
+              enable: appSetting['download.enable'],
+              name: 'Download',
+            },
+          ],
         },
         {
-          to: '/user',
-          tips: t('user_center'),
-          icon: '#icon-user',
-          iconSize: '0 0 448 456',
-          size,
-          name: 'UserCenter',
-          enable: true,
+          titleKey: 'nav_group_setting',
+          bottom: true,
+          items: [
+            {
+              to: '/setting',
+              tips: t('setting'),
+              icon: '#icon-setting',
+              iconSize: '0 0 493.23 436.47',
+              size,
+              enable: true,
+              name: 'Setting',
+            },
+          ],
         },
-        {
-          to: '/songList/list',
-          tips: t('song_list'),
-          icon: '#icon-album',
-          iconSize: '0 0 425.2 425.2',
-          size,
-          name: 'SongList',
-          enable: true,
-        },
-        {
-          to: '/leaderboard',
-          tips: t('leaderboard'),
-          icon: '#icon-leaderboard',
-          iconSize: '0 0 425.22 425.2',
-          size,
-          name: 'Leaderboard',
-          enable: true,
-        },
-        {
-          to: '/list',
-          tips: t('my_list'),
-          icon: '#icon-love',
-          iconSize: '0 0 444.87 391.18',
-          size,
-          name: 'List',
-          enable: true,
-        },
-        {
-          to: '/download',
-          tips: t('download'),
-          icon: '#icon-download-2',
-          iconSize: '0 0 425.2 425.2',
-          size,
-          enable: appSetting['download.enable'],
-          name: 'Download',
-        },
-        {
-          to: '/setting',
-          tips: t('setting'),
-          icon: '#icon-setting',
-          iconSize: '0 0 493.23 436.47',
-          size,
-          enable: true,
-          name: 'Setting',
-        },
-      ].filter(m => m.enable)
+      ].map(group => ({ ...group, items: group.items.filter(m => m.enable) }))
+        .filter(group => group.items.length > 0)
     })
     return {
       appSetting,
-      menus,
+      menuGroups,
       dom_menu,
     }
   },
@@ -116,29 +149,32 @@ export default {
 
 .menu {
   flex: auto;
-  // &.controlBtnLeft {
-  //   display: flex;
-  //   flex-flow: column nowrap;
-  //   justify-content: center;
-  //   padding-bottom: @control-btn-height;
-  // }
-  // padding: 5px;
+  display: flex;
+  flex-flow: column nowrap;
 }
 .list {
   -webkit-app-region: no-drag;
-  // margin-bottom: 15px;
+
   &:last-child {
     margin-bottom: 0;
   }
-  // background-color: pink;
-  // dt {
-  //   padding-left: 5px;
-  //   font-size: 11px;
-  //   transition: @transition-normal;
-  //   transition-property: color;
-  //   color: @color-theme-font-label;
-  //   .mixin-ellipsis-1();
-  // }
+  // 组间留白
+  & + & {
+    margin-top: 10px;
+  }
+  // 「设置」组贴底（容器是 flex 列，吃掉剩余空间即可）
+  &.bottom {
+    margin-top: auto;
+  }
+}
+// 组标题：轻量小标签（上游在 .list 里留了注释掉的 dt 写法，这里启用并换用现成的颜色 token）
+.groupTitle {
+  padding-left: 5px;
+  font-size: 11px;
+  transition: @transition-normal;
+  transition-property: color;
+  color: var(--color-font-label);
+  .mixin-ellipsis-1();
 }
 .navItem {
   position: relative;
@@ -155,30 +191,18 @@ export default {
   top: 0%;
   width: 100%;
   height: 100%;
-  // left: 15%;
-  // top: 15%;
-  // width: 70%;
-  // height: 70%;
-  // display: block;
   box-sizing: border-box;
-  // text-decoration: none;
-  // border-radius: 20%;
 
-  // padding: 18px 3px;
-  // margin: 5px 0;
-  // border-left: 5px solid transparent;
   transition: @transition-fast;
   transition-property: background-color, opacity;
   color: var(--color-nav-font);
   cursor: pointer;
-  // font-size: 11.5px;
   text-align: center;
   outline: none;
   display: flex;
   align-items: center;
   justify-content: center;
 
-  // border-radius: @radius-border;
   .mixin-ellipsis-1();
   &:before {
     .mixin-after();
@@ -193,7 +217,6 @@ export default {
   }
 
   &.active {
-    // border-left-color: @color-theme-active;
     background-color: var(--color-primary-light-300-alpha-700);
 
     &:before {
@@ -219,12 +242,5 @@ export default {
     background-color: var(--color-primary-light-300-alpha-600);
   }
 }
-
-// .icon {
-//   // margin-bottom: 5px;
-//   &> svg {
-//     width: 32%;
-//   }
-// }
 
 </style>
