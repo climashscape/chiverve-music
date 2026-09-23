@@ -49,42 +49,44 @@
         >{{ current?.singer }}</p>
       </div>
 
-      <!-- 按钮组：居中的下方。五个按键**同尺寸同内部对齐**
-           （图标与文字的基线由 flex 对齐，别用 inline svg + vertical-align——那样必然歪） -->
+      <!-- 按钮组：居中的下方。五个按键**固定等宽 + 图标统一尺寸 + 内容居中**
+           （等宽靠 .btnAction；内容居中靠内部 flex 撑满——inline-block 按钮里的短内容会靠左） -->
       <div :class="$style.actions">
-        <base-btn min :disabled="isLoading" @click="$emit('refresh')">
+        <base-btn min :class="$style.btnAction" :disabled="isLoading" @click="$emit('refresh')">
           <span :class="$style.btnInner">
             <svg :class="$style.btnIcon" version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" viewBox="0 0 448 448" space="preserve"><use xlink:href="#icon-refresh" /></svg>
             <span>{{ $t('discover__refresh') }}</span>
           </span>
         </base-btn>
-        <base-btn min :disabled="!current" @click="handleToggleLove">
+        <base-btn min :class="$style.btnAction" :disabled="!current" @click="handleToggleLove">
           <span :class="$style.btnInner">
             <svg :class="[$style.btnIcon, { [$style.btnIconOn]: isLoved }]" version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" viewBox="0 0 444.87 391.18" space="preserve"><use xlink:href="#icon-love" /></svg>
             <span>{{ isLoved ? $t('list__unlove') : $t('list__love') }}</span>
           </span>
         </base-btn>
-        <base-btn min :disabled="!current" @click="handleDislike">
-          <span :class="$style.btnInner">
-            <svg :class="$style.btnIcon" version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" viewBox="0 0 425.2 425.2" space="preserve"><use xlink:href="#icon-delete" /></svg>
-            <span>{{ $t('list__dislike') }}</span>
-          </span>
-        </base-btn>
-        <base-btn min :disabled="!current" @click="handleAddTo">
-          <span :class="$style.btnInner">
-            <svg :class="$style.btnIcon" version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" viewBox="0 0 425.2 425.2" space="preserve"><use xlink:href="#icon-list-add" /></svg>
-            <span>{{ $t('list__add_to') }}</span>
-          </span>
-        </base-btn>
-        <base-btn min :disabled="!current || !canDownload" @click="handleDownload">
+        <base-btn min :class="$style.btnAction" :disabled="!current || !canDownload" @click="handleDownload">
           <span :class="$style.btnInner">
             <svg :class="$style.btnIcon" version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" viewBox="0 0 425.2 425.2" space="preserve"><use xlink:href="#icon-download-2" /></svg>
             <span>{{ $t('list__download') }}</span>
           </span>
         </base-btn>
-        <!-- 只在自动续页失败时露出：正常运行不需要手动翻页 -->
-        <base-btn v-if="needMore" min :disabled="isLoading" @click="$emit('load-more')">
+        <!-- 两个跳转（工单 02 的能力搬到按钮上）：多位歌手时会在按钮处弹出选择菜单 -->
+        <base-btn min :class="$style.btnAction" :disabled="!current || !canJumpToSinger(current)" @click="handleJumpSingerClick">
           <span :class="$style.btnInner">
+            <svg :class="$style.btnIcon" version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" viewBox="0 0 448 456" space="preserve"><use xlink:href="#icon-user" /></svg>
+            <span>{{ $t('radar__to_singer') }}</span>
+          </span>
+        </base-btn>
+        <base-btn min :class="$style.btnAction" :disabled="!current || !canJumpToAlbum(current)" @click="handleJumpAlbumClick">
+          <span :class="$style.btnInner">
+            <svg :class="$style.btnIcon" version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" viewBox="0 0 425.2 425.2" space="preserve"><use xlink:href="#icon-album" /></svg>
+            <span>{{ $t('radar__to_album') }}</span>
+          </span>
+        </base-btn>
+        <!-- 只在自动续页失败时露出：正常运行不需要手动翻页 -->
+        <base-btn v-if="needMore" min :class="$style.btnAction" :disabled="isLoading" @click="$emit('load-more')">
+          <span :class="$style.btnInner">
+            <svg :class="$style.btnIcon" version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" viewBox="0 0 448 448" space="preserve"><use xlink:href="#icon-down" /></svg>
             <span>{{ $t('discover__load_more') }}</span>
           </span>
         </base-btn>
@@ -255,8 +257,9 @@ export default {
 
     /**
      * 不喜欢：确认后写进不喜欢列表并**把游标挪到下一首**（推荐流里这一步才是重点）。
-     * 这里没复用 OnlineList 的 `useMusicActions.handleDislikeMusic`——它不告诉调用方
-     * 「用户是否真的确认了」，而我们要据此决定要不要前进。
+     * 底部按钮按用户 2026-09-23 的要求去掉了「不喜欢」，但卡片右键菜单里还有这一项——
+     * 菜单那一路也接到这里（而不是 OnlineList 的 `useMusicActions.handleDislikeMusic`），
+     * 因为那个实现不告诉调用方「用户是否真的确认了」，而我们据此决定要不要前进。
      */
     const handleDislike = async() => {
       const song = current.value
@@ -293,9 +296,18 @@ export default {
     const { isShowListAdd, selectedAddMusicInfo, handleShowMusicAddModal } = useMusicAdd({ selectedList, props: props.block })
     const { isShowDownload, selectedDownloadMusicInfo, handleShowDownloadModal } = useMusicDownload({ selectedList, props: props.block })
 
-    // 底部两个按键直接复用上面这两个弹窗（`single=true` → 对「中央这一首」操作）
-    const handleAddTo = () => { handleShowMusicAddModal(centerIndex.value, true) }
+    // 下载按键复用这个弹窗（`single=true` → 对「中央这一首」操作）
     const handleDownload = () => { handleShowDownloadModal(centerIndex.value, true) }
+
+    // 两个跳转按钮（工单 02 的能力搬到按钮上）：多位歌手时把选择菜单弹在按钮处
+    const handleJumpSingerClick = (event: MouseEvent) => {
+      if (!current.value) return
+      void actions.handleJumpSinger(centerIndex.value, { x: event.pageX, y: event.pageY })
+    }
+    const handleJumpAlbumClick = () => {
+      if (!current.value) return
+      actions.handleJumpAlbum(centerIndex.value)
+    }
 
     const handlePlayMusicLater = (index: number) => {
       addTempPlayList([{ listId: LIST_IDS.PLAY_LATER, musicInfo: props.block.list[index] }])
@@ -312,7 +324,8 @@ export default {
       handleSearch: actions.handleSearch,
       handleShowMusicAddModal,
       handleOpenMusicDetail: actions.handleOpenMusicDetail,
-      handleDislikeMusic: actions.handleDislikeMusic,
+      // 菜单的「不喜欢」接本组件的实现（确认后前进一张），见 handleDislike 的注释
+      handleDislikeMusic: () => { void handleDislike() },
 
       handleJumpAlbum: actions.handleJumpAlbum,
       handleJumpSinger: actions.handleJumpSinger,
@@ -355,8 +368,11 @@ export default {
       handleToggleLove,
       isLoved,
       handleDislike,
-      handleAddTo,
       handleDownload,
+      handleJumpSingerClick,
+      handleJumpAlbumClick,
+      canJumpToSinger: actions.canJumpToSinger,
+      canJumpToAlbum: actions.canJumpToAlbum,
       canDownload,
 
       menus,
@@ -368,7 +384,6 @@ export default {
       isShowDownload,
       selectedDownloadMusicInfo,
 
-      canJumpToSinger: actions.canJumpToSinger,
       isShowSingerPicker: actions.isShowSingerPicker,
       singerPickerXy: actions.singerPickerXy,
       singerPickerMenus: actions.singerPickerMenus,
@@ -500,18 +515,21 @@ export default {
   transform: translateX(7%);
 }
 
-// 按钮内部：图标与文字用 flex 对齐（inline svg + vertical-align 必然对不齐）
+// 底部按键：**固定等宽**（大小不统一被用户点过两次），内容用内部 flex 撑满后居中
+.btnAction {
+  width: 96px;
+}
 .btnInner {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: center;
   gap: 5px;
-  // 等宽：五个按键排在一起才不像随手摆的
-  min-width: 84px;
+  width: 100%;
 }
+// 图标统一 14×14：不同图标的 viewBox 内留白不一样，给定尺寸才不至于有的看着像没有图标
 .btnIcon {
-  width: 13px;
-  height: 13px;
+  width: 14px;
+  height: 14px;
   flex: none;
   fill: currentColor;
 }

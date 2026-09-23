@@ -385,6 +385,8 @@
   "playlists__local_group": "Local lists",
   "radar": "Radar",
   "radar__enter": "Open Radar",
+  "radar__to_album": "Album",
+  "radar__to_singer": "Artist",
   "radar__tip": "Personalized picks based on your listening taste",
   "search": "Search",
   "search__hot_search": "Top Searches",

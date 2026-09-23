@@ -385,6 +385,8 @@
   "playlists__local_group": "로컬 목록",
   "radar": "레이더",
   "radar__enter": "레이더 열기",
+  "radar__to_album": "앨범",
+  "radar__to_singer": "아티스트",
   "radar__tip": "청취 취향에 맞춘 개인화 추천",
   "search": "검색",
   "search__hot_search": "인기 검색어",
