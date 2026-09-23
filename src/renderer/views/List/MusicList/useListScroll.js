@@ -8,11 +8,15 @@ export default ({ props, listRef, list, handleRestoreScroll }) => {
   const router = useRouter()
 
   const saveListPosition = () => {
+    // 列表被 v-show 藏起来时（「我的收藏」页切到 QQ 我喜欢那一栏）量不到真实滚动位置，
+    // 此时读到的 0 会把已存的位置覆盖掉——所以隐藏状态下干脆不写
+    const el = listRef.value?.$el
+    if (el && el.offsetParent == null) return
     setListPosition(props.listId, listRef.value?.getScrollTop() || 0)
   }
 
   const handleScrollList = (index, isAnimation, callback = () => {}) => {
-    listRef.value.scrollToIndex(index, -150, isAnimation, callback)
+    listRef.value?.scrollToIndex(index, -150, isAnimation, callback)
   }
 
   const restoreScroll = async(index, isAnimation) => {

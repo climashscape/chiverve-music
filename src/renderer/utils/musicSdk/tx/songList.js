@@ -3,6 +3,9 @@ import { decodeName, dateFormat, formatPlayCount } from '../../index'
 import { createSong } from './utils/song'
 import { txCgi, buildComm, requireCredential } from './utils/request'
 
+/** QQ「我喜欢」的目录 id（读取侧见 tx/user.js 的 getFavSong）。 */
+const FAV_DIR_ID = 201
+
 export default {
   _requestObj_tags: null,
   _requestObj_hotTags: null,
@@ -377,7 +380,9 @@ export default {
       list,
       page,
       limit: num,
-      total: Number(d.total ?? d.songlist_size ?? list.length),
+      // 总数只能取 total_song_num：songlist_size 是**本页返回条数**（参考实现 models/songlist.py:55,63），
+      // 取错会让分页永远停在第 1 页（每页 30 条时总数就显示 30）
+      total: Number(d.total_song_num ?? d.songlist_size ?? list.length),
       source: 'tx',
       info: {
         name: dir.title ?? '',
@@ -479,6 +484,27 @@ export default {
   /** 从自建歌单里移除歌曲。参数同 addSongToList。 */
   async removeSongFromList(dirId, songs, tid = 0) {
     return this._writeSongList('DelSonglist', dirId, songs, tid)
+  },
+
+  /**
+   * 收藏歌曲到 QQ 的「我喜欢」。
+   *
+   * dirId 固定 201（与 `tx/user.js` 的 `getFavSong` 读取侧同一个目录），tid 用默认 0——
+   * 依据是参考实现 QQMusicApi `modules/songlist.py` 的 `like_song`：它也是
+   * `add_songs(201, song_info)`、不传 tid，且有 `test_like_song_roundtrip` 覆盖。
+   * 参数形状与自建歌单增删完全一致（同一端点 `PlaylistDetailWrite/AddSonglist`）。
+   *
+   * ⚠️ 本项目只对**自建歌单**的增删做过真机往返验证（spec §5.3 的 M6），
+   * **201 这条路径未做真机验证**——所以调用方（store/user/action.ts）必须把失败抛出去，
+   * 不能静默吞掉。
+   */
+  async likeSong(songs) {
+    return this.addSongToList(FAV_DIR_ID, songs)
+  },
+
+  /** 从 QQ「我喜欢」移除（参考实现 songlist.unlike_song，同一端点只换 method）。 */
+  async unlikeSong(songs) {
+    return this.removeSongFromList(FAV_DIR_ID, songs)
   },
 
   /** 增删歌曲的公共实现（两者只差 method）。 */

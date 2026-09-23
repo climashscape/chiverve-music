@@ -22,10 +22,11 @@ export const LIST_IDS = {
 export const SYNC_CODE = {
   helloMsg: 'Hello~::^-^::~v4~',
   idPrefix: 'OjppZDo6',
-  authMsg: 'lx-music auth::',
+  // 本产品自有标识：我们只与自己同步，不再追求与上游 LX 桌面版互通
+  authMsg: 'chiverve-music auth::',
   msgAuthFailed: 'Auth failed',
   msgBlockedIp: 'Blocked IP',
-  msgConnect: 'lx-music connect',
+  msgConnect: 'chiverve-music connect',
 
 
   authFailed: 'Auth failed',

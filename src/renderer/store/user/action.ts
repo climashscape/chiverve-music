@@ -125,6 +125,59 @@ export const loadMoreFavSongs = async(): Promise<void> => {
   }
 }
 
+/**
+ * 我喜欢 —— 拉第一页并覆盖。
+ *
+ * 与 `initUserCenter` 里那份的区别：那个被 `isInited` 挡着、一个会话只跑一次；
+ * 这个要能**重复调用**（「我的收藏」页每次进入都自动加载一次 QQ 的我喜欢，见需求 1），
+ * 以及写入云端后用来把新歌刷出来。失败只落文案（与其它账号接口同一档，§2.11）。
+ */
+export const loadFavSongs = async(): Promise<void> => {
+  labels.favSongs = t('list__loading')
+  try {
+    const res = await user().getFavSong(1, favSongs.limit)
+    setSongs(favSongs.list, res.list)
+    favSongs.total = res.total
+    favSongs.page = 1
+    labels.favSongs = ''
+  } catch (err: any) {
+    console.log('[user] favSongs', err)
+    labels.favSongs = err?.message === 'QQ 音乐未登录' ? t('user_center__need_login') : t('list__load_failed')
+  }
+}
+
+/**
+ * 我喜欢 —— **写入云端**（QQ 的 dirId=201 目录）。
+ *
+ * 与上面那批只读接口不同，写操作**失败必须抛给调用方**（由弹窗用 `dialog` 明确报错，
+ * §2.11）——收藏这种用户主动发起的动作，静默失败会让人以为已经加进去了。
+ * 这条路径（dirId=201 的写）尚未真机验证过（见 tx/songList.js 的 likeSong 注释）。
+ *
+ * @param musicInfo 新式在线歌曲对象；QQ 的 songId/songType 在 `meta.id` / `meta.songType`
+ *   （见 common/utils/tools.ts 的 toNewMusicInfo）。
+ */
+export const addFavSongToCloud = async(musicInfo: LX.Music.MusicInfoOnline): Promise<void> => {
+  const songId = Number(musicInfo?.meta?.id ?? 0)
+  if (!songId) throw new Error(t('list_add__cloud_no_song_id'))
+  const ok = await music.tx.songList.likeSong([
+    { songId, songType: Number(musicInfo.meta.songType ?? 0) },
+  ])
+  if (!ok) throw new Error(t('list_add__cloud_failed'))
+  // 列表已经加载过才刷新（没加载过的话，进「我的收藏」页时自然会是最新的，不必多打一次请求）
+  if (favSongs.total > 0) await loadFavSongs()
+}
+
+/** 取消喜欢：从 QQ「我喜欢」移除。失败抛错，由调用方提示。 */
+export const removeFavSongFromCloud = async(musicInfo: LX.Music.MusicInfoOnline): Promise<void> => {
+  const songId = Number(musicInfo?.meta?.id ?? 0)
+  if (!songId) throw new Error(t('list_add__cloud_no_song_id'))
+  const ok = await music.tx.songList.unlikeSong([
+    { songId, songType: Number(musicInfo.meta.songType ?? 0) },
+  ])
+  if (!ok) throw new Error(t('list_unlove__failed'))
+  if (favSongs.total > 0) await loadFavSongs()
+}
+
 export const loadMoreFavLists = async(): Promise<void> => {
   if (!pagers.favLists.hasMore) return
   const next = pagers.favLists.page + 1

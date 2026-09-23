@@ -35,7 +35,7 @@
         <use xlink:href="#icon-search" />
       </svg>
     </button>
-    <button v-if="removeBtn" type="button" :aria-label="$t('list__remove')" @click.stop="handleClick('remove')">
+    <button v-if="removeBtn" type="button" :aria-label="removeLabel || $t('list__remove')" @click.stop="handleClick('remove')">
       <svg v-once version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" height="100%" viewBox="0 0 212.982 212.982" space="preserve">
         <use xlink:href="#icon-delete" />
       </svg>
@@ -63,6 +63,11 @@ export default {
     removeBtn: {
       type: Boolean,
       default: false,
+    },
+    // 「移除」按钮的语义随场景变（本地列表=移除，QQ 我喜欢=取消喜欢），文案由调用方给
+    removeLabel: {
+      type: String,
+      default: '',
     },
     downloadBtn: {
       type: Boolean,

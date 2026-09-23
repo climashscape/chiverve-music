@@ -85,7 +85,9 @@ export default {
     const dir = d.dirinfo ?? {}
     return {
       list: (d.songlist ?? []).map(createSong),
-      total: Number(d.songlist_size ?? d.total ?? 0),
+      // 总数只能取 total_song_num：songlist_size 是**本页返回条数**（参考实现 models/songlist.py:55,63），
+      // 取错会让「我喜欢」永远显示成每页条数（50），后面的歌也翻不到
+      total: Number(d.total_song_num ?? d.songlist_size ?? 0),
       page,
       limit: num,
       source: 'tx',

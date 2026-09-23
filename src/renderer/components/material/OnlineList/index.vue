@@ -42,7 +42,7 @@
                 <div class="list-item-cell" style="flex: 0 0 22%;"><span class="select" :aria-label="item.meta.albumName">{{ item.meta.albumName }}</span></div>
                 <div class="list-item-cell" style="flex: 0 0 9%;"><span class="no-select">{{ item.interval || '--/--' }}</span></div>
                 <div class="list-item-cell" style="flex: 0 0 16%; padding-left: 0; padding-right: 0;">
-                  <material-list-buttons :index="index" :remove-btn="false" :download-btn="assertApiSupport(item.source)" :play-btn="checkApiSource ? assertApiSupport(item.source) : true" @btn-click="handleListBtnClick" />
+                  <material-list-buttons :index="index" :remove-btn="showRemoveBtn" :remove-label="removeLabel" :download-btn="assertApiSupport(item.source)" :play-btn="checkApiSource ? assertApiSupport(item.source) : true" @btn-click="handleListBtnClick" />
                 </div>
               </div>
             </template>
@@ -68,6 +68,15 @@
                 <div class="list-item-cell" style="flex: 0 0 24%;"><span class="select" :aria-label="item.singer">{{ item.singer }}</span></div>
                 <div class="list-item-cell" style="flex: 0 0 27%;"><span class="select" :aria-label="item.meta.albumName">{{ item.meta.albumName }}</span></div>
                 <div class="list-item-cell" style="flex: 0 0 10%;"><span class="no-select">{{ item.interval || '--/--' }}</span></div>
+                <!-- 只有调用方显式要「移除」时才补这一格：QQ 我喜欢页要的是「取消喜欢」，
+                     而它不能依赖「显示操作按钮」这个显示设置（默认关闭） -->
+                <div v-if="showRemoveBtn" class="list-item-cell" style="flex: 0 0 6%; padding: 0;">
+                  <material-list-buttons
+                    :index="index" remove-btn :remove-label="removeLabel"
+                    :download-btn="false" :play-btn="false" :list-add-btn="false"
+                    @btn-click="handleListBtnClick"
+                  />
+                </div>
               </div>
             </template>
             <template #footer>
@@ -136,8 +145,17 @@ export default {
       type: Boolean,
       default: false,
     },
+    // 行内「移除」按钮：默认关闭（本地列表用它做移除，云端我喜欢用它做取消喜欢）
+    showRemoveBtn: {
+      type: Boolean,
+      default: false,
+    },
+    removeLabel: {
+      type: String,
+      default: '',
+    },
   },
-  emits: ['show-menu', 'play-list', 'togglePage'],
+  emits: ['show-menu', 'play-list', 'togglePage', 'remove-music'],
   setup(props, { emit }) {
     const actionButtonsVisible = appSetting['list.actionButtonsVisible']
     const rightClickSelectedIndex = ref(-1)
@@ -237,6 +255,10 @@ export default {
           break
         case 'listAdd':
           handleShowMusicAddModal(index, true)
+          break
+        case 'remove':
+          // 由调用方决定「移除」的含义（本地列表移除 / QQ 我喜欢取消喜欢）
+          emit('remove-music', index)
           break
       }
     }
