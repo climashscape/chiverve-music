@@ -2,17 +2,16 @@
   <div ref="dom_menu" :class="$style.menu">
     <!--
       左栏三分组（工单 11）：在线（雷达 / 发现 / 乐馆）→ 我的（我的音乐 / 我的收藏 / 我的歌单 /
-      我的下载）→ 设置（贴底）。组标题是轻量小标签（上游留了注释掉的 dt 写法，这里启用），
-      组间留白、设置组 margin-top:auto 贴底。
+      我的下载）→ 设置（贴底）。**组标题小字已去掉**（ui-polish 工单 01：用户 2026-09-23
+      要求「不要小字」，分组只靠组间留白表达），设置组 margin-top:auto 贴底。
 
       「搜索」不再占左栏位：工具栏的搜索框（`components/layout/Toolbar/SearchInput.vue`）
       在**任何窗口宽度下都渲染**，左栏这个入口本来就是重复的（工单 11 的验收项）。
     -->
     <ul
-      v-for="(group, index) in menuGroups" :key="group.titleKey || `group__${index}`"
+      v-for="(group, index) in menuGroups" :key="`group__${index}`"
       :class="[$style.list, { [$style.bottom]: group.bottom }]" role="toolbar"
     >
-      <dt v-if="group.titleKey" :class="$style.groupTitle">{{ $t(group.titleKey) }}</dt>
       <li v-for="item in group.items" :key="item.to" :class="$style.navItem" role="presentation">
         <router-link
           :class="[$style.link, {[$style.active]: $route.meta.name == item.name}]" role="tab"
@@ -45,7 +44,6 @@ export default {
       const size = iconSize.value
       return [
         {
-          titleKey: 'nav_group_online',
           items: [
             {
               to: '/radar',
@@ -77,7 +75,6 @@ export default {
           ],
         },
         {
-          titleKey: 'nav_group_mine',
           items: [
             {
               to: '/user',
@@ -118,7 +115,6 @@ export default {
           ],
         },
         {
-          titleKey: 'nav_group_setting',
           bottom: true,
           items: [
             {
@@ -166,15 +162,6 @@ export default {
   &.bottom {
     margin-top: auto;
   }
-}
-// 组标题：轻量小标签（上游在 .list 里留了注释掉的 dt 写法，这里启用并换用现成的颜色 token）
-.groupTitle {
-  padding-left: 5px;
-  font-size: 11px;
-  transition: @transition-normal;
-  transition-property: color;
-  color: var(--color-font-label);
-  .mixin-ellipsis-1();
 }
 .navItem {
   position: relative;
