@@ -54,7 +54,8 @@
       <div :class="$style.actions">
         <base-btn min :class="$style.btnAction" :disabled="isLoading" @click="$emit('refresh')">
           <span :class="$style.btnInner">
-            <svg :class="$style.btnIcon" version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" viewBox="0 0 448 448" space="preserve"><use xlink:href="#icon-refresh" /></svg>
+            <!-- ⚠️ 每个图标的坐标系不同，取自 Icons.vue 里各自的注释：refresh 是 24×24（按 448 渲染会缩成一个小点） -->
+            <svg :class="$style.btnIcon" version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" viewBox="0 0 24 24" space="preserve"><use xlink:href="#icon-refresh" /></svg>
             <span>{{ $t('discover__refresh') }}</span>
           </span>
         </base-btn>

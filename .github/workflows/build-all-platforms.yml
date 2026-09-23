@@ -1,0 +1,90 @@
+# 全平台出包（2026-09-23 用户要求「打包要全平台打包」）
+#
+# 为什么需要 CI：**macOS 的包（dmg）只能在 macOS 上构建**（electron-builder 需要 hdiutil 等系统工具），
+# Windows 的安装包（nsis setup / portable）在 Linux 上需要 wine，本机没有 wine。
+# 所以本机（Linux）能出：Linux 四个目标（deb / AppImage / rpm / pacman）+ Windows 的 7z 绿色包；
+# 其余靠这个 workflow 在对应系统的 runner 上出。
+#
+# 用法：Actions 页手动触发（workflow_dispatch），或推一个 tag 自动跑；产物在 run 的 Artifacts 里。
+# 注意：
+#   1. **必须先 `npm run build`**——`pack:*` 脚本不含构建（见 docs/agents/build-and-pack.md §7）
+#   2. mac 的 dmg 未签名：本机自用没问题，对外分发会被 Gatekeeper 拦（那时再补签名与公证）
+#   3. 不要加 `publish`——发布形态还没定（见 .scratch/ui-polish-followups/issues/14）
+name: build-all-platforms
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Pack Linux (deb / AppImage / rpm / pacman)
+        run: |
+          npm run pack:linux:deb:amd64
+          npm run pack:linux:appImage
+          npm run pack:linux:rpm
+          npm run pack:linux:pacman
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-x64
+          path: |
+            build/*.deb
+            build/*.AppImage
+            build/*.rpm
+            build/*.pacman
+          if-no-files-found: error
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Pack Windows (setup / portable / 7z)
+        run: |
+          npm run pack:win:setup:x64
+          npm run pack:win:portable:x64
+          npm run pack:win:7z:x64
+        shell: bash
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-x64
+          path: |
+            build/*.exe
+            build/*.7z
+          if-no-files-found: error
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Pack macOS (dmg, x64 + arm64)
+        run: |
+          npm run pack:mac:dmg
+          npm run pack:mac:dmg:arm64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg
+          path: build/*.dmg
+          if-no-files-found: error
