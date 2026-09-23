@@ -23,6 +23,9 @@
         >
           {{ $t('list__collect') }}
         </base-btn>
+        <base-btn :class="$style.headerRightBtn" :disabled="isFavLoading || !!listDetailInfo.noItemLabel" @click="handleToggleFav">
+          {{ isFav ? $t('fav__cancel') : $t('fav__add') }}
+        </base-btn>
         <base-btn :class="$style.headerRightBtn" @click="handleBack">{{ $t('back') }}</base-btn>
       </div>
     </div>
@@ -42,12 +45,16 @@
 </template>
 
 <script lang="ts">
-import { ref, watch } from '@common/utils/vueTools'
+import { computed, ref, watch } from '@common/utils/vueTools'
 import { listDetailInfo } from '@renderer/store/songList/state'
 import { useRouter } from '@common/utils/vueRouter'
 import { addSongListDetail, playSongListDetail } from './action'
 import useList from './useList'
 import useKeyBack from './useKeyBack'
+import { getQQCredential } from '@renderer/utils/ipc'
+import { dialog } from '@renderer/plugins/Dialog'
+import { favPlaylistIds } from '@renderer/store/user/state'
+import { loadFavSonglistIds, setPlaylistFav } from '@renderer/store/user/action'
 
 // 初始值而已，真正的源由路由 query 决定（下面的 verifyQueryParams 会覆写它）
 const source = ref<LX.OnlineSource>('tx')
@@ -132,6 +139,35 @@ export default {
 
     useKeyBack(handleBack)
 
+    /**
+     * 收藏 / 取消收藏到 QQ（工单 08）。注意与左边的 `list__collect`（复制成本地自建列表）
+     * 那是把在线歌单**复制成本地自建列表**）不是同一件事：这个写的是 QQ 云端收藏。
+     * 判定见 store/user 的注释（读接口没有单条查询，靠收藏全量 tid 集合本地比对）。
+     */
+    const isFavLoading = ref(false)
+    const isFav = computed(() => !!id.value && favPlaylistIds.includes(String(id.value)))
+    const handleToggleFav = async() => {
+      if (!id.value) return
+      const credential = await getQQCredential()
+      if (credential == null) {
+        void dialog({ message: window.i18n.t('user_center__need_login' as any), type: 'info' })
+        return
+      }
+      const next = !isFav.value
+      isFavLoading.value = true
+      try {
+        await setPlaylistFav(String(id.value), next)
+      } catch (err: any) {
+        void dialog({ message: err?.message || String(err), type: 'error' })
+      } finally {
+        isFavLoading.value = false
+      }
+    }
+    watch(id, (next) => {
+      if (!next) return
+      void loadFavSonglistIds().catch(err => { console.log('[songList] load fav ids', err) })
+    }, { immediate: true })
+
     watch([source, id, page, refresh], async([_source, _id, _page, _refresh]) => {
       if (!_source || !_id) return router.replace({ path: '/musicHall', query: { tab: 'songlist' } })
       // console.log(_source, _id, _page, _refresh, picUrl.value)
@@ -156,6 +192,9 @@ export default {
       playSongListDetail,
       handlePlayList,
       handleBack,
+      isFav,
+      isFavLoading,
+      handleToggleFav,
     }
   },
 }

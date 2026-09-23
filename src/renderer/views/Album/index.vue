@@ -30,6 +30,9 @@
         </base-btn>
       </div>
       <div :class="$style.actions">
+        <base-btn :disabled="isFavLoading" @click="handleToggleFav">
+          {{ isFav ? $t('fav__cancel') : $t('fav__add') }}
+        </base-btn>
         <base-btn @click="handleBack">{{ $t('back') }}</base-btn>
       </div>
     </div>
@@ -60,10 +63,14 @@
 </template>
 
 <script lang="ts">
-import { ref, watch, nextTick } from '@common/utils/vueTools'
+import { computed, ref, watch, nextTick } from '@common/utils/vueTools'
 import { useRoute, useRouter } from '@common/utils/vueRouter'
 import usePlay from '@renderer/components/material/OnlineList/usePlay'
 import useAlbum from './useAlbum'
+import { getQQCredential } from '@renderer/utils/ipc'
+import { dialog } from '@renderer/plugins/Dialog'
+import { favAlbumIds } from '@renderer/store/user/state'
+import { loadFavAlbumIds, setAlbumFav } from '@renderer/store/user/action'
 
 export default {
   setup() {
@@ -93,6 +100,38 @@ export default {
       loadSongPage(page)
     }
     const handleBack = () => { router.back() }
+
+    /**
+     * 收藏 / 取消收藏到 QQ（工单 08）。
+     *
+     * 「有没有收藏」只能靠**收藏全量 id 集合**在本地比对（读接口没有单条查询，见 store/user 的注释），
+     * 所以进页面先拉一次；写成功后本地集合跟着改，按钮状态立刻正确。
+     * 未登录时只提示、不发请求；失败用 dialog 明确报错，不静默。
+     */
+    const isFavLoading = ref(false)
+    const isFav = computed(() => !!detail.mid && favAlbumIds.includes(detail.mid))
+    const handleToggleFav = async() => {
+      if (!detail.id || !detail.mid) return
+      const credential = await getQQCredential()
+      if (credential == null) {
+        void dialog({ message: window.i18n.t('user_center__need_login' as any), type: 'info' })
+        return
+      }
+      const next = !isFav.value
+      isFavLoading.value = true
+      try {
+        await setAlbumFav({ id: detail.id, mid: detail.mid }, next)
+      } catch (err: any) {
+        void dialog({ message: err?.message || String(err), type: 'error' })
+      } finally {
+        isFavLoading.value = false
+      }
+    }
+    // 进页面（或换专辑）时确保收藏集合已加载；未登录时静默失败（按钮点了会提示登录）
+    watch(() => detail.mid, (mid) => {
+      if (!mid) return
+      void loadFavAlbumIds().catch(err => { console.log('[album] load fav ids', err) })
+    }, { immediate: true })
     // 专辑简介默认 3 行截断（.desc 的 mixin-ellipsis(3)），点按钮展开全文。
     // 按钮只在**真的被截断**时出现：line-clamp 下 scrollHeight 仍是全文高度，
     // 所以量 scrollHeight > clientHeight 就能判断（短简介不该出现一个点了没变化的按钮）。
@@ -121,6 +160,9 @@ export default {
       handlePlayList,
       handleBack,
       toSinger,
+      isFav,
+      isFavLoading,
+      handleToggleFav,
       descEl,
       isDescOpen,
       isDescOverflow,

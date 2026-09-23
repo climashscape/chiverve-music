@@ -126,6 +126,17 @@ export default {
     return { list, total: Number(d.total ?? list.length), page, limit: num, source: 'tx', hasMore: d.hasmore === 1 }
   },
 
+  /** 收藏的歌单的 **tid 集合**（同上：读接口没有单条查询，只能拉全量比对）。 */
+  async getFavSonglistIds() {
+    const ids = []
+    for (let page = 1; page <= 12; page++) {
+      const res = await this.getFavSonglist(page, 600)
+      res.list.forEach(item => { if (item.id) ids.push(item.id) })
+      if (!res.hasMore) break
+    }
+    return ids
+  },
+
   /** 收藏的专辑。 */
   async getFavAlbum(page = 1, num = PAGE_SIZE) {
     const credential = await requireCredential()
@@ -137,6 +148,23 @@ export default {
     const d = data?.data ?? {}
     const list = (d.v_list ?? []).map(toAlbumInfo)
     return { list, total: Number(d.total ?? list.length), page, limit: num, source: 'tx', hasMore: d.hasmore === 1 }
+  },
+
+  /**
+   * 收藏的专辑的 **mid 集合**——给「这张专辑收了没」用（工单 08 的按钮状态）。
+   *
+   * 这条读接口没有「按 id 查是否收藏」的形态，只能把整份收藏拉回来在本地比对；
+   * 实测 `size` 给大值能一次拿全（该账号 445 张，一次 `size=600` 全回来）。
+   * 拉到 `hasmore` 为 0 或到页数上限为止。
+   */
+  async getFavAlbumIds() {
+    const ids = []
+    for (let page = 1; page <= 12; page++) {
+      const res = await this.getFavAlbum(page, 600)
+      res.list.forEach(item => { if (item.id) ids.push(item.id) })
+      if (!res.hasMore) break
+    }
+    return ids
   },
 
   /** 关注的歌手。 */

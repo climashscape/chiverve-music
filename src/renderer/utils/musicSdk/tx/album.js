@@ -64,6 +64,28 @@ const toSinger = raw => ({
 
 export default {
   /**
+   * 收藏 / 取消收藏专辑（工单 08）。
+   *
+   * `music.musicasset.AlbumFavWrite` 的 `FavAlbum` / `CancelFavAlbum`，参数是
+   * `{ v_albumId: [数字 albumId] }`——**数字 id，不是 mid**（真机实测 code=0、
+   * `result: 0`、`v_failedAlbumId: []`；`result` 是返回码，失败 id 在 `v_failedAlbumId`）。
+   * 返回是否成功；调用方负责把失败抛给用户（收藏是用户主动动作，不能静默）。
+   */
+  async setFavAlbum(albumId, fav) {
+    const credential = await requireCredential()
+    const numericId = Number(albumId)
+    if (!numericId) throw new Error('缺少专辑数字 id')
+    const data = await txCgi({
+      module: 'music.musicasset.AlbumFavWrite',
+      method: fav ? 'FavAlbum' : 'CancelFavAlbum',
+      param: { v_albumId: [numericId] },
+    }, webComm(credential)).promise
+    const result = data?.data ?? {}
+    const failed = result.v_failedAlbumId ?? []
+    return Number(result.result ?? 0) === 0 && !failed.map(Number).includes(numericId)
+  },
+
+  /**
    * 专辑详情。`value` 传专辑 mid 或数字 albumId 都行（实测两种参数形态都通）。
    * 返回单张专辑对象（不是列表）。
    */

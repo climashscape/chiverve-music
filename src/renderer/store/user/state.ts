@@ -110,6 +110,16 @@ export const favLists = shallowReactive<PlaylistCard[]>([])
 export const favAlbums = shallowReactive<PlaylistCard[]>([])
 export const followSingers = shallowReactive<FollowSinger[]>([])
 
+/**
+ * 「收藏 / 取消收藏」要用的**收藏全量 id 集合**（工单 08）。
+ *
+ * 两个读接口都没有「按 id 查是否收藏」的形态（见 `tx/user.js` 的 getFavAlbumIds 注释），
+ * 只能把整份收藏拉回来在本地比对；拉一次缓存住，写操作后再刷一次。
+ * album 存 mid（专辑页手里的是 mid），playlist 存 tid。
+ */
+export const favAlbumIds = shallowReactive<string[]>([])
+export const favPlaylistIds = shallowReactive<string[]>([])
+
 /** 每页条数：QQ 这几个接口都按 offset/size 分页。 */
 export const PAGE_SIZE = 50
 

@@ -507,6 +507,27 @@ export default {
     return this.removeSongFromList(FAV_DIR_ID, songs)
   },
 
+  /**
+   * 收藏 / 取消收藏（他人的）歌单（工单 08）。
+   *
+   * `music.musicasset.PlaylistFavWrite` 的 `FavPlaylist` / `CancelFavPlaylist`，
+   * 参数是 `{ uin: encryptUin, v_playlistId: [数字 tid] }`——**tid 不是自建歌单的 dirId**。
+   * 实测 code=0、`result: 0`、`v_failedPlaylistId: []`。
+   */
+  async setFavPlaylist(tid, fav) {
+    const credential = await requireCredential()
+    const numericId = Number(tid)
+    if (!numericId) throw new Error('缺少歌单数字 id')
+    const data = await txCgi({
+      module: 'music.musicasset.PlaylistFavWrite',
+      method: fav ? 'FavPlaylist' : 'CancelFavPlaylist',
+      param: { uin: credential.encryptUin, v_playlistId: [numericId] },
+    }, buildComm(credential)).promise
+    const result = data?.data ?? {}
+    const failed = result.v_failedPlaylistId ?? []
+    return Number(result.result ?? 0) === 0 && !failed.map(Number).includes(numericId)
+  },
+
   /** 增删歌曲的公共实现（两者只差 method）。 */
   async _writeSongList(method, dirId, songs, tid = 0) {
     const credential = await requireCredential()

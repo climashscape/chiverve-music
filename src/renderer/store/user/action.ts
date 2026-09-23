@@ -2,8 +2,8 @@ import { markRawList } from '@common/utils/vueTools'
 import { deduplicationList, toNewMusicInfo } from '@renderer/utils'
 import music from '@renderer/utils/musicSdk'
 import {
-  cloudListSongs, createdLists, favAlbums, favLists, favSongs, followSingers, isInited, isLoading, labels, musicGene, pagers,
-  CLOUD_LIST_PAGE_SIZE, PAGE_SIZE, profile, vip, type PlaylistCard,
+  cloudListSongs, createdLists, favAlbumIds, favAlbums, favLists, favPlaylistIds, favSongs, followSingers, isInited, isLoading, labels,
+  musicGene, pagers, CLOUD_LIST_PAGE_SIZE, PAGE_SIZE, profile, vip, type PlaylistCard,
 } from './state'
 
 /**
@@ -283,4 +283,72 @@ export const removeSongsFromCloudList = async(card: PlaylistCard, songs: LX.Musi
   const ok = await music.tx.songList.removeSongFromList(Number(card.dirId), toWriteSongs(songs), Number(card.id))
   if (!ok) throw new Error(t('playlists__cloud_remove_song_failed'))
   if (String(card.dirId) === cloudListSongs.dirId) await loadCloudListSongs(String(card.id), 1, false)
+}
+
+// ── 收藏 / 取消收藏（专辑 · 歌单，工单 08）─────────────────────────────────
+// 两个读接口没有单条查询，所以「收了没」靠**收藏全量 id 集合**在本地比对（拉一次缓存住）。
+// 写操作**失败必须抛给调用方**：收藏是用户主动动作，静默失败会让人以为已经生效。
+
+/** 收藏的全量专辑 mid（`force` 时重拉）。 */
+export const loadFavAlbumIds = async(force = false): Promise<void> => {
+  if (favAlbumIds.length && !force) return
+  const ids = await user().getFavAlbumIds()
+  setList(favAlbumIds, ids)
+}
+
+/** 收藏的全量歌单 tid。 */
+export const loadFavSonglistIds = async(force = false): Promise<void> => {
+  if (favPlaylistIds.length && !force) return
+  const ids = await user().getFavSonglistIds()
+  setList(favPlaylistIds, ids)
+}
+
+/**
+ * 收藏 / 取消收藏专辑。
+ * @param album 专辑页拿到的详情（要 `id` 数字 id 与 `mid`）
+ */
+export const setAlbumFav = async(album: { id: string, mid: string }, fav: boolean): Promise<void> => {
+  const ok = await music.tx.album.setFavAlbum(album.id, fav)
+  if (!ok) throw new Error(fav ? t('fav__add_failed') : t('fav__cancel_failed'))
+  // 本地集合与列表都跟着改，按钮状态立刻正确（`user_center` 的收藏专辑列表若已加载也一并刷新）
+  const ids = favAlbumIds.slice()
+  const index = ids.indexOf(album.mid)
+  if (fav && index < 0) ids.unshift(album.mid)
+  if (!fav && index > -1) ids.splice(index, 1)
+  setList(favAlbumIds, ids)
+  if (favAlbums.length) void reloadFavAlbums()
+}
+
+/** 收藏 / 取消收藏歌单（入参是歌单的 tid）。 */
+export const setPlaylistFav = async(tid: string, fav: boolean): Promise<void> => {
+  const ok = await music.tx.songList.setFavPlaylist(tid, fav)
+  if (!ok) throw new Error(fav ? t('fav__add_failed') : t('fav__cancel_failed'))
+  const ids = favPlaylistIds.slice()
+  const index = ids.indexOf(String(tid))
+  if (fav && index < 0) ids.unshift(String(tid))
+  if (!fav && index > -1) ids.splice(index, 1)
+  setList(favPlaylistIds, ids)
+  if (favLists.length) void reloadFavLists()
+}
+
+/** 重新拉收藏专辑列表第一页（写操作后让「我的收藏」页跟着变）。 */
+const reloadFavAlbums = async(): Promise<void> => {
+  try {
+    const res = await user().getFavAlbum(1, PAGE_SIZE)
+    setList(favAlbums, res.list as any)
+    pagers.favAlbums = { page: 1, hasMore: res.hasMore === true }
+  } catch (err) {
+    console.log('[user] reload favAlbums', err)
+  }
+}
+
+/** 重新拉收藏歌单列表第一页。 */
+const reloadFavLists = async(): Promise<void> => {
+  try {
+    const res = await user().getFavSonglist(1, PAGE_SIZE)
+    setList(favLists, res.list as any)
+    pagers.favLists = { page: 1, hasMore: res.hasMore === true }
+  } catch (err) {
+    console.log('[user] reload favLists', err)
+  }
 }
