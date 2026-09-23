@@ -13,15 +13,16 @@ transition(enter-active-class="animated slideInRight" leave-active-class="animat
           img(v-if="musicInfo.pic" :class="$style.img" :src="musicInfo.pic")
           div.description(:class="['scroll', $style.description]")
             p {{ $t('player__music_name') }}{{ musicInfo.name }}
+            //- 不可跳时也给一句悬停说明（工单 05）：原来是「没有 cursor、点了毫无反应」，用户不知道是灰的还是坏了
             p(
               :class="{ [$style.jumpable]: canJumpToSinger(playMusicInfo.musicInfo) }"
-              :title="canJumpToSinger(playMusicInfo.musicInfo) ? $t('list__jump_singer') : ''"
+              :title="canJumpToSinger(playMusicInfo.musicInfo) ? $t('list__jump_singer') : $t('list__jump_singer_disabled')"
               @click="handlePlayDetailSingerClick"
             ) {{ $t('player__music_singer') }}{{ musicInfo.singer }}
             p(
               v-if="musicInfo.album"
               :class="{ [$style.jumpable]: canJumpToAlbum(playMusicInfo.musicInfo) }"
-              :title="canJumpToAlbum(playMusicInfo.musicInfo) ? $t('list__jump_album') : ''"
+              :title="canJumpToAlbum(playMusicInfo.musicInfo) ? $t('list__jump_album') : $t('list__jump_album_disabled')"
               @click="handlePlayDetailAlbumClick"
             ) {{ $t('player__music_album') }}{{ musicInfo.album }}
             //- 播放详情页 ↔ 歌曲详情页互跳（工单 02）：本地文件没有 mid，不出这个入口
@@ -38,6 +39,11 @@ transition(enter-active-class="animated slideInRight" leave-active-class="animat
       play-bar(v-if="visibled")
     transition(enter-active-class="animated-slow fadeIn" leave-active-class="animated-slow fadeOut")
       common-audio-visualizer(v-if="appSetting['player.audioVisualization'] && visibled")
+    //- 多位歌手时的歌手选择菜单（工单 05）：与歌曲表 / 歌曲详情页同一套 base-menu。
+    //- 这一页原来**没有渲染它** —— useMusicJump 把 picker 打开也没人显示，于是「点歌手名」在多歌手的歌上静默无反应。
+    //- 它 teleport 到 #root（z-index 10，压得住本页的 z-index 10 与播放栏），所以放在这个 v-if 的容器里即可；
+    //- 放在这里而不是 transition 外面，是为了跟随详情页的开关一起挂载/卸载。
+    base-menu(v-model="isShowSingerPicker" :menus="singerPickerMenus()" :xy="singerPickerXy" item-name="name" @menu-click="handleSingerPickerClick")
 </template>
 
 
@@ -125,7 +131,18 @@ export default {
       handleSingerNameClick,
       handleAlbumNameClick,
       getSongMid,
+      isShowSingerPicker,
+      singerPickerXy,
+      singerPickerMenus,
+      handleSingerPickerClick,
     } = useMusicJump()
+
+    // 关闭详情页时把歌手选择菜单一起收掉（工单 05）：本组件实例不会随 overlay 卸载，
+    // 不清的话下次打开会自动弹出一个停在旧坐标的菜单。
+    // （点关闭按钮走的是 click，菜单本来就会被 document 上的收起监听收掉；双击右键走 contextmenu，绕过它）
+    watch(isShowPlayerDetail, show => {
+      if (!show) handleSingerPickerClick(null)
+    })
 
     const handlePlayDetailSingerClick = (event) => {
       if (!canJumpToSinger(playMusicInfo.musicInfo)) return
@@ -138,6 +155,9 @@ export default {
     const handleOpenSongDetail = () => {
       const mid = getSongMid(playMusicInfo.musicInfo)
       if (!mid) return
+      // 详情页是路由页，本页是盖在路由之上的覆盖层：不先收起来，push 只是把页面换在底下，
+      // 用户看到的是「点了没反应」（票 14 的候选根因）。仓库里三处深链导航都是这个写法。
+      setShowPlayerDetail(false)
       void router.push({ path: '/songDetail', query: { mid } })
     }
 
@@ -160,6 +180,11 @@ export default {
       handlePlayDetailSingerClick,
       handlePlayDetailAlbumClick,
       handleOpenSongDetail,
+      // 歌手选择菜单（工单 05）：模板里的 base-menu 要直接绑这几项
+      isShowSingerPicker,
+      singerPickerXy,
+      singerPickerMenus,
+      handleSingerPickerClick,
       fullscreenExit() {
         void setFullScreen(false).then((fullscreen) => {
           isFullscreen.value = fullscreen

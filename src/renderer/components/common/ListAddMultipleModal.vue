@@ -18,7 +18,7 @@
 
 <script>
 import { computed } from '@common/utils/vueTools'
-import { defaultList, loveList, userLists } from '@renderer/store/list/state'
+import { loveList, userLists } from '@renderer/store/list/state'
 import { addListMusics, moveListMusics, createUserList } from '@renderer/store/list/action'
 import useKeyDown from '@renderer/utils/compositions/useKeyDown'
 import { useI18n } from '@root/lang'
@@ -69,8 +69,9 @@ export default {
     const t = useI18n()
 
     const lists = computed(() => {
+      // 候选里没有「试听列表」（工单 07 / ADR 0006）：它已从界面退场，若还留在这里，
+      // 用户仍能往它写歌，退场就只是表面功夫
       return [
-        { ...defaultList, name: t(defaultList.name) },
         { ...loveList, name: t(loveList.name) },
         ...userLists,
       ].filter(l => !props.excludeListId.includes(l.id))

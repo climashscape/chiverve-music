@@ -50,11 +50,78 @@ export interface FollowSinger {
   source: LX.OnlineSource
 }
 
+/**
+ * 基因条目（偏好歌手 / 偏好曲风）。
+ *
+ * ⚠️ **歌手的 `id` 是数字 singer_id，不是 mid**（`Base.Id`，实测），所以点它跳歌手页
+ * 必须再转一次（`music.tx.user.resolveSingerMid`，路径见 `views/userCenter/useGeneSingerJump.ts`）。
+ */
 export interface GeneItem {
   id: string
   name: string
   img: string
   slogan: string
+}
+
+/** 「名字 + 说明」型富条目（音乐年龄 / 律动 / 时间偏好 …）。 */
+export interface GeneTextItem {
+  name: string
+  desc: string
+}
+
+/** 乐状态某一维：`key` 是接口给的维度标识（渲染层拿它查维度文案）。 */
+export interface GeneStatusItem {
+  key: string
+  name: string
+  score: number
+  delta: number
+}
+
+/** BPM 区间（`BPM.MaxScore/MinScore`）。 */
+export interface GeneBpm {
+  max: number
+  min: number
+}
+
+/** 近 6 个月的每月听歌数（`ListeningReport.Report[].Month/Num`）。 */
+export interface GeneReportItem {
+  month: string
+  num: number
+}
+
+/** AI 解读卡片（`DeepseekInterpretation.Cards[].Title/Content`）。 */
+export interface GeneAiCard {
+  title: string
+  content: string
+}
+
+/** 代表色：`color` 只在能直接当 CSS 色值时才有（数字色值这种落空）。 */
+export interface GeneColor {
+  name: string
+  color: string
+}
+
+/**
+ * 听歌基因（`GetProfileReport` 的归一化形状，整形在 `musicSdk/tx/utils/gene.js`）。
+ * 富内容一律可空（接口某天不给 / 形状变了就落空），视图按空值整块不渲染。
+ */
+export interface MusicGeneState {
+  nick: string
+  avatar: string
+  mainDescription: string
+  singers: GeneItem[]
+  genres: GeneItem[]
+  personality: GeneTextItem | null
+  personalityTags: string[]
+  status: GeneStatusItem[]
+  ages: GeneTextItem[]
+  bpm: GeneBpm | null
+  grooving: GeneTextItem | null
+  timePreference: GeneTextItem | null
+  characterColor: GeneColor | null
+  report: GeneReportItem[]
+  aiCards: GeneAiCard[]
+  aiTags: string[]
 }
 
 export const profile = reactive<UserProfile>({
@@ -76,18 +143,29 @@ export const vip = reactive<VipInfo>({
   maxDirNum: 0,
 })
 
-export const musicGene = reactive<{
-  nick: string
-  avatar: string
-  mainDescription: string
-  singers: GeneItem[]
-  genres: GeneItem[]
-}>({
+/**
+ * 听歌基因（工单 10 起「我的音乐」页只做这一块）。
+ *
+ * 初值必须**把每个键都写出来**：`initUserCenter` 是 `Object.assign(musicGene, 取数结果)`
+ * 覆盖式写入，键缺失的字段会保留上一份数据（刷新后显示旧值）。
+ */
+export const musicGene = reactive<MusicGeneState>({
   nick: '',
   avatar: '',
   mainDescription: '',
   singers: [],
   genres: [],
+  personality: null,
+  personalityTags: [],
+  status: [],
+  ages: [],
+  bpm: null,
+  grooving: null,
+  timePreference: null,
+  characterColor: null,
+  report: [],
+  aiCards: [],
+  aiTags: [],
 })
 
 /** 我喜欢：分页拉取（QQ 的 dirid=201 目录）。 */

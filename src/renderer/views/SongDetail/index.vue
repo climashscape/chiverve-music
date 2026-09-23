@@ -14,7 +14,7 @@
           <h2 :class="$style.name" :title="detail.name">{{ detail.name }}</h2>
           <p
             :class="[$style.meta, ...(detail.singers.length ? [$style.link] : [])]"
-            :title="detail.singers.length ? $t('list__jump_singer') : ''"
+            :title="detail.singers.length ? $t('list__jump_singer') : $t('list__jump_singer_disabled')"
             @click="handleSingerClick"
           >{{ detail.singer }}</p>
           <p v-if="detail.albumMid" :class="[$style.meta, $style.link]" @click="toAlbum">{{ detail.albumName }}</p>

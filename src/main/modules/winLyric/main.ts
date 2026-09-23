@@ -165,6 +165,18 @@ export const createWindow = () => {
     roundedCorners: false,
     show: false,
     alwaysOnTop: isAlwaysOnTop,
+    // Linux 上 `skipTaskbar` 是**空实现**：Electron 42.11.6 的 `NativeWindowViews::SetSkipTaskbar`
+    // 整个函数体都在 `#if IS_WIN` 内（官方 issue #33124 标 wontfix，文档也只标 macOS/Windows），
+    // 所以下面那行与 config.ts 的热更新在 Linux 上都是 no-op——不是写错了，是平台不支持。
+    // Linux 唯一能影响 WM 归类的通道是建窗时的 `type`（Electron 据此写 `_NET_WM_WINDOW_TYPE_*`）：
+    // 本机实测（Muffin/X11，2026-09-24）`utility` → `_NET_WM_WINDOW_TYPE_UTILITY`，WM 自行补上
+    // `_NET_WM_STATE_SKIP_TASKBAR`，而 Cinnamon 的 Alt-Tab（appSwitcher.js:35）与面板
+    // （window-list / grouped-window-list）都按 `Meta.Window.is_skip_taskbar()` 过滤，于是两处都不再列出它。
+    // 因此用 `!isShowTaskbar` 而不是无条件设 utility：置 true 时仍建普通窗口，保住「录屏软件
+    // 抓不到时把它放进任务栏」这条既有退路。
+    // 两条限制：type 只在建窗时写入（运行期改不了，切换该开关要重开歌词窗）；设了 `parent`
+    // 会被 WM 强制改写成 dialog，别给这个窗口设 parent。
+    type: isLinux && !isShowTaskbar ? 'utility' : undefined,
     skipTaskbar: !isShowTaskbar,
     webPreferences: {
       contextIsolation: false,

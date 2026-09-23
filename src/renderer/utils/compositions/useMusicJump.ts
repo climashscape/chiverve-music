@@ -38,10 +38,40 @@ export default () => {
   const isShowSingerPicker = ref(false)
   const singerPickerXy = shallowReactive({ x: 0, y: 0 })
   const singerPickerSingers = ref<JumpSinger[]>([])
-  const showSingerPicker = (singers: JumpSinger[], event?: { pageX?: number, pageY?: number }) => {
+
+  /**
+   * 触发菜单的事件；只需要传坐标时也可以给一个等价的伪事件——这里唯一读的字段就是 `pageX`/`pageY`。
+   * 菜单那套 `{x, y}` 坐标不直接进这里：调用方的 `handleJumpSinger` 包装会先映射成 `pageX`/`pageY`
+   * （歌曲表两处：`OnlineList/useMusicActions.js:78`、`ListMusicTable/useMusicActions.js:39`）；
+   * 雷达的跳转按钮复用同一个包装，所以也是同一条路（`RadarCarousel.vue:463-465`）。
+   */
+  type PickerTrigger = { pageX?: number, pageY?: number, currentTarget?: EventTarget | null } | undefined
+
+  /**
+   * 菜单落点（工单 05）。鼠标点击直接用它的事件坐标；**键盘激活（Tab 到按钮按 Enter/空格）时
+   * Chromium 给的 pageX/pageY 都是 0**，照抄会算出 `(-rootOffset, -rootOffset)`，
+   * 被 `#root { overflow: hidden }` 裁得完全看不见（表现仍是「点了没反应」）。
+   * 拿不到坐标时退回触发元素的矩形（`rect` 是视口坐标，页内不滚动时与 pageX/pageY 同值）：
+   * 1. 事件自己的 `currentTarget`（只有同步调用才有值——本函数在 `jumpToSinger` 的 await 之后才跑）；
+   * 2. 没有元素信息时用 `document.activeElement`——键盘激活时它正是那个按钮，这条能救回歌曲表 / 雷达的菜单链路。
+   */
+  const resolvePickerXy = (event?: PickerTrigger) => {
+    const x = event?.pageX ?? 0
+    const y = event?.pageY ?? 0
+    if (x || y) return { x, y }
+    const active = document.activeElement
+    const el = (event?.currentTarget ?? (active && active != document.body && active != document.documentElement ? active : null)) as Element | null
+    const rect = el?.getBoundingClientRect?.()
+    // 元素没有尺寸（未渲染 / 已卸载）时保持 0：位置由 useMenuLocation 夹回容器内可见处
+    if (!rect || (!rect.width && !rect.height)) return { x, y }
+    // 贴触发元素的下沿展开；出界由 useMenuLocation 的翻转/夹取处理
+    return { x: rect.left, y: rect.bottom }
+  }
+  const showSingerPicker = (singers: JumpSinger[], event?: PickerTrigger) => {
+    const xy = resolvePickerXy(event)
     singerPickerSingers.value = singers
-    singerPickerXy.x = event?.pageX ?? 0
-    singerPickerXy.y = event?.pageY ?? 0
+    singerPickerXy.x = xy.x
+    singerPickerXy.y = xy.y
     isShowSingerPicker.value = true
   }
   const singerPickerMenus = () => {
@@ -72,7 +102,7 @@ export default () => {
    * 已经拿到歌手列表时的跳转：一位直接进，多位弹菜单让用户挑。
    * （歌曲详情页手里就有 `track_info.singer[]`，不必再取一次详情。）
    */
-  const jumpToSingerList = (singers: JumpSinger[], event?: { pageX?: number, pageY?: number }) => {
+  const jumpToSingerList = (singers: JumpSinger[], event?: PickerTrigger) => {
     if (!singers.length) return
     if (singers.length == 1) {
       toSinger(singers[0].mid)
@@ -81,7 +111,7 @@ export default () => {
     showSingerPicker(singers, event)
   }
 
-  const jumpToSinger = async(minfo: LX.Music.MusicInfo, event?: { pageX?: number, pageY?: number }) => {
+  const jumpToSinger = async(minfo: LX.Music.MusicInfo, event?: PickerTrigger) => {
     const singers = await resolveSingers(minfo, fetchSingers)
     if (!singers.length) {
       // 取不到歌手 id 时明确提示：不静默、也不退化成「按名字搜」（同名会跳错人）

@@ -1,0 +1,164 @@
+// 歌单左栏两组（本地组 / 云端组）**共用**的样式：拆成 LocalRail / CloudRail 两个组件后，
+// 两边的行、头、输入框样式必须一模一样，所以抽到这里由两个组件各自 `@import`。
+// ⚠️ 这里是 CSS modules 的局部样式（每个组件各自 mangle 一份），不是全局样式——别挪进 assets/styles。
+//
+// 原来的两份「按位置分高度」规则（`.listsContent:first-of-type / :last-of-type`）随 tab 拆分取消：
+// 现在一个面板里只有一组，列表直接吃满左栏剩余高度。
+@import '@renderer/assets/styles/layout.less';
+
+@lists-item-height: 36px;
+.lists {
+  flex: none;
+  width: 16%;
+  display: flex;
+  flex-flow: column nowrap;
+}
+.listsContent {
+  flex: auto;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: scroll !important;
+  // border-right: 1px solid rgba(0, 0, 0, 0.12);
+
+  &.sortable {
+    * {
+      -webkit-user-drag: element;
+    }
+
+    .listsItem {
+      &:hover, &.active, &.selected, &.clicked {
+        background-color: transparent !important;
+      }
+
+      &.dragingItem {
+        background-color: var(--color-primary-background-hover) !important;
+      }
+    }
+  }
+}
+.railTip {
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--color-font-label);
+  .mixin-ellipsis-2();
+}
+.listHeader {
+  position: relative;
+  display: flex;
+  flex-flow: row nowrap;
+  border-bottom: var(--color-list-header-border-bottom);
+  &:hover {
+    .listsAdd {
+      opacity: 1;
+    }
+  }
+}
+.listsTitle {
+  flex: auto;
+  font-size: 12px;
+  line-height: 38px;
+  padding: 0 10px;
+  .mixin-ellipsis-1();
+}
+.headerBtns {
+  flex: none;
+  display: flex;
+}
+.listsAdd {
+  // position: absolute;
+  // right: 0;
+  margin-top: 6px;
+  background: none;
+  height: 30px;
+  border: none;
+  outline: none;
+  border-radius: @radius-border;
+  cursor: pointer;
+  opacity: .1;
+  transition: opacity @transition-normal;
+  color: var(--color-button-font);
+  svg {
+    vertical-align: bottom;
+  }
+  &:active {
+    opacity: .7 !important;
+  }
+  &:hover {
+    opacity: .6 !important;
+  }
+}
+.listsItem {
+  position: relative;
+  transition: .3s ease;
+  transition-property: color, background-color, opacity;
+  background-color: transparent;
+  &:not(.active) {
+    &:hover {
+      background-color: var(--color-primary-background-hover);
+      cursor: pointer;
+    }
+  }
+  &.active {
+    // background-color:
+    color: var(--color-primary);
+  }
+  &.selected {
+    background-color: var(--color-primary-font-active);
+  }
+  &.clicked {
+    background-color: var(--color-primary-background-hover);
+  }
+  &.fetching {
+    opacity: .5;
+  }
+  &.editing {
+    padding: 0 10px;
+    background-color: var(--color-primary-background-hover);
+    .listsLabel {
+      display: none;
+    }
+    .listsInput {
+      display: block;
+    }
+  }
+}
+.activeIcon {
+  height: .9em;
+  width: .9em;
+  margin-left: -0.45em;
+  vertical-align: -0.05em;
+}
+.listsLabel {
+  display: block;
+  height: @lists-item-height;
+  padding: 0 10px;
+  font-size: 13px;
+  line-height: @lists-item-height;
+  .mixin-ellipsis-1();
+}
+.listsInput {
+  width: 100%;
+  height: @lists-item-height;
+  // border: none;
+  padding: 0;
+  // padding-bottom: 1px;
+  line-height: @lists-item-height;
+  background: none !important;
+  border-radius: 0;
+  // outline: none;
+  font-size: 13px;
+  display: none;
+  // font-family: inherit;
+}
+
+.listsNew {
+  padding: 0 10px;
+  background-color: var(--color-primary-background-hover) !important;
+  .listsInput {
+    display: block;
+  }
+}
+.newLeave {
+  margin-top: -@lists-item-height;
+  z-index: -1;
+}

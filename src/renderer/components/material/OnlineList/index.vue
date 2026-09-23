@@ -41,14 +41,14 @@
                 <div class="list-item-cell" style="flex: 0 0 22%;">
                   <span
                     class="select" :class="{ [$style.jump]: canJumpToSinger(item) }"
-                    :title="canJumpToSinger(item) ? $t('list__jump_singer') : ''"
+                    :title="canJumpToSinger(item) ? $t('list__jump_singer') : $t('list__jump_singer_disabled')"
                     :aria-label="item.singer" @click.stop="handleSingerNameClick(item, $event)"
                   >{{ item.singer }}</span>
                 </div>
                 <div class="list-item-cell" style="flex: 0 0 22%;">
                   <span
                     class="select" :class="{ [$style.jump]: canJumpToAlbum(item) }"
-                    :title="canJumpToAlbum(item) ? $t('list__jump_album') : ''"
+                    :title="canJumpToAlbum(item) ? $t('list__jump_album') : $t('list__jump_album_disabled')"
                     :aria-label="item.meta.albumName" @click.stop="handleAlbumNameClick(item, $event)"
                   >{{ item.meta.albumName }}</span>
                 </div>
@@ -80,14 +80,14 @@
                 <div class="list-item-cell" style="flex: 0 0 24%;">
                   <span
                     class="select" :class="{ [$style.jump]: canJumpToSinger(item) }"
-                    :title="canJumpToSinger(item) ? $t('list__jump_singer') : ''"
+                    :title="canJumpToSinger(item) ? $t('list__jump_singer') : $t('list__jump_singer_disabled')"
                     :aria-label="item.singer" @click.stop="handleSingerNameClick(item, $event)"
                   >{{ item.singer }}</span>
                 </div>
                 <div class="list-item-cell" style="flex: 0 0 27%;">
                   <span
                     class="select" :class="{ [$style.jump]: canJumpToAlbum(item) }"
-                    :title="canJumpToAlbum(item) ? $t('list__jump_album') : ''"
+                    :title="canJumpToAlbum(item) ? $t('list__jump_album') : $t('list__jump_album_disabled')"
                     :aria-label="item.meta.albumName" @click.stop="handleAlbumNameClick(item, $event)"
                   >{{ item.meta.albumName }}</span>
                 </div>

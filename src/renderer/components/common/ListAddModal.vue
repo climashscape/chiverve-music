@@ -29,7 +29,7 @@
 <script>
 // import { mapMutations } from 'vuex'
 import { watch, ref, computed, onBeforeUnmount } from '@common/utils/vueTools'
-import { defaultList, loveList, userLists } from '@renderer/store/list/state'
+import { loveList, userLists } from '@renderer/store/list/state'
 import { addListMusics, moveListMusics, createUserList, getMusicExistListIds } from '@renderer/store/list/action'
 import { addFavSongToCloud } from '@renderer/store/user/action'
 import { getQQCredential } from '@renderer/utils/ipc'
@@ -123,8 +123,9 @@ export default {
     let stopWatchUserList = null
 
     const getList = () => {
+      // 候选里没有「试听列表」（工单 07 / ADR 0006）：它已从界面退场，若还留在这里，
+      // 用户仍能往它写歌，退场就只是表面功夫
       lists.value = [
-        { ...defaultList, name: t(defaultList.name) },
         { ...loveList, name: t(loveList.name) },
         ...userLists,
       ]

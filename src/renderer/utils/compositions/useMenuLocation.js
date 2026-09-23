@@ -59,9 +59,17 @@ export default ({ visible, location, onHide }) => {
     visible ? handleShow() : handleHide()
   }, { immediate: true })
 
+  // 最小贴边距（工单 05）：坐标为 0 时（键盘激活的元素给不出 pageX/pageY，见 useMusicJump 的兜底）
+  // 减去 rootOffset 后是负数，菜单会被 `#root { overflow: hidden }` 裁得完全看不见。
+  // 这里只保证「落在容器内侧」——真正的落点仍由调用方给（含 handleGetOffsetXY 的越界翻转）。
+  const EDGE_INSET = 2
+  const handleSetPosition = (location) => {
+    menuStyles.left = Math.max(location.x - window.lx.rootOffset + 2, EDGE_INSET) + 'px'
+    menuStyles.top = Math.max(location.y - window.lx.rootOffset, EDGE_INSET) + 'px'
+  }
+
   watch(location, location => {
-    menuStyles.left = location.x - window.lx.rootOffset + 2 + 'px'
-    menuStyles.top = location.y - window.lx.rootOffset + 'px'
+    handleSetPosition(location)
     // nextTick(() => {
     if (show) {
       if (menuStyles.transitionProperty != transition2) menuStyles.transitionProperty = transition2

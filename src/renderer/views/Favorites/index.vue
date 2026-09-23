@@ -49,14 +49,15 @@ export default {
     const tab = ref<TabId>(normalizeTab(route.query.tab))
 
     const tabs = [
-      { tab: 'songs', label: window.i18n.t('favorites__tab_songs' as any) },
+      // 首 tab 就是「我收藏的歌曲」——试听列表退场后它不再需要更上层的名字（工单 07）
+      { tab: 'songs', label: window.i18n.t('favorites__tab_fav_songs' as any) },
       { tab: 'lists', label: window.i18n.t('favorites__tab_lists' as any) },
       { tab: 'albums', label: window.i18n.t('favorites__tab_albums' as any) },
       { tab: 'singers', label: window.i18n.t('favorites__tab_singers' as any) },
     ]
 
     const handleTabChange = (id: TabId) => {
-      // 切 Tab 时清掉别的 Tab 的参数（list / favSource 只对歌曲 Tab 有意义）
+      // 切 Tab 时清掉别的 Tab 的参数（favSource 只对歌曲 Tab 有意义）
       void router.replace({ path: route.path, query: { tab: id } })
     }
 

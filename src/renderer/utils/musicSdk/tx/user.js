@@ -1,5 +1,7 @@
 import { txCgi, buildComm, requireCredential } from './utils/request'
 import { createSong } from './utils/song'
+import musicSearch from './musicSearch'
+import { mapMusicGene, pickGeneSingerMid } from './utils/gene'
 
 /**
  * 我的音乐（M4）：QQ 账号侧的只读接口。
@@ -14,11 +16,21 @@ import { createSong } from './utils/song'
  *   3. 列表键不统一：我喜欢在 `data.songlist`、自建歌单在 `data.v_playlist`、
  *      收藏歌单/专辑在 `data.v_list`。别照一个的形状猜另一个。
  *   4. 主页的粉丝/关注数是**对象**（`{ HasEntry, Num, Add, jumpURL }`），取 `.Num`。
+ *   5. 听歌基因的响应整形（含一批「名字 + 说明」型富内容）全在 `./utils/gene.js`——纯函数、
+ *      可在 node 环境单测；富内容的内层键名只覆盖了实测过的路径，其余走候选键兜底，
+ *      改动前先读那个文件的头部注释。
+ *   6. 基因里的歌手只有数字 singer_id（`Base.Id`，没有 mid），歌手页要 mid——转 mid 走
+ *      `resolveSingerMid`（按名字搜歌手档 + `singerID` 比对，spec 事实 C）。
  *
  * 只管账号中心要用的能力，不碰播放链路（取流在 musicUrl.js）。
  */
 
 const PAGE_SIZE = 30
+
+/** `search_type`：1 = 歌手档（**2 是专辑档**，别写错——spec 事实 C 的实测记录）。 */
+const SEARCH_TYPE_SINGER = 1
+/** 基因歌手按名字搜时取的结果条数：歌手档按相关度排序，同名艺人集中在前几条。 */
+const SEARCH_SINGER_NUM = 20
 
 /** 多数账户接口用 WEB 档案即可。 */
 const webComm = credential => buildComm(credential)
@@ -228,7 +240,14 @@ export default {
     }
   },
 
-  /** 听歌基因：歌手榜 / 曲风榜 / 一句话画像。 */
+  /**
+   * 听歌基因：偏好歌手 / 偏好曲风 / 一句话画像 + 一批富内容（人格、乐状态、音乐年龄、
+   * BPM、律动、时间偏好、代表色、近 6 个月听歌数、AI 解读卡）。
+   *
+   * 整形全部在 `utils/gene.js`（纯函数、可在 node 环境单测）；这里只负责取数。
+   * 返回**恒含全部键**，空值用空数组/空串/null——store 是 `Object.assign` 覆盖，
+   * 少给键会留下上一份数据（见 gene.js 的注释）。
+   */
   async getMusicGene() {
     const credential = await requireCredential()
     const data = await txCgi({
@@ -236,41 +255,26 @@ export default {
       method: 'GetProfileReport',
       param: { uin: credential.encryptUin },
     }, androidComm(credential)).promise
-    const d = data?.data ?? {}
-    const toCard = raw => {
-      const base = raw?.Base ?? {}
-      return {
-        id: String(base.Id ?? ''),
-        name: base.TypeTitle ?? '',
-        img: base.Pic ?? '',
-        slogan: base.Slogan ?? '',
-      }
-    }
-    return {
-      nick: d.UserInfoCard?.NickName ?? '',
-      avatar: d.UserInfoCard?.HeadUrl ?? '',
-      mainDescription: parseMainDescription(d.MainDescription),
-      singers: (d.Singers ?? []).map(toCard),
-      genres: (d.Genres ?? []).map(toCard),
-    }
+    return mapMusicGene(data?.data)
   },
-}
 
-/**
- * `MainDescription` 实测是**对象**：`{ Description: "…一句话画像…", Bootstraping: { Title, Scheme, … } }`
- * （2026-09-23 在页面里核过 `typeof`；早先按「JSON 字符串」猜过一次，界面上就显示出一整块原始结构）。
- * 这里取 `Description`；万一某天它变成 JSON 字符串也照样认；解析不出来就退回原文，
- * 宁可显示原文，也别显示空白。
- */
-const parseMainDescription = raw => {
-  if (raw == null) return ''
-  if (typeof raw === 'object') return String(raw.Description ?? '')
-  const text = String(raw)
-  if (!text.trim()) return ''
-  try {
-    const parsed = JSON.parse(text)
-    return String(parsed?.Description ?? text)
-  } catch {
-    return text
-  }
+  /**
+   * 偏好歌手（基因只给数字 `Base.Id`）→ 歌手页要的 mid。
+   *
+   * 没有 id→mid 直通端点（spec 事实 C 实测），只能按名字搜歌手档、再用 `singerID` 比对：
+   * 判据与实测记录见 `utils/gene.js` 的 `pickGeneSingerMid`。
+   *
+   * 走底层 `musicSearch.musicSearch` 而不是 `musicSearch.searchSinger`：后者把 `singerID`
+   * 归一化掉了（`id` 给的是 mid），而这里**必须**拿 `singerID` 比（名字会变、也会重名）。
+   * 搜索通道自带访客 comm（`uin: '0'`），不要求登录态，也不需要凭证。
+   *
+   * @param {string} name 歌手名（基因的 `Base.TypeTitle`）
+   * @param {string|number} singerId 基因的 `Base.Id`
+   * @returns {Promise<string>} 命中返回 mid；未命中返回空串（调用方据此显示「跳不了」）
+   */
+  async resolveSingerMid(name, singerId) {
+    if (!name || !singerId) return ''
+    const data = await musicSearch.musicSearch(name, 1, SEARCH_SINGER_NUM, SEARCH_TYPE_SINGER)
+    return pickGeneSingerMid(data?.body?.singer?.list, singerId)
+  },
 }

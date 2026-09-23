@@ -1,42 +1,48 @@
 <template>
   <div :class="$style.container">
     <div :class="$style.header">
-      <div :class="$style.coverBox">
-        <img v-if="detail.img" :class="$style.cover" loading="lazy" decoding="async" :src="detail.img" alt="">
-      </div>
-      <div :class="$style.info">
-        <h2 :class="$style.name" :title="detail.name">{{ detail.name || $t('music_album') }}</h2>
-        <p v-if="detail.singers.length || detail.singer" :class="$style.singer" :title="detail.singer">
-          <!-- 歌手名可点进歌手页：优先用接口给的 singers（带 mid），拿不到 mid 的名字保持纯文本 -->
-          <template v-if="detail.singers.length">
-            <template v-for="(singer, index) in detail.singers" :key="singer.mid || singer.name">
-              <span v-if="index" :class="$style.singerGap">、</span>
-              <span v-if="singer.mid" :class="$style.singerLink" @click.stop="toSinger(singer)">{{ singer.name }}</span>
-              <span v-else>{{ singer.name }}</span>
+      <div :class="$style.headerMain">
+        <div :class="$style.coverBox">
+          <img v-if="detail.img" :class="$style.cover" loading="lazy" decoding="async" :src="detail.img" alt="">
+        </div>
+        <div :class="$style.info">
+          <h2 :class="$style.name" :title="detail.name">{{ detail.name || $t('music_album') }}</h2>
+          <p v-if="detail.singers.length || detail.singer" :class="$style.singer" :title="detail.singer">
+            <!-- 歌手名可点进歌手页：优先用接口给的 singers（带 mid），拿不到 mid 的名字保持纯文本 -->
+            <template v-if="detail.singers.length">
+              <template v-for="(singer, index) in detail.singers" :key="singer.mid || singer.name">
+                <span v-if="index" :class="$style.singerGap">、</span>
+                <span v-if="singer.mid" :class="$style.singerLink" @click.stop="toSinger(singer)">{{ singer.name }}</span>
+                <span v-else>{{ singer.name }}</span>
+              </template>
             </template>
-          </template>
-          <template v-else>{{ detail.singer }}</template>
-        </p>
-        <p :class="$style.meta">
-          <span v-if="detail.publishDate">{{ $t('album__publish_date') }}：{{ detail.publishDate }}</span>
-          <span v-if="detail.company">{{ $t('album__company') }}：{{ detail.company }}</span>
-          <span v-if="detail.language">{{ $t('album__language') }}：{{ detail.language }}</span>
-          <span v-if="detail.albumType">{{ $t('album__type') }}：{{ detail.albumType }}</span>
-          <span v-if="detail.genre">{{ $t('album__genre') }}：{{ detail.genre }}</span>
-        </p>
-        <p v-if="detail.desc" ref="descEl" :class="[$style.desc, { [$style.descOpen]: isDescOpen }]">{{ detail.desc }}</p>
-        <base-btn v-if="detail.desc && isDescOverflow" min :class="$style.descToggle" @click="isDescOpen = !isDescOpen">
-          {{ isDescOpen ? $t('album__desc_collapse') : $t('album__desc_expand') }}
-        </base-btn>
+            <template v-else>{{ detail.singer }}</template>
+          </p>
+          <p :class="$style.meta">
+            <span v-if="detail.publishDate">{{ $t('album__publish_date') }}：{{ detail.publishDate }}</span>
+            <span v-if="detail.company">{{ $t('album__company') }}：{{ detail.company }}</span>
+            <span v-if="detail.language">{{ $t('album__language') }}：{{ detail.language }}</span>
+            <span v-if="detail.albumType">{{ $t('album__type') }}：{{ detail.albumType }}</span>
+            <span v-if="detail.genre">{{ $t('album__genre') }}：{{ detail.genre }}</span>
+          </p>
+          <p v-if="detail.desc" ref="descEl" :class="[$style.desc, { [$style.descOpen]: isDescOpen }]">{{ detail.desc }}</p>
+          <base-btn v-if="detail.desc && isDescOverflow" min :class="$style.descToggle" @click="isDescOpen = !isDescOpen">
+            {{ isDescOpen ? $t('album__desc_collapse') : $t('album__desc_expand') }}
+          </base-btn>
+        </div>
       </div>
+      <!-- 动作条**单独一行**放在专辑信息下方（工单 17）。四个键此前与封面/简介同排右侧，
+           横着吃掉一半宽度、把简介挤到左边（920 窗下 .info 只剩 310px），所以整条下移 -->
       <div :class="$style.actions">
-        <base-btn :disabled="isFavLoading" @click="handleToggleFav">
+        <!-- 四个键都带 :title（工单 17 收尾）：键宽由 flex 等分固定，长文案会被省略号截断，
+             截断时靠原生 title 看全文（与本页 .name / .singer 的做法一致） -->
+        <base-btn :class="$style.btnAction" :title="isFav ? $t('fav__cancel') : $t('fav__add')" :disabled="isFavLoading" @click="handleToggleFav">
           {{ isFav ? $t('fav__cancel') : $t('fav__add') }}
         </base-btn>
         <!-- 复制链接 / 在 QQ 音乐打开（工单 02）：分享走 QQ 网页链接，与本应用深链不是一回事 -->
-        <base-btn v-if="detail.mid" min @click="handleCopyAlbumLink">{{ $t('album__copy_link') }}</base-btn>
-        <base-btn v-if="detail.mid" min @click="handleOpenAlbumInQq">{{ $t('list__open_in_qq') }}</base-btn>
-        <base-btn @click="handleBack">{{ $t('back') }}</base-btn>
+        <base-btn v-if="detail.mid" :class="$style.btnAction" :title="$t('album__copy_link')" @click="handleCopyAlbumLink">{{ $t('album__copy_link') }}</base-btn>
+        <base-btn v-if="detail.mid" :class="$style.btnAction" :title="$t('list__open_in_qq')" @click="handleOpenAlbumInQq">{{ $t('list__open_in_qq') }}</base-btn>
+        <base-btn :class="$style.btnAction" :title="$t('back')" @click="handleBack">{{ $t('back') }}</base-btn>
       </div>
     </div>
 
@@ -201,10 +207,15 @@ export default {
 
 .header {
   flex: none;
+  // 纵向：封面/简介一行（.headerMain），动作条自己一行（见 .actions 的注释）
   display: flex;
-  flex-flow: row nowrap;
+  flex-flow: column nowrap;
   padding-bottom: 14px;
   border-bottom: 1px solid var(--color-000-alpha-700);
+}
+.headerMain {
+  display: flex;
+  flex-flow: row nowrap;
 }
 .coverBox {
   flex: none;
@@ -273,10 +284,32 @@ export default {
   margin-top: 4px;
   align-self: flex-start;
 }
+// 动作条：单独一行，放在专辑信息块下方（工单 17）
 .actions {
   flex: none;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+// 四个动作键（工单 17）：**同高同宽 + 文案不换行**。等宽思路借自 RadarCarousel 的同名类，
+// 但那页是固定 width:96px + base-btn min（12px 字号）；本页文案长得多（中文最长「取消 QQ 收藏」
+// 含内边距 119.6px、英文最长 231.6px），所以改成 flex 等分 + 默认字号，值另算。
+// ⚠️ 别把 basis 改成 auto —— 那样宽度又跟着文案走（「返回」比「取消 QQ 收藏」窄一大截，
+// 收藏/取消收藏切换时宽度也会跳），四个键就又大小不一了。
+// 上限 193px 的来历：默认档 920×600 的**内容宽 800.3px**（= (920-16)×93.4% - 44 的左右 padding），
+// 每键可分到 (800.3-3×10)/4 ≈ 192.6px，取 193 让这一档刚好排满、更宽窗口也不再涨
+// （四键上限和 = 193×4+30 = 802px）；最窄档 828×540 内容宽只有 714.4px，上限不生效，
+// 靠等分收窄到各 171.1px，不溢出（实测见票 17 的量取表）。
+.btnAction {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 193px;
+  // 英文「Remove from QQ favorites」要 231.6px，四键等宽下任何一档窗口都装不下，
+  // 兜底用省略号而不是换行/溢出（文案不换行是硬要求）；全文由模板上的 :title 悬停可见
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .title {

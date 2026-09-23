@@ -3,13 +3,19 @@
     <p v-if="!list.length" :class="$style.empty" v-text="noItem" />
 
     <template v-else>
-      <!-- 舞台：中央主视觉 + 左右两翼；按住拖动左右滑，松手按位移换一张 -->
+      <!-- 舞台：中央主视觉 + 左右两翼；按住拖动左右滑，松手按位移/甩动速度换一张。
+           `tabindex="0"` + `@keydown` 是键盘入口（工单 18）：Tab 过来、或点/拖一下舞台
+           （pointerdown 里显式 focus），之后 ←/→ 换选一张、空格/回车播/暂停中央这首
+           （与全局快捷键的边界见 handleKeyDown 的注释） -->
       <div
+        ref="dom_stage"
         :class="$style.stage"
+        tabindex="0"
         @pointerdown="handlePointerDown"
         @contextmenu="handleStageRightClick"
+        @keydown="handleKeyDown"
       >
-        <div :class="$style.deck" :style="{ transform: `translateX(${dragX}px)` }">
+        <div :class="[$style.deck, { [$style.deckDragging]: isDragging }]" :style="{ transform: `translateX(${dragX}px)` }">
           <div
             v-for="item in visibleItems"
             :key="item.song.id"
@@ -68,14 +74,15 @@
             <span>{{ $t('list__download') }}</span>
           </span>
         </base-btn>
-        <!-- 两个跳转（工单 02 的能力搬到按钮上）：多位歌手时会在按钮处弹出选择菜单 -->
-        <base-btn min :class="$style.btnAction" :disabled="!current || !canJumpToSinger(current)" @click="handleJumpSingerClick">
+        <!-- 两个跳转（工单 02 的能力搬到按钮上）：多位歌手时会在按钮处弹出选择菜单。
+             灰掉时补一句悬停说明（工单 05）：原来只有「灰 + 点了没反应」，看不出是坏了还是这首歌没这个信息 -->
+        <base-btn min :class="$style.btnAction" :disabled="!current || !canJumpToSinger(current)" :title="current && !canJumpToSinger(current) ? $t('list__jump_singer_disabled') : ''" @click="handleJumpSingerClick">
           <span :class="$style.btnInner">
             <svg :class="$style.btnIcon" version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" viewBox="0 0 448 456" space="preserve"><use xlink:href="#icon-user" /></svg>
             <span>{{ $t('radar__to_singer') }}</span>
           </span>
         </base-btn>
-        <base-btn min :class="$style.btnAction" :disabled="!current || !canJumpToAlbum(current)" @click="handleJumpAlbumClick">
+        <base-btn min :class="$style.btnAction" :disabled="!current || !canJumpToAlbum(current)" :title="current && !canJumpToAlbum(current) ? $t('list__jump_album_disabled') : ''" @click="handleJumpAlbumClick">
           <span :class="$style.btnInner">
             <svg :class="$style.btnIcon" version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" viewBox="0 0 425.2 425.2" space="preserve"><use xlink:href="#icon-album" /></svg>
             <span>{{ $t('radar__to_album') }}</span>
@@ -118,6 +125,7 @@ import useMenu from '@renderer/components/material/OnlineList/useMenu'
 import { assertApiSupport } from '@renderer/store/utils'
 import useRadar, { RADAR_QUEUE_ID, type RadarBlock } from '../useRadar'
 import { DAILY_30_QUEUE_ID } from '../useDaily30'
+import { DRAG_SLOP, pushSample, resolveSwipeStep, sampleVelocity, type SwipeSample } from '../swipe'
 
 /**
  * 雷达的「居中轮播」形态（工单 07 的形态迭代，2026-09-23 用户要求：
@@ -128,6 +136,10 @@ import { DAILY_30_QUEUE_ID } from '../useDaily30'
  *   卡片右键菜单仍与歌曲表完全一致（复用 OnlineList 的 useMenu / useMusicActions / useMusicAdd /
  *   useMusicDownload，不另写一套判定）；翻页拿到的新歌仍由 useRadar 的 appendToPlayQueue 接到队列尾部。
  * - **滑动挑选 ≠ 播放**：左右滑动只换「当前选中的那一张」，不自动开播（用户的动作要能预期）。
+ * - **键盘可达（工单 18）**：舞台是个 tab 停靠点，聚焦后 ←/→ 换选、空格/回车播/暂停；与
+ *   应用级快捷键的边界见 `handleKeyDown` 的注释（核心是「只认无修饰键 + 只认舞台自己」）。
+ * - **触屏手感（工单 18）**：按住拖动时 deck 不过渡（1:1 跟手），松手按「位移优先、甩动其次」
+ *   换一张，回落是 deck 的减速过渡。判定规则抽在 `../swipe`，纯函数、有单测。
  * - 有意丢掉的能力（表格有、轮播没有）：多选与批量操作、列排序。雷达是「一张一张推给你」的场景。
  * - 两翼只渲染 ±2 张，其余靠滑动到达；到接近末尾时自动请求下一页（`needMore`），失败才露出按钮。
  */
@@ -173,46 +185,94 @@ export default {
     const isCurrentPlaying = computed(() => !!current.value && musicInfo.id === current.value.id && isPlay.value)
 
     // ── 滑动 / 滚轮：动作都是「换一张」────────────────────────────────────
+    /** 舞台 DOM：键盘只在「焦点就在舞台上」时接管（工单 18，判定见 handleKeyDown）。 */
+    const dom_stage = ref<HTMLElement | null>(null)
     const dragX = ref(0)
     let dragStartX = 0
-    let isDragging = false
+    /**
+     * 拖动中（模板据此挂 `.deckDragging`）：按住时 deck 必须**没有**过渡，
+     * 位移才 1:1 跟手——原来 deck 一直带 `@transition-fast`，触屏上表现为卡片黏在手指后面半拍。
+     */
+    const isDragging = ref(false)
     /** 拖动刚结束的那次 click 不算点击（否则滑一下就把中央这首播了）。 */
     let ignoreNextClick = false
-    const SWIPE_THRESHOLD = 60
-    /** 位移超过它就算「拖过」，这次交互不再当点击处理。 */
-    const DRAG_SLOP = 6
+    /** 最近一段指针采样：松手时据此算速度（判定规则在 swipe.ts，纯函数、有单测）。 */
+    let samples: SwipeSample[] = []
 
     const canGoNext = computed(() => centerIndex.value < list.value.length - 1)
     const canGoPrev = computed(() => centerIndex.value > 0)
 
     const handlePointerMove = (event: PointerEvent) => {
-      if (!isDragging) return
+      if (!isDragging.value) return
       dragX.value = event.clientX - dragStartX
+      samples = pushSample(samples, event.clientX, performance.now())
       if (Math.abs(dragX.value) > DRAG_SLOP) ignoreNextClick = true
     }
-    const handlePointerUp = () => {
-      if (!isDragging) return
-      isDragging = false
+    const removeDragListeners = () => {
       document.removeEventListener('pointermove', handlePointerMove)
       document.removeEventListener('pointerup', handlePointerUp)
-      document.removeEventListener('pointercancel', handlePointerUp)
-      const dx = dragX.value
-      dragX.value = 0
-      if (dx <= -SWIPE_THRESHOLD && canGoNext.value) centerIndex.value++
-      else if (dx >= SWIPE_THRESHOLD && canGoPrev.value) centerIndex.value--
+      document.removeEventListener('pointercancel', handlePointerCancel)
     }
+
+    /**
+     * 松手（工单 18 的触屏手感）。三件事，顺序即语义：
+     *
+     * 1. **换不换一张由 `resolveSwipeStep` 定**，只能是 0 或 ±1：位移过 60px，或位移不够但
+     *    甩得快（`FLING_VELOCITY`）——触屏上「轻轻一甩」的位移常常不到 60px，只按位移判会甩不动。
+     * 2. **回落交给 CSS**：`dragX = 0` + 摘掉 `.deckDragging`，deck 的 340ms 减速过渡把
+     *    「松手 → 吸附回原位」演成一段带减速的动画，而不是原来那种一帧跳回（也就是用户说的「生硬」）。
+     *    落点恒定在 0，即「一次一张」；不做速度外推的长距离惯性——那正是工单禁止的「滑三张停不下」。
+     * 3. 换选了就吃掉紧随其后的那次 click：甩动的位移可能不到 `DRAG_SLOP`，不被 pointermove 标记，
+     *    不吃掉的话刚挪到中间的那张会被这次 click 直接播掉（与「滑动挑选 ≠ 播放」冲突）。
+     */
+    const handlePointerUp = () => {
+      if (!isDragging.value) return
+      isDragging.value = false
+      removeDragListeners()
+      const dx = dragX.value
+      // 速度要拿「松手时刻」再裁一次窗口：手指停住后再松不会有新采样，窗口不会自己滚动，
+      // 不裁的话会把停手前的旧点当成甩动（甩不动的手势反而换了一张）
+      const velocity = sampleVelocity(samples, performance.now())
+      samples = []
+      dragX.value = 0
+      const step = resolveSwipeStep({ dx, velocity, canPrev: canGoPrev.value, canNext: canGoNext.value })
+      if (!step) return
+      ignoreNextClick = true
+      centerIndex.value += step
+    }
+
+    /**
+     * 手势被系统取消（触屏上最常见：纵滑被系统/滚动容器抢走，或长按菜单介入）。
+     * **不换选**——用户没做出「松手」这个动作，拿半个手势换一张是不可预期的；只把位移收回去。
+     * 单列一个处理函数就是在修这个「原来和 pointerup 共用、取消了也照样算换选」的问题。
+     */
+    const handlePointerCancel = () => {
+      if (!isDragging.value) return
+      isDragging.value = false
+      removeDragListeners()
+      samples = []
+      dragX.value = 0
+    }
+
     const handlePointerDown = (event: PointerEvent) => {
       if (event.button !== 0) return // 右键留给菜单
-      isDragging = true
+      if (!event.isPrimary) return // 多指：只认第一根手指，否则第二根会把拖动起点改掉
+      // 把键盘焦点一并交给舞台（工单 18）：这样「点一下/拖一下舞台，接着按 ←/→」也能用，
+      // 不必先 Tab 一轮。不靠浏览器对「非可聚焦元素的点击焦点」那套推断，行为才确定。
+      // `preventScroll`：焦点切换不要把页面滚一下。点中央播放键走的是它自己的实现
+      // （`@pointerdown.stop`），焦点留在那个按钮上——那时空格是原生激活按钮，同样等于播/暂停。
+      dom_stage.value?.focus({ preventScroll: true })
+      isDragging.value = true
       dragStartX = event.clientX
       dragX.value = 0
+      samples = []
       ignoreNextClick = false
       // 不用 setPointerCapture：capture 之后 Chromium 会把 click 的 target 重定向到捕获元素，
       // 卡片自己的 @click 就失灵了（播放键当初靠 @pointerdown.stop 绕开的就是这个）。
       // 改挂 document 监听：照样能拖出舞台，但不动 click 的语义。
       document.addEventListener('pointermove', handlePointerMove)
       document.addEventListener('pointerup', handlePointerUp)
-      document.addEventListener('pointercancel', handlePointerUp)
+      document.addEventListener('pointercancel', handlePointerCancel)
     }
 
     /**
@@ -281,6 +341,51 @@ export default {
         return
       }
       void playMusicList(queueId, [...list.value], centerIndex.value)
+    }
+
+    // ── 键盘（工单 18）────────────────────────────────────────────────────
+    /**
+     * 焦点在**舞台自己**身上时：←/→ 换选一张、空格/回车播/暂停中央这首。
+     *
+     * ⚠️ 与 `core/useApp` 那层应用级快捷键的边界（动手前先读了 `src/renderer/event/keyEvent.ts`
+     * + `src/common/defaultHotKey.ts`，三条都是那层的现状推出来的，改那片代码时要回来对一遍）：
+     *
+     * 1. **带修饰键的一律放行**（不 stopPropagation）：应用级默认绑的是 `mod+f5`（播放/暂停）、
+     *    `mod+←/→`（上一首/下一首）、`f1`（搜索），用户还能在「设置 → 快捷键」里改绑。
+     *    所以 `mod+←/→` 在轮播聚焦时仍然是「上一首/下一首」，不被这里的「换选」顶掉。
+     * 2. **只认无修饰键**：默认配置里 plain `←`/`→`/空格/回车 都没绑，所以「聚焦轮播 → 这四个键归轮播」
+     *    碰不到默认快捷键。用户若手动把某个 plain 键改绑成应用快捷键，则以「焦点在轮播内优先」为准
+     *    （工单 18 的口径：只在焦点进轮播时接管）——想用那条应用快捷键，把焦点移出轮播（Tab 走开）
+     *    或改用带修饰键的写法即可。这里不是靠猜键位，而是靠**焦点边界**划清两套语义。
+     * 3. **事件目标必须是舞台自己**：Tab 到舞台里的按钮上时（中央播放键、底部 5 个键），
+     *    空格/回车该由浏览器去激活那个按钮，这里不抢——否则一次空格会既点按钮又播歌。
+     *
+     * 动作语义与鼠标完全一致：换选**不等于**播放（与 `handleItemClick` 同款），
+     * 空格/回车直接走 `handlePlayClick`——正在播这首就暂停、否则从这首开播，与中央大键同一个函数。
+     */
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.target !== dom_stage.value) return
+      if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return
+
+      // 空格/回车：播/暂停中央这首。先接管再判重复——长按时那串重复事件不该漏到应用级那层去，
+      // 也不该让页面滚动（`preventDefault`）
+      if (event.key === ' ' || event.key === 'Enter') {
+        event.preventDefault()
+        event.stopPropagation()
+        if (event.repeat) return // 长按不重复触发：按住不放会在「播→停→播」之间来回跳
+        handlePlayClick()
+        return
+      }
+      // 其余按键（esc / tab / f1…）不拦：esc 退全屏、tab 走焦点、f1 进搜索都是应用级那层的事
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+
+      // ←/→ 换选一张，**认长按**（按住可以连续翻，与列表里按方向键的习惯一致）。
+      // 到两端也照样接管：按键语义要跟位置无关，别出现「到头了才透传给应用级」的飘忽行为
+      event.preventDefault()
+      event.stopPropagation()
+      const delta = event.key === 'ArrowLeft' ? -1 : 1
+      const canStep = delta < 0 ? canGoPrev.value : canGoNext.value
+      if (canStep) centerIndex.value += delta
     }
 
     // ── 底部按键都作用于「中央这一首」────────────────────────────────────
@@ -409,11 +514,14 @@ export default {
       current,
       isCurrentPlaying,
       centerIndex,
+      dom_stage,
       dragX,
+      isDragging,
       visibleItems,
       itemStyle,
       handlePointerDown,
       handleWheel,
+      handleKeyDown,
       handleItemClick,
       handlePlayClick,
       handleStageRightClick,
@@ -483,6 +591,16 @@ export default {
   }
   // 拖动时不要选中文字/触发浏览器拖图
   user-select: none;
+  // 触屏（工单 18）：横向拖拽归本组件，纵向手势留给系统。
+  // 不写 `none`——万一以后套进可滚动容器，舞台上的纵滑还得能滚页。
+  touch-action: pan-y;
+  // 键盘可达（工单 18）：焦点指示画在**中央那张封面**上，而不是舞台这个 900px 宽的空盒子上
+  // （给舞台画框会是一圈包住大片空白的矩形，看不出「键盘在操作哪一张」）。
+  // 只在键盘聚焦时出框：base-btn 那套 `outline: none` 是给鼠标点击用的，鼠标不走 :focus-visible。
+  &:focus-visible .centerItem {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 3px;
+  }
 }
 .deck {
   position: absolute;
@@ -490,7 +608,15 @@ export default {
   top: 50%;
   width: 0;
   height: 0;
-  transition: transform @transition-fast;
+  // 松手后的回落（工单 18）：340ms 减速曲线，比原来的 @transition-fast 稍长，
+  // 让「松手 → 吸附回中」看起来是一段惯性收尾而不是一帧跳回。曲线不过冲（不用 back-out）：
+  // 落点必须一眼可预期，回弹过冲会像「没停稳」。
+  transition: transform 340ms cubic-bezier(.22, .61, .36, 1);
+}
+// 按住拖动时**必须**关掉过渡：dragX 跟的是手指，带过渡就会有半拍延迟（橡皮筋感）。
+// 放在 .deck 之后，两条同时命中时这条赢（同优先级、后者胜）。
+.deckDragging {
+  transition: none;
 }
 .item {
   position: absolute;

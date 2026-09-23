@@ -100,7 +100,9 @@ export default {
 
     const handleToMusicLocation = () => {
       const listId = playMusicInfo.listId
-      if (!listId || listId == LIST_IDS.DOWNLOAD || !playMusicInfo.musicInfo) return
+      // 试听列表（`default`）已从界面退场（工单 07 / ADR 0006）：播它时点进度区不再跳转——
+      // 跳过去只会落到「我收藏的歌曲」，与当前播放的列表对不上
+      if (!listId || listId == LIST_IDS.DOWNLOAD || listId == LIST_IDS.DEFAULT || !playMusicInfo.musicInfo) return
       if (playInfo.playIndex == -1) return
       void router.push({
         path: '/list',

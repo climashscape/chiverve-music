@@ -46,7 +46,7 @@
 
 <script lang="ts">
 import { computed, ref, watch } from '@common/utils/vueTools'
-import { defaultList, loveList, userLists } from '@renderer/store/list/state'
+import { loveList, userLists } from '@renderer/store/list/state'
 import { getListMusics } from '@renderer/store/list/action'
 import { addSongsToCloudList } from '@renderer/store/user/action'
 import { dialog } from '@renderer/plugins/Dialog'
@@ -75,12 +75,13 @@ export default {
   },
   emits: ['update:show'],
   setup(props: { show: boolean, card: PlaylistCard | null }, { emit }: any) {
+    // 来源 = 本地列表（试听列表已从界面退场，工单 07 / ADR 0006）：它是「从哪个本地列表挑歌」，
+    // 少一个来源不影响写云端
     const sourceLists = computed(() => [
-      { id: defaultList.id, name: window.i18n.t(defaultList.name as any) },
       { id: loveList.id, name: window.i18n.t(loveList.name as any) },
       ...userLists.map(l => ({ id: l.id, name: l.name })),
     ])
-    const sourceListId = ref(defaultList.id)
+    const sourceListId = ref(loveList.id)
     const songs = ref<LX.Music.MusicInfo[]>([])
     const selectedIds = ref<string[]>([])
     const isSubmitting = ref(false)
@@ -95,9 +96,9 @@ export default {
       }
     }
     watch(sourceListId, (id) => { void loadSongs(id) }, { immediate: true })
-    // 每次打开都重置到默认列表，避免上次的选择串味
+    // 每次打开都重置到「我的收藏」，避免上次的选择串味
     watch(() => props.show, (show) => {
-      if (show) sourceListId.value = defaultList.id
+      if (show) sourceListId.value = loveList.id
     })
 
     const handleToggle = (id: string) => {
