@@ -1,5 +1,5 @@
 <template lang="pug">
-dt#backup {{ $t('setting__backup') }}
+dt#data_backup {{ $t('setting__backup') }}
 dd
   h3#backup_part {{ $t('setting__backup_part') }}
   div
@@ -46,7 +46,7 @@ import migrateSetting from '@common/utils/migrateSetting'
 
 
 export default {
-  name: 'SettingUpdate',
+  name: 'SettingBackup',
   setup() {
     const t = useI18n()
     // const setting = useRefGetter('setting')

@@ -1,7 +1,7 @@
 <template lang="pug">
 dt#network {{ $t('setting__network') }}
 dd
-  h3#network_proxy_title {{ $t('setting__network_proxy_title') }}
+  h3#network_proxy {{ $t('setting__network_proxy_title') }}
   div
     .p
       base-checkbox(id="setting_network_proxy_enable" :model-value="appSetting['network.proxy.enable']" :label="$t('setting__is_enable')" @update:model-value="updateSetting({'network.proxy.enable': $event})")

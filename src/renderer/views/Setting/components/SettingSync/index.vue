@@ -1,5 +1,5 @@
 <template lang="pug">
-dt#sync
+dt#advanced_sync
   | {{ $t('setting__sync') }}
 dd
   base-checkbox(id="setting_sync_enable" :model-value="appSetting['sync.enable']" :label="$t('setting__sync_enable')" @update:model-value="updateSetting({ 'sync.enable': $event })")

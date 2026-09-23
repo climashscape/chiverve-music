@@ -1,11 +1,11 @@
 <template lang="pug">
-dt#update {{ $t('setting__update') }}
+dt#about_update {{ $t('setting__update') }}
 dd
   .gap-top
     base-checkbox(id="setting__update_tryAutoUpdate" :model-value="appSetting['common.tryAutoUpdate']" :label="$t('setting__update_try_auto_update')" @update:model-value="updateSetting({'common.tryAutoUpdate': $event})")
   .gap-top
     base-checkbox(id="setting__update_showChangeLog" :model-value="appSetting['common.showChangeLog']" :label="$t('setting__update_show_change_log')" @update:model-value="updateSetting({'common.showChangeLog': $event})")
-  .gap-top
+  .gap-top#about_version
     .gap-top
       .p.small(@click="handleOpenDevTools") {{ $t('setting__update_current_label') }}{{ versionInfo.version }}
       .p.small(v-if="commit_id")

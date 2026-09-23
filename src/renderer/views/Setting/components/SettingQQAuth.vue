@@ -1,5 +1,5 @@
 <template lang="pug">
-dt#qq_auth {{ $t('setting__qq_auth') }}
+dt#my_music_qq_auth {{ $t('setting__qq_auth') }}
 dd.gap-top
   div
     .p.small

@@ -4,6 +4,13 @@ import os from 'node:os'
 const isMac = process.platform == 'darwin'
 const isWin = process.platform == 'win32'
 
+/**
+ * 设置的**唯一默认值来源**：主窗（`renderer/store/setting.ts`）与歌词窗
+ * （`renderer-lyric/store/state.ts`，按 `LX.DesktopLyric.Config` 挑子集）都从这里取值。
+ * **别在别处再写第二份默认值**——两份会漂移，而漂移只在「真值下发之前」可见（歌词窗首帧），
+ * 人眼很难发现：歌词窗那份曾漂了 9 处（设置页重构票 12）。
+ * 这里的改动会同时改「设置页显示的默认值」与「歌词窗首帧样式」；用户已存的配置文件不受影响。
+ */
 const defaultSetting: LX.AppSetting = {
   version: '2.1.1',
 

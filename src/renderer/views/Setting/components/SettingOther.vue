@@ -13,7 +13,7 @@ dd
       v-for="item in trayThemeList" :id="'setting_tray_theme_' + item.id" :key="item.id" :model-value="appSetting['tray.themeId']" name="setting_tray_theme"
       need :label="item.label" :value="item.id" @update:model-value="updateSetting({'tray.themeId': $event})")
 dd
-  h3#other_resource_cache
+  h3#data_cache
     | {{ $t('setting__other_resource_cache') }}
     svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__other_resource_cache_tip')" :title="$t('setting__other_resource_cache_tip')")
   div
@@ -37,7 +37,7 @@ dd
       base-btn.btn(min :disabled="isDisabledLyricRawCacheClear" @click="handleClearLyricRawCache") {{ $t('setting__other_lyric_raw_clear_btn') }}
 
 dd
-  h3#other_lyric_edited {{ $t('setting__other_dislike_list') }}
+  h3#data_dislike {{ $t('setting__other_dislike_list') }}
   div
     .p
       | {{ $t('setting__other_dislike_list_label') }}
@@ -47,7 +47,7 @@ dd
   DislikeListModal(v-model="isShowDislikeList")
 
 dd
-  h3#other_lyric_edited {{ $t('setting__other_lyric_edited_cache') }}
+  h3#data_lyric_edited {{ $t('setting__other_lyric_edited_cache') }}
   div
     .p
       | {{ $t('setting__other_lyric_edited_label') }}
@@ -56,7 +56,7 @@ dd
       base-btn.btn(min :disabled="isDisabledLyricEditedCacheClear" @click="handleClearLyricEditedCache") {{ $t('setting__other_lyric_edited_clear_btn') }}
 
 dd
-  h3#other_lyric_edited {{ $t('setting__other_listdata') }}
+  h3#data_list {{ $t('setting__other_listdata') }}
   div
     .p
       base-btn.btn(min @click="handleClearListData") {{ $t('setting__other_listdata_clear_btn') }}

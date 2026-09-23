@@ -1,5 +1,5 @@
 <template lang="pug">
-dt#list {{ $t('setting__list') }}
+dt#my_music_list {{ $t('setting__list') }}
 dd
   .gap-top
     base-checkbox(id="setting_list_actionButtonsVisible_enable" :model-value="appSetting['list.actionButtonsVisible']" :label="$t('setting__list_action_btn')" @update:model-value="updateSetting({'list.actionButtonsVisible': $event})")

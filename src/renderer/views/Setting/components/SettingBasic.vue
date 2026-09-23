@@ -1,6 +1,6 @@
 <template lang="pug">
 dt#basic {{ $t('setting__basic') }}
-dd
+dd#appearance_animation
   div
     .gap-top
       base-checkbox(id="setting_show_animate" :model-value="appSetting['common.isShowAnimation']" :label="$t('setting__basic_show_animation')" @update:model-value="updateSetting({'common.isShowAnimation': $event})")
@@ -14,7 +14,7 @@ dd
       base-btn.btn(min @click="isShowPlayTimeoutModal = true") {{ $t('setting__play_timeout')}} {{ timeLabel ? ` (${timeLabel})` : '' }}
 
 dd
-  h3#basic_theme {{ $t('setting__basic_theme') }}
+  h3#appearance_theme {{ $t('setting__basic_theme') }}
   div
     ul(:class="$style.theme")
       li(v-for="theme in themeList" :key="theme.id" :aria-label="theme.name" :style="theme.styles" :class="[$style.themeItem, {[$style.active]: themeId == theme.id}]" @click="toggleTheme(theme)" @contextmenu="handleEditTheme(theme)")
@@ -37,7 +37,7 @@ dd
         svg-icon(name="angle-right-solid" :class="$style.activeIcon")
 
 dd
-  h3#basic_window_size {{ $t('setting__basic_window_size') }}
+  h3#appearance_window {{ $t('setting__basic_window_size') }}
   div
     base-checkbox.gap-left(
       v-for="item in windowSizeList" :id="`setting_window_size_${item.id}`" :key="item.id"
@@ -45,7 +45,7 @@ dd
       @update:model-value="updateSetting({'common.windowSizeId': $event})")
 
 dd
-  h3#basic_font_size {{ $t('setting__basic_font_size') }}
+  h3#appearance_font {{ $t('setting__basic_font_size') }}
   div
     //- base-selection.gap-teft(:list="fontSizeList" :model-value="appSetting['common.fontSize']" @update:model-value="updateSetting({'common.fontSize': $event})")
     base-checkbox.gap-left(
@@ -61,14 +61,14 @@ dd
     //- base-selection.gap-teft(:list="fontList" :model-value="appSetting['common.font']" item-key="id" item-name="label" @update:model-value="updateSetting({'common.font': $event})")
 
 dd
-  h3#basic_lang {{ $t('setting__basic_lang') }}
+  h3#appearance_lang {{ $t('setting__basic_lang') }}
   div
     base-checkbox.gap-left(
       v-for="item in langList" :id="`setting_lang_${item.locale}`" :key="item.locale" name="setting_lang"
       need :model-value="appSetting['common.langId']" :value="item.locale" :label="item.name" @update:model-value="updateSetting({'common.langId': $event})")
 
 dd
-  h3#basic_control_btn_position {{ $t('setting__basic_control_btn_position') }}
+  h3#appearance_control_bar {{ $t('setting__basic_control_btn_position') }}
   div
     base-checkbox.gap-left(
       v-for="item in controlBtnPositionList" :id="`setting_basic_control_btn_position_${item.id}`" :key="item.id"

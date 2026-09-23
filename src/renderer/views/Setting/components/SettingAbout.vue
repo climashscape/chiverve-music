@@ -1,5 +1,5 @@
 <template lang="pug">
-dt#about {{ $t('setting__about') }}
+dt#about_license {{ $t('setting__about') }}
 dd
   .p.small {{ $t('setting__about_product') }}
   .p.small {{ $t('setting__about_based_on') }}

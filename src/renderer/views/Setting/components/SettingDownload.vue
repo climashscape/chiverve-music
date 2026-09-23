@@ -1,6 +1,6 @@
 <template lang="pug">
 dt#download {{ $t('setting__download') }}
-dd
+dd#download_switch_path
   .gap-top
     base-checkbox(id="setting_download_enable" :model-value="appSetting['download.enable']" :label="$t('setting__download_enable')" @update:model-value="updateSetting({'download.enable': $event})")
   .gap-top
@@ -17,7 +17,7 @@ dd(:aria-label="$t('setting__download_path_title')")
       base-btn.btn(min @click="handleChangeSavePath") {{ $t('setting__download_path_change_btn') }}
 
 dd
-  h3#download_max_num
+  h3#download_concurrent_naming
     | {{ $t('setting__download_max_num') }}
     svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__download_max_num_tooltip')" :title="$t('setting__download_max_num_tooltip')")
   div
@@ -31,7 +31,7 @@ dd(:aria-label="$t('setting__download_name_title')")
         v-for="item in musicNames" :id="`setting_download_musicName_${item.value}`" :key="item.value" name="setting_download_musicName" :value="item.value"
         need :model-value="appSetting['download.fileName']" :label="item.name" @update:model-value="updateSetting({'download.fileName': $event})")
 dd
-  h3#download_data_embed {{ $t('setting__download_data_embed') }}
+  h3#download_lyric_meta {{ $t('setting__download_data_embed') }}
   .gap-top
     base-checkbox(id="setting_download_isEmbedPic" :model-value="appSetting['download.isEmbedPic']" :label="$t('setting__download_embed_pic')" @update:model-value="updateSetting({'download.isEmbedPic': $event})")
   .gap-top
@@ -53,7 +53,7 @@ dd(:aria-label="$t('setting__download_lyric_title')")
   .gap-top
     base-checkbox(id="setting_download_isDownloadLxLrc" :disabled="!appSetting['download.isDownloadLrc']" :model-value="appSetting['download.isDownloadLxLrc']" :label="$t('setting__download_lxlyric')" @update:model-value="updateSetting({'download.isDownloadLxLrc': $event})")
 dd
-  h3#download_lyric_format
+  h3#download_format
     | {{ $t('setting__download_lyric_format') }}
     svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__download_lyric_format_tip')" :title="$t('setting__download_lyric_format_tip')")
   div

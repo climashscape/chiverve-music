@@ -1,57 +1,44 @@
 <template>
   <div :class="$style.main">
-    <div class="scroll" :class="$style.toc">
-      <ul :class="$style.tocList" role="toolbar">
-        <li v-for="h2 in tocList" :key="h2.id" :class="$style.tocListItem" role="presentation">
-          <h2
-            :class="[$style.tocH2, {[$style.active]: avtiveComponentName == h2.id }]"
-            role="tab" :aria-selected="avtiveComponentName == h2.id"
-            :aria-label="h2.title" @click="toggleTab(h2.id)"
-          >
-            <transition name="list-active">
-              <svg-icon v-if="avtiveComponentName == h2.id" name="angle-right-solid" :class="$style.activeIcon" />
-            </transition>
-            {{ h2.title }}
-          </h2>
-          <!-- <ul v-if="h2.children.length" :class="$style.tocList">
-            <li v-for="h3 in h2.children" :key="h3.id" :class="$style.tocSubListItem">
-              <h3 :class="[$style.tocH3, toc.activeId == h3.id ? $style.active : null]" :aria-label="h3.title">
-                <a :href="'#' + h3.id" @click.stop="toc.activeId = h3.id">{{ h3.title }}</a>
-              </h3>
-            </li>
-          </ul> -->
-        </li>
-      </ul>
+    <div :class="$style.toc">
+      <SettingSearchBox
+        v-model:keyword="searchKeyword"
+        :hits="searchHits"
+        @select="handleSearchSelect"
+      />
+      <div class="scroll" :class="$style.navScroll">
+        <SettingNav
+          :nav-tree="navTree"
+          :active-section-id="activeSectionId"
+          :groups="tocGroups"
+          :active-group-id="activeGroupId"
+          @select-section="handleSelectSection"
+          @select-group="handleSelectGroup"
+        />
+      </div>
     </div>
     <div ref="dom_content_ref" class="scroll" :class="$style.setting">
       <dl>
-        <component :is="avtiveComponentName" />
-        <!-- <SettingBasic />
-        <SettingPlay />
-        <SettingPlayDetail />
-        <SettingDesktopLyric />
-        <SettingSearch />
-        <SettingList />
-        <SettingDownload />
-        <SettingSync />
-        <SettingHotKey />
-        <SettingNetwork />
-        <SettingOdc />
-        <SettingBackup />
-        <SettingOther />
-        <SettingUpdate />
-        <SettingAbout /> -->
+        <component :is="name" v-for="name in contentComponents" :key="name" />
       </dl>
     </div>
   </div>
 </template>
 
 <script>
-import { ref, computed, nextTick, watch } from '@common/utils/vueTools'
-// import { currentStting } from './setting'
+import { ref, computed, nextTick, watch, useCssModule } from '@common/utils/vueTools'
+import { SETTING_SECTIONS } from '@common/settingMetadata'
 import { useI18n } from '@renderer/plugins/i18n'
 import { useRoute, useRouter } from '@common/utils/vueRouter'
 
+import { DEFAULT_SECTION_ID, SECTION_CONTENT, SETTING_NAV_TREE, resolveSectionName } from './settingNav'
+import { buildSearchIndex, matchSettingHits } from './useSettingSearch'
+import { useSettingToc } from './useSettingToc'
+import SettingNav from './components/SettingNav.vue'
+import SettingSearchBox from './components/SettingSearchBox.vue'
+
+// 各节内容的旧组件：票 03 归位前，一节可能由多个旧组件拼（对照 settingNav.ts 的 SECTION_CONTENT）。
+// 这张 import 清单就是那个「17 个旧组件一个都不许丢」的载体，`<component :is="名字">` 从注册表里取。
 import SettingBasic from './components/SettingBasic.vue'
 import SettingQQAuth from './components/SettingQQAuth.vue'
 import SettingPlay from './components/SettingPlay.vue'
@@ -73,6 +60,8 @@ import SettingAbout from './components/SettingAbout.vue'
 export default {
   name: 'Setting',
   components: {
+    SettingNav,
+    SettingSearchBox,
     SettingBasic,
     SettingQQAuth,
     SettingPlay,
@@ -95,97 +84,104 @@ export default {
     const t = useI18n()
     const route = useRoute()
     const router = useRouter()
+    // 命中闪烁的 class 来自本组件的 style module（.flashTarget 的动画定义在下面）
+    const styles = useCssModule()
 
     const dom_content_ref = ref(null)
+    // 左栏两级 × 当前节的分组锚点：结构都在元数据表里（settingNav.ts / useSettingToc.ts），本页只管拼
+    const navTree = SETTING_NAV_TREE
 
-    const tocList = computed(() => {
-      return [
-        { id: 'SettingBasic', title: t('setting__basic') },
-        { id: 'SettingQQAuth', title: t('setting__qq_auth') },
-        { id: 'SettingPlay', title: t('setting__play') },
-        { id: 'SettingPlayDetail', title: t('setting__play_detail') },
-        { id: 'SettingDesktopLyric', title: t('setting__desktop_lyric') },
-        { id: 'SettingSearch', title: t('setting__search') },
-        { id: 'SettingList', title: t('setting__list') },
-        { id: 'SettingDownload', title: t('setting__download') },
-        { id: 'SettingHotKey', title: t('setting__hot_key') },
-        { id: 'SettingSync', title: t('setting__sync') },
-        { id: 'SettingOpenAPI', title: t('setting__open_api') },
-        { id: 'SettingNetwork', title: t('setting__network') },
-        { id: 'SettingOdc', title: t('setting__odc') },
-        { id: 'SettingBackup', title: t('setting__backup') },
-        { id: 'SettingOther', title: t('setting__other') },
-        { id: 'SettingUpdate', title: t('setting__update') },
-        { id: 'SettingAbout', title: t('setting__about') },
-      ]
-    })
+    const initialName = resolveSectionName(route.query.name)
+    const activeSectionId = ref(initialName ? initialName.sectionId : DEFAULT_SECTION_ID)
 
-    const avtiveComponentName = ref(route.query.name && tocList.value.some(t => t.id == route.query.name)
-      ? route.query.name
-      : tocList.value[0].id)
+    /**
+     * 地址就是节：`?name=<节 id>`。
+     * 旧深链（`?name=SettingDownload` 这种旧组件名）认出来就**改写成新节 id**（保留其它 query）——
+     * 老书签照常落地，新地址也能继续分享。映射表见 `settingNav.ts`。
+     */
+    const syncSectionToRoute = (sectionId) => {
+      if (route.query.name === sectionId) return
+      void router.replace({ path: route.path, query: { ...route.query, name: sectionId } })
+    }
+    if (initialName && initialName.legacy) syncSectionToRoute(initialName.sectionId)
 
-    const toggleTab = id => {
-      avtiveComponentName.value = id
-      // 把当前节写进地址：可分享、可深链（也顺手修掉「页内改 ?name= 不切节」的那半边）
-      if (route.query.name !== id) void router.replace({ path: route.path, query: { ...route.query, name: id } })
-      void nextTick(() => {
-        dom_content_ref.value?.scrollTo({
-          top: 0,
-          behavior: 'smooth',
-        })
-      })
+    const activeSection = computed(() => SETTING_SECTIONS.find(section => section.id === activeSectionId.value))
+    const contentComponents = computed(() => SECTION_CONTENT[activeSectionId.value] ?? [])
+
+    const { tocGroups, activeGroupId, scrollToGroup, scrollContentTop, flashItem, flashGroup } = useSettingToc(
+      activeSection,
+      dom_content_ref,
+      { flashClass: styles.flashTarget },
+    )
+
+    // 搜索：索引随语言重建（文案参与匹配，key 也参与——见 useSettingSearch.ts 的匹配口径）
+    const searchKeyword = ref('')
+    const searchIndex = computed(() => buildSearchIndex(t))
+    const searchHits = computed(() => matchSettingHits(searchKeyword.value, searchIndex.value))
+
+    const selectSection = (id, { scrollTop = true } = {}) => {
+      syncSectionToRoute(id)
+      if (activeSectionId.value !== id) {
+        activeSectionId.value = id
+        // 内容区换了一整棵子树：锚点要等渲染完，滚动也放到下一帧（搜索跳转自己接管滚动，见下）
+        if (scrollTop) void nextTick(() => { scrollContentTop() })
+        return
+      }
+      if (scrollTop) scrollContentTop()
     }
 
-    // 地址里的 ?name= 变了就跟着切节：原来只在 setup 里读一次，页内改 query（深链/自动化）
-    // 不会切节 —— 2026-09-23 排查歌词对齐问题时踩到
+    const handleSelectSection = (id) => {
+      selectSection(id)
+    }
+
+    const handleSelectGroup = async(id) => {
+      // 目录只列真锚点，理论上不会失败；真失败（内容区被改过）就当什么都没发生
+      await scrollToGroup(id)
+    }
+
+    /**
+     * 搜索命中 → 切节 → 滚到分组锚点 → 高亮命中项。
+     * 分组锚点还没就位（该组内容未归位，票 03/05-09 之后才有）就退到节顶，不做半截滚动。
+     * 高亮优先精确到控件：控件要带 `data-setting-key`（票 03/05 的契约，见 useSettingToc.ts），
+     * 没有就闪分组锚点——至少指出它在哪一组，别让用户自己找。
+     */
+    const handleSearchSelect = async(hit) => {
+      selectSection(hit.sectionId, { scrollTop: false })
+      await nextTick()
+      const scrolled = hit.groupId ? await scrollToGroup(hit.groupId) : false
+      if (!scrolled) {
+        scrollContentTop()
+        return
+      }
+      if (hit.itemKey && await flashItem(hit.itemKey)) return
+      if (hit.groupId) await flashGroup(hit.groupId)
+    }
+
+    // 地址里的 ?name= 变了就跟着切节：页内改 query（深链 / 自动化）不会切节 —— 2026-09-23 排查歌词对齐
+    // 问题时踩到；这里连同旧名归一一起处理（同一个节的旧写法也要把地址改干净）
     watch(() => route.query.name, (name) => {
-      if (!name || name === avtiveComponentName.value) return
-      if (!tocList.value.some(item => item.id === name)) return
-      avtiveComponentName.value = name
+      const resolved = resolveSectionName(name)
+      if (!resolved) return
+      if (resolved.legacy) syncSectionToRoute(resolved.sectionId)
+      if (resolved.sectionId === activeSectionId.value) return
+      activeSectionId.value = resolved.sectionId
+      void nextTick(() => { scrollContentTop() })
     })
 
     return {
-      tocList,
-      avtiveComponentName,
+      navTree,
+      activeSectionId,
+      activeGroupId,
+      tocGroups,
+      contentComponents,
       dom_content_ref,
-      toggleTab,
+      searchKeyword,
+      searchHits,
+      handleSelectSection,
+      handleSelectGroup,
+      handleSearchSelect,
     }
   },
-  // mounted() {
-  //   this.initTOC()
-  // },
-  // methods: {
-  //   initTOC() {
-  //     const list = this.$refs.dom_setting_list.children
-  //     const toc = []
-  //     let prevTitle
-  //     for (const item of list) {
-  //       if (item.tagName == 'DT') {
-  //         prevTitle = {
-  //           title: item.innerText.replace(/[（(].+?[)）]/, ''),
-  //           id: item.getAttribute('id'),
-  //           dom: item,
-  //           children: [],
-  //         }
-  //         toc.push(prevTitle)
-  //         continue
-  //       }
-  //       const h3 = item.querySelector('h3')
-  //       if (h3) {
-  //         prevTitle.children.push({
-  //           title: h3.innerText.replace(/[（(].+?[)）]/, ''),
-  //           id: h3.getAttribute('id'),
-  //           dom: h3,
-  //         })
-  //       }
-  //     }
-  //     console.log(toc)
-  //     this.toc.list = toc
-  //   },
-  //   handleListScroll(event) {
-  //     // console.log(event.target.scrollTop)
-  //   },
-  // },
 }
 </script>
 
@@ -200,47 +196,16 @@ export default {
 }
 
 .toc {
+  display: flex;
+  flex-flow: column nowrap;
   flex: 0 0 16%;
-  overflow-y: scroll;
+  box-sizing: border-box;
 }
-.tocH2 {
-  line-height: 1.5;
-  .mixin-ellipsis-1();
-  font-size: 13px;
-  color: var(--color-font);
-  padding: 8px 10px;
-  transition: @transition-fast;
-  transition-property: background-color, color;
-
-  &:not(.active) {
-    cursor: pointer;
-    &:hover {
-      background-color: var(--color-button-background-hover);
-    }
-  }
-  &.active {
-    color: var(--color-primary);
-  }
+// 搜索框固定在左栏顶部，导航树自己滚
+.navScroll {
+  flex: auto;
+  overflow-y: auto;
 }
-.activeIcon {
-  height: .9em;
-  width: .9em;
-  margin-left: -0.45em;
-  vertical-align: -0.05em;
-}
-// .tocH3 {
-//   font-size: 13px;
-//   opacity: .8;
-// }
-
-// .tocList {
-//   .tocList {
-//     // padding-left: 15px;
-//   }
-// }
-// .tocSubListItem {
-//   padding-top: 10px;
-// }
 
 .setting {
   padding: 0 15px 15px;
@@ -302,6 +267,22 @@ export default {
   }
 }
 
+// 搜索命中项 / 分组锚点的闪烁：class 由 useSettingToc 加到内容区的元素上（它只管加 class，
+// 动画在这里定义——那个 class 名是经 `flashClass` 传过去的，两边改名要一起改）。
+// 用 --color-* 既有 token，浅色/深色都可读。
+.flashTarget {
+  animation: settingFlash 1.5s ease;
+}
+
+@keyframes settingFlash {
+  from {
+    background-color: var(--color-primary-alpha-600);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
 // .btn-content {
 //   display: inline-block;
 //   transition: @transition-theme;
@@ -315,15 +296,4 @@ export default {
 //   }
 // }
 
-
-// :global(dt):target, :global(h3):target {
-//   animation: highlight 1s ease;
-// }
-
-// @keyframes highlight {
-//   from { background: yellow; }
-//   to { background: transparent; }
-// }
-
 </style>
-

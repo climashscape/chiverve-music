@@ -1,6 +1,6 @@
 <template lang="pug">
 dt#play {{ $t('setting__play') }}
-dd
+dd#play_behavior
   .gap-top
     base-checkbox(id="setting_player_startup_auto_play" :model-value="appSetting['player.startupAutoPlay']" :label="$t('setting__play_startup_auto_play')" @update:model-value="updateSetting({'player.startupAutoPlay': $event})")
   .gap-top
@@ -34,7 +34,7 @@ dd
     base-checkbox(id="setting_player_isMediaDeviceRemovedStopPlay" :model-value="appSetting['player.isMediaDeviceRemovedStopPlay']" :label="$t('setting__play_mediaDevice_remove_stop_play')" @update:model-value="updateSetting({'player.isMediaDeviceRemovedStopPlay': $event})")
 
 dd
-  h3#basic_play_quality {{ $t('setting__play_playQuality') }}
+  h3#play_quality {{ $t('setting__play_playQuality') }}
   div
     base-checkbox.gap-left(
       v-for="item in playQualityList" :id="`setting_play_quality_${item}`" :key="item"
@@ -42,7 +42,7 @@ dd
       @update:model-value="updateSetting({'player.playQuality': $event})")
 
 dd(:aria-label="$t('setting__play_mediaDevice_title')")
-  h3#play_mediaDevice {{ $t('setting__play_mediaDevice') }}
+  h3#play_audio_device {{ $t('setting__play_mediaDevice') }}
   div
     base-selection.gap-left(v-model="mediaDeviceId" :list="mediaDevices" item-key="deviceId" item-name="label" @change="handleMediaDeviceIdChnage")
 </template>

@@ -1,7 +1,7 @@
 <template lang="pug">
 dt#hot_key {{ $t('setting__hot_key') }}
 dd
-  h3#hot_key_local_title {{ $t('setting__hot_key_local_title') }}
+  h3#hot_key_local {{ $t('setting__hot_key_local_title') }}
   div
     base-checkbox(id="setting_download_hotKeyLocal" v-model="current_hot_key.local.enable" :label="$t('setting__is_enable')" @change="handleHotKeySaveConfig")
   div(:class="$style.hotKeyContainer" :style="{ opacity: current_hot_key.local.enable ? 1 : .6 }")
@@ -14,7 +14,7 @@ dd
         @focus="handleHotKeyFocus($event, item, 'local')"
         @blur="handleHotKeyBlur($event, item, 'local')")
 dd
-  h3#hot_key_global_title {{ $t('setting__hot_key_global_title') }}
+  h3#hot_key_global {{ $t('setting__hot_key_global_title') }}
   div
     base-checkbox(id="setting_download_hotKeyGlobal" v-model="current_hot_key.global.enable" :label="$t('setting__is_enable')" @change="handleEnableHotKey")
   div(:class="$style.hotKeyContainer" :style="{ opacity: current_hot_key.global.enable ? 1 : .6 }")
