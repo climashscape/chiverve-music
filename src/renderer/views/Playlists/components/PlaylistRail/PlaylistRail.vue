@@ -16,6 +16,9 @@
       </div>
     </div>
     <ul ref="dom_lists_list" class="scroll" :class="[$style.listsContent, { [$style.sortable]: isModDown }]">
+      <li v-if="userLists.length === 0 && !isShowNewList" :class="$style.railTip">
+        <span>{{ $t('playlists__local_empty') }}</span>
+      </li>
       <li
         v-for="(item, index) in userLists"
         :key="item.id" class="user-list"
@@ -57,7 +60,7 @@
       </div>
     </div>
     <ul class="scroll" :class="$style.listsContent">
-      <li v-if="cloudLists.length === 0 && !isShowNewCloudList" :class="$style.cloudTip">
+      <li v-if="cloudLists.length === 0 && !isShowNewCloudList" :class="$style.railTip">
         <span v-text="cloudListsLabel" />
       </li>
       <li
@@ -348,11 +351,19 @@ export default {
   display: flex;
   flex-flow: column nowrap;
 }
-// 云端那一组：列表自身可滚，两组各占一半高度，谁的内容多谁自己滚
-.listsContent:last-of-type {
-  flex: auto;
+// 两组各自滚动：本地组**不参与收缩**（flex: none）——否则云端那组内容一多，按比例分走的
+// 收缩量会把本地组压到只剩几像素（实测：提示条只剩 12px，文字被裁掉）。
+// 本地列表很长时用 max-height 封顶，内部自己滚。
+.listsContent:first-of-type {
+  flex: none;
+  max-height: 40%;
 }
-.cloudTip {
+// 云端组吃掉剩余高度，并允许被压到容器高度以内（min-height: 0）
+.listsContent:last-of-type {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.railTip {
   padding: 8px 10px;
   font-size: 12px;
   color: var(--color-font-label);

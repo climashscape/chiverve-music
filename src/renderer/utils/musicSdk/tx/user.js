@@ -221,9 +221,28 @@ export default {
     return {
       nick: d.UserInfoCard?.NickName ?? '',
       avatar: d.UserInfoCard?.HeadUrl ?? '',
-      mainDescription: d.MainDescription ?? '',
+      mainDescription: parseMainDescription(d.MainDescription),
       singers: (d.Singers ?? []).map(toCard),
       genres: (d.Genres ?? []).map(toCard),
     }
   },
+}
+
+/**
+ * `MainDescription` 实测是**对象**：`{ Description: "…一句话画像…", Bootstraping: { Title, Scheme, … } }`
+ * （2026-09-23 在页面里核过 `typeof`；早先按「JSON 字符串」猜过一次，界面上就显示出一整块原始结构）。
+ * 这里取 `Description`；万一某天它变成 JSON 字符串也照样认；解析不出来就退回原文，
+ * 宁可显示原文，也别显示空白。
+ */
+const parseMainDescription = raw => {
+  if (raw == null) return ''
+  if (typeof raw === 'object') return String(raw.Description ?? '')
+  const text = String(raw)
+  if (!text.trim()) return ''
+  try {
+    const parsed = JSON.parse(text)
+    return String(parsed?.Description ?? text)
+  } catch {
+    return text
+  }
 }

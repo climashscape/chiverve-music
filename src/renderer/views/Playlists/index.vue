@@ -14,6 +14,7 @@ import { LIST_IDS } from '@common/constants'
 import { userLists } from '@renderer/store/list/state'
 import PlaylistRail from './components/PlaylistRail/PlaylistRail.vue'
 import CloudListPane from './components/CloudListPane.vue'
+import ListMusicTable from '@renderer/components/common/ListMusicTable/index.vue'
 
 /**
  * 我的歌单（工单 06）：**所有歌单的归口**——左栏两组，本地自建列表（本地库）与
@@ -30,6 +31,7 @@ export default {
   components: {
     PlaylistRail,
     CloudListPane,
+    ListMusicTable,
   },
   setup() {
     const router = useRouter()

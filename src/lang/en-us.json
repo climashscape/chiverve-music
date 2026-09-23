@@ -368,6 +368,7 @@
   "playlists__cloud_remove_song_failed": "Failed to remove, try again later",
   "playlists__cloud_remove_song_tip": "Remove \"{name}\" from this cloud playlist?",
   "playlists__cloud_remove_tip": "Delete the cloud playlist \"{name}\"? This also applies in QQ Music.",
+  "playlists__local_empty": "No local lists yet — use the + button above",
   "playlists__local_group": "Local lists",
   "radar": "Radar",
   "radar__enter": "Open Radar",

@@ -9,10 +9,14 @@
 
 <script lang="ts">
 import useRecommendTab from '../useRecommendTab'
+import SongCardGrid from '@renderer/components/common/SongCardGrid.vue'
 
 /** 发现页 → 歌单 Tab：推荐歌单（卡片网格自带「点卡片进歌单详情」与分页器）。 */
 export default {
   name: 'DiscoverRecommendPanel',
+  components: {
+    SongCardGrid,
+  },
   setup() {
     const { recommend, initRecommendTab, loadRecommend } = useRecommendTab()
 

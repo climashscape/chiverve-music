@@ -53,6 +53,8 @@ import { favSongs, labels as userLabels } from '@renderer/store/user/state'
 import { loadFavSongs, loadMoreFavSongs, removeFavSongFromCloud } from '@renderer/store/user/action'
 import { dialog } from '@renderer/plugins/Dialog'
 import useOnlinePlay from '@renderer/components/material/OnlineList/usePlay'
+import ListMusicTable from '@renderer/components/common/ListMusicTable/index.vue'
+import QqFavList from '@renderer/components/common/QqFavList.vue'
 
 /**
  * 我的收藏 → 歌曲。
@@ -65,6 +67,10 @@ import useOnlinePlay from '@renderer/components/material/OnlineList/usePlay'
 
 export default {
   name: 'FavoritesSongsPanel',
+  components: {
+    ListMusicTable,
+    QqFavList,
+  },
   setup() {
     const router = useRouter()
     const route = useRoute()

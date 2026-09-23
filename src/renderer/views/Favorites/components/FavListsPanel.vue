@@ -14,10 +14,14 @@
 import { computed } from '@common/utils/vueTools'
 import { favLists, labels, pagers } from '@renderer/store/user/state'
 import { initUserCenter, loadMoreFavLists } from '@renderer/store/user/action'
+import SongCardGrid from '@renderer/components/common/SongCardGrid.vue'
 
 /** 我的收藏 → 歌单：QQ 账号收藏的**他人歌单**（与本地自建列表是两回事，见 CONTEXT 的「我的歌单」条）。 */
 export default {
   name: 'FavoritesListsPanel',
+  components: {
+    SongCardGrid,
+  },
   setup() {
     void initUserCenter()
 

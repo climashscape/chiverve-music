@@ -283,9 +283,22 @@ export default {
     watch(() => props.itemHeight, () => {
       handleReset(props.list)
     })
-    watch(() => props.list, (list) => {
+    // 同时盯长度：本仓的列表写回一律是**原地改**（splice/push，见 AGENTS §2.10），
+    // 数组引用不变 → 只盯引用的话，数据后到（挂载时还是空数组）就永远不重算区间
+    watch(() => [props.list, props.list.length], ([list]) => {
       handleReset(list)
     })
+
+    /**
+     * 容器尺寸变化时重算渲染区间。
+     *
+     * 为什么必须有：渲染区间是**按调用瞬间的 `clientHeight`** 算的（`updateView` 里的
+     * `Math.ceil(scrollContainerHeight / itemHeight)`）。挂载那一刻如果容器还没拿到高度
+     * （父级是 `display:none` 刚切回来、或整条 flex/百分比高度链在下一帧才结算），
+     * 算出来的区间就只有一行，而**只靠 window.resize 是修不回来的**（窗口没变过）。
+     * 2026-09-23 在「我的收藏」的来源切换 / 乐馆 MV 面板 / 发现页新歌 Tab 上都踩到过。
+     */
+    let resizeObserver = null
 
     onMounted(() => {
       dom_scrollContainer.value.addEventListener('scroll', onScroll, {
@@ -299,16 +312,21 @@ export default {
       if (props.list.length) {
         void nextTick(() => {
           requestAnimationFrame(() => {
-            console.log('updateView')
             updateView()
           })
         })
       }
       window.addEventListener('resize', handleResize)
+      if (typeof ResizeObserver !== 'undefined') {
+        resizeObserver = new ResizeObserver(() => { updateView() })
+        resizeObserver.observe(dom_scrollContainer.value)
+      }
     })
     onBeforeUnmount(() => {
       dom_scrollContainer.value.removeEventListener('scroll', onScroll)
       window.removeEventListener('resize', handleResize)
+      resizeObserver?.disconnect()
+      resizeObserver = null
       if (cancelScroll) cancelScroll()
     })
 

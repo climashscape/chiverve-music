@@ -78,7 +78,7 @@
 </template>
 
 <script>
-import { ref } from '@common/utils/vueTools'
+import { computed, ref } from '@common/utils/vueTools'
 import usePlay from '@renderer/components/material/OnlineList/usePlay'
 import {
   favSongs, isLoading, labels, musicGene, profile, vip,
