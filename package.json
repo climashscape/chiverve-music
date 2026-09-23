@@ -79,16 +79,16 @@
   },
   "macLanguagesInfoPlistStrings": {
     "en": {
-      "CFBundleDisplayName": "Chiverve Music",
-      "CFBundleName": "Chiverve Music"
+      "CFBundleDisplayName": "Ch'iverve",
+      "CFBundleName": "Ch'iverve"
     },
     "zh_CN": {
-      "CFBundleDisplayName": "Chiverve Music",
-      "CFBundleName": "Chiverve Music"
+      "CFBundleDisplayName": "Ch'iverve",
+      "CFBundleName": "Ch'iverve"
     },
     "zh_TW": {
-      "CFBundleDisplayName": "Chiverve Music",
-      "CFBundleName": "Chiverve Music"
+      "CFBundleDisplayName": "Ch'iverve",
+      "CFBundleName": "Ch'iverve"
     }
   },
   "repository": {
