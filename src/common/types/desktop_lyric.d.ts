@@ -39,7 +39,7 @@ declare namespace LX {
       'player.playbackRate': LX.AppSetting['player.playbackRate']
     }
 
-    type WinMainActions = 'get_info' | 'get_status' | 'get_analyser_data_array'
+    type WinMainActions = 'get_info' | 'get_status' | 'get_analyser_data_array' | 'open_player_detail'
 
     interface LyricActionBase <A> {
       action: A
@@ -82,11 +82,28 @@ declare namespace LX {
     | LyricAction<'send_analyser_data_array', Uint8Array>
 
 
-    interface NewBounds {
-      x: number
-      y: number
-      w: number
-      h: number
+    /**
+     * 被拖的边。与 `src/common/utils/windowGeometry.ts` 的 `ResizeEdge` 同集，
+     * 后者是几何计算的权威定义（这里不 import 是为了让本文件保持 ambient 全局声明）。
+     */
+    type ResizeEdge = 'left' | 'top' | 'right' | 'bottom' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
+
+    /**
+     * 拖动协议（渲染侧 → 主进程）。
+     *
+     * 只报「操作 + 自按下以来的**总**位移」，几何由主进程以按下瞬间的 bounds 为基准算：
+     * 尺寸完全不经过渲染侧（旧实现把滞后的 `window.innerWidth` 当绝对尺寸发上来，
+     * 是尺寸漂移的根源），总位移套基准也不会随帧数累积。
+     */
+    interface WindowDrag {
+      type: 'start' | 'update' | 'end'
+      /** 仅 start：拖动类型 */
+      mode?: 'move' | 'resize'
+      /** 仅 start + mode='resize'：被拖的边 */
+      edge?: ResizeEdge
+      /** 仅 update：自按下以来的总位移（DIP） */
+      dx?: number
+      dy?: number
     }
   }
 }

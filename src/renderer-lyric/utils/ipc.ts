@@ -15,16 +15,16 @@ export const onSettingChanged = (listener: LX.IpcRendererEventListenerParams<Par
     rendererOff(WIN_LYRIC_RENDERER_EVENT_NAME.on_config_change, listener)
   }
 }
-export const setWindowBounds = (bounds: LX.DesktopLyric.NewBounds) => {
-  rendererSend<LX.DesktopLyric.NewBounds>(WIN_LYRIC_RENDERER_EVENT_NAME.set_win_bounds, bounds)
+/**
+ * 拖动协议：只报「操作 + 自按下以来的总位移」，几何由主进程算
+ * （见 `src/renderer-lyric/utils/windowDrag.ts` 与 `src/main/modules/winLyric/main.ts`）。
+ */
+export const sendWindowDrag = (drag: LX.DesktopLyric.WindowDrag) => {
+  rendererSend<LX.DesktopLyric.WindowDrag>(WIN_LYRIC_RENDERER_EVENT_NAME.set_win_bounds, drag)
 }
-let previousResizable: boolean | null = null
-export const setWindowResizeable = (resizable: boolean) => {
-  if (previousResizable === resizable) return
-  previousResizable = resizable
-  // https://github.com/electron/electron/issues/48352
-  // rendererSend<boolean>(WIN_LYRIC_RENDERER_EVENT_NAME.set_win_resizeable, resizable)
-}
+// 上游用 `setWindowResizeable(false)` 压制 Windows 原生缩放边框（issue #2244），但该 IPC
+// 的发送早已被注释成空实现（electron#48352），此开关既不生效也不该被任何逻辑依赖：
+// Linux 走渲染侧 8 个手柄，尺寸正确性由拖动协议的几何算法保证。
 
 export const sendConnectMainWindowEvent = () => {
   rendererSend(WIN_LYRIC_RENDERER_EVENT_NAME.request_main_window_channel)

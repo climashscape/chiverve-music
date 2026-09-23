@@ -1,9 +1,9 @@
 import { registerRendererEvents as common } from '@main/modules/commonRenderers/common'
 import { mainOn, mainHandle } from '@common/mainIpc'
 import { WIN_LYRIC_RENDERER_EVENT_NAME } from '@common/ipcNames'
-import { buildLyricConfig, getLyricWindowBounds } from './utils'
+import { buildLyricConfig } from './utils'
 import { sendNewDesktopLyricClient } from '@main/modules/winMain'
-import { getBounds, getMainFrame, sendEvent, setBounds, setResizeable } from './main'
+import { getMainFrame, handleWindowDrag, sendEvent, setResizeable } from './main'
 import { MessageChannelMain } from 'electron'
 import { mouseCheckTools } from './mouseCheckTools'
 
@@ -26,8 +26,8 @@ export default () => {
     return buildLyricConfig(global.lx.appSetting) as LX.DesktopLyric.Config
   })
 
-  mainOn<LX.DesktopLyric.NewBounds>(WIN_LYRIC_RENDERER_EVENT_NAME.set_win_bounds, ({ params: options }) => {
-    setBounds(getLyricWindowBounds(getBounds()!, options))
+  mainOn<LX.DesktopLyric.WindowDrag>(WIN_LYRIC_RENDERER_EVENT_NAME.set_win_bounds, ({ params: action }) => {
+    handleWindowDrag(action)
   })
 
   mainOn<boolean>(WIN_LYRIC_RENDERER_EVENT_NAME.set_win_resizeable, ({ params: resizable }) => {

@@ -2,10 +2,10 @@ import Lyric from '@common/utils/lyric-font-player'
 import { getAnalyser, getCurrentTime as getPlayerCurrentTime } from '@renderer/plugins/player'
 import { lyric, setLines, setOffset, setTempOffset, setText } from '@renderer/store/player/lyric'
 import { isPlay, musicInfo } from '@renderer/store/player/state'
-import { setStatusText } from '@renderer/store/player/action'
+import { setShowPlayerDetail, setStatusText } from '@renderer/store/player/action'
+import { focusWindow, onNewDesktopLyricProcess } from '@renderer/utils/ipc'
 import { markRawList } from '@common/utils/vueTools'
 import { appSetting } from '@renderer/store/setting'
-import { onNewDesktopLyricProcess } from '@renderer/utils/ipc'
 
 const getCurrentTime = () => {
   return getPlayerCurrentTime() * 1000
@@ -76,6 +76,12 @@ const handleDesktopLyricMessage = (action: LX.DesktopLyric.WinMainActions) => {
       break
     case 'get_analyser_data_array':
       analyserTools.sendDataArray()
+      break
+    case 'open_player_detail':
+      // 歌词窗双击：先唤出主窗口（最小化时恢复、隐藏时显示，都在主进程的 showWindow 里），
+      // 再切到播放详情页
+      focusWindow()
+      setShowPlayerDetail(true)
       break
     default:
       break

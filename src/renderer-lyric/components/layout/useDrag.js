@@ -1,24 +1,10 @@
 import { onMounted, onBeforeUnmount } from '@common/utils/vueTools'
-import { setWindowBounds, setWindowResizeable } from '@lyric/utils/ipc'
-import { isWin } from '@common/utils'
+import { endWindowDrag, isWindowDragging, startWindowDrag, updateWindowDrag } from '@lyric/utils/windowDrag'
 
 export default () => {
-  const winEvent = {
-    isMsDown: false,
-    msDownX: 0,
-    msDownY: 0,
-    windowW: 0,
-    windowH: 0,
-  }
-
   const handleLyricDown = (target, x, y) => {
-    winEvent.isMsDown = true
-    winEvent.msDownX = x
-    winEvent.msDownY = y
-    winEvent.windowW = window.innerWidth
-    winEvent.windowH = window.innerHeight
-    // https://github.com/lyswhut/lx-music-desktop/issues/2244
-    if (isWin) setWindowResizeable(false)
+    // 拖动只发「开始」；位移与几何由主进程按拖动协议算（见 utils/windowDrag.ts）
+    startWindowDrag('move', x, y)
   }
   const handleLyricMouseDown = event => {
     console.log(event.target, event.currentTarget)
@@ -33,28 +19,12 @@ export default () => {
     }
   }
   const handleMouseMsUp = () => {
-    winEvent.isMsDown = false
-    if (isWin) setWindowResizeable(true)
+    endWindowDrag()
   }
 
   const handleMove = (x, y) => {
-    if (!winEvent.isMsDown) return
-    // https://github.com/lyswhut/lx-music-desktop/issues/2244
-    if (isWin) {
-      setWindowBounds({
-        x: x - winEvent.msDownX,
-        y: y - winEvent.msDownY,
-        w: winEvent.windowW,
-        h: winEvent.windowH,
-      })
-    } else {
-      setWindowBounds({
-        x: x - winEvent.msDownX,
-        y: y - winEvent.msDownY,
-        w: window.innerWidth,
-        h: window.innerHeight,
-      })
-    }
+    if (!isWindowDragging()) return
+    updateWindowDrag(x, y)
   }
   const handleMouseMsMove = event => {
     handleMove(event.clientX, event.clientY)

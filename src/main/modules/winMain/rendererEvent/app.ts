@@ -23,7 +23,7 @@ import {
   showSaveDialog,
 } from '@main/modules/winMain'
 import { quitApp } from '@main/app'
-import { getAllThemes, removeTheme, saveTheme, setPowerSaveBlocker } from '@main/utils'
+import { getAllThemes, getTheme, removeTheme, saveTheme, setPowerSaveBlocker } from '@main/utils'
 import { openDirInExplorer } from '@common/utils/electron'
 
 export default () => {
@@ -127,10 +127,25 @@ export default () => {
   })
   mainHandle<LX.Theme>(WIN_MAIN_RENDERER_EVENT_NAME.save_theme, async({ params: theme }) => {
     saveTheme(theme)
+    broadcastThemeChange()
   })
   mainHandle<string>(WIN_MAIN_RENDERER_EVENT_NAME.remove_theme, async({ params: id }) => {
     removeTheme(id)
+    broadcastThemeChange()
   })
+}
+
+/**
+ * 编辑/删除自定义主题后补一次主题广播。
+ *
+ * 主题变更原本只在「`theme.id` 变化」与「系统深浅色变化」时广播（`src/main/app.ts:265-286`），
+ * 而改自定义主题色**不改 id** —— 只写 store 不广播，于是所有窗口（含歌词窗）都留着旧颜色。
+ * 这里按同一条链子重算 `global.lx.theme` 再 emit：监听方
+ * （`commonRenderers/common/winRendererEvent.ts:9-14`）会拿它给各渲染进程发 `theme_change`。
+ */
+const broadcastThemeChange = () => {
+  global.lx.theme = getTheme()
+  global.lx.event_app.theme_change()
 }
 
 export const sendFocus = () => {

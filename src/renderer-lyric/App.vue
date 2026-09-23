@@ -62,7 +62,7 @@ body {
   user-select: none;
   height: 100vh;
   box-sizing: border-box;
-  color: #fff;
+  color: var(--color-1000);
   opacity: .8;
 }
 
@@ -176,7 +176,11 @@ body {
   min-height: 0;
   border-radius: @radius-border;
   overflow: hidden;
-  background-color: rgba(0, 0, 0, .2);
+  // 面板底色跟随主题：取主题的「主背景」色并按固定比例调透明度——
+  // 直接用主题值会在大片留白的浅色主题下变成不透明色块，破坏歌词窗「不抢注意力」的定位；
+  // 保留足够不透明度是为了让歌词文字与面板同源（同一主题的字体色 + 面板色才有对比度，
+  // 见 utils/lyricColors.ts）
+  background-color: color-mix(in srgb, var(--color-main-background) 88%, transparent);
 
   &:hover {
     .control-bar {

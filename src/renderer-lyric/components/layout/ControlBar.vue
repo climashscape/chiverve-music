@@ -142,7 +142,8 @@ export default {
   display: flex;
   flex-flow: row wrap;
   align-items: center;
-  background-color: rgba(0, 0, 0, 0.7);
+  // 控制栏跟随主题：比面板略不透明一档，保持「栏浮在面板上」的层次
+  background-color: color-mix(in srgb, var(--color-main-background) 96%, transparent);
 }
 
 .btn {
@@ -152,7 +153,8 @@ export default {
   border: none;
   outline: none;
   background: none;
-  color: #fff;
+  // 图标是 fill="currentColor"（Icons.vue），所以这个色同时决定图标与文字
+  color: var(--color-1000);
   transition: opacity @transition-theme;
   &:hover {
     opacity: .7;

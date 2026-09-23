@@ -3,6 +3,7 @@
     ref="dom_lyric"
     :class="classNames"
     :style="lrcStyles" @wheel="handleWheel" @mousedown="handleLyricMouseDown" @touchstart="handleLyricTouchStart"
+    @dblclick="handleDblclick"
   >
     <div :class="$style.lyricSpace" />
     <div ref="dom_lyric_text" />
@@ -13,6 +14,7 @@
 <script>
 import { setting } from '@lyric/store/state'
 import { computed, useCssModule } from '@common/utils/vueTools'
+import { sendDesktopLyricInfo } from '@lyric/core/mainWindowChannel'
 import useLyric from './useLyric'
 
 export default {
@@ -55,6 +57,12 @@ export default {
     return {
       classNames,
       lrcStyles,
+
+      // 双击歌词唤出主窗口的播放详情页——这是歌词窗唯一要的导航入口；
+      // 单击/拖动/滚轮的行为都不受影响（dblclick 只在没有位移的双击时触发）
+      handleDblclick: () => {
+        sendDesktopLyricInfo('open_player_detail')
+      },
 
       dom_lyric,
       dom_lyric_text,

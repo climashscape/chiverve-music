@@ -2,8 +2,7 @@ import { ref, onMounted, onBeforeUnmount, watch, nextTick } from '@common/utils/
 import { scrollXRTo } from '@common/utils/renderer'
 import { lyric } from '@lyric/store/lyric'
 import { isPlay, setting } from '@lyric/store/state'
-import { setWindowBounds, setWindowResizeable } from '@lyric/utils/ipc'
-import { isWin } from '@common/utils'
+import { endWindowDrag, startWindowDrag, updateWindowDrag } from '@lyric/utils/windowDrag'
 
 const getOffsetTop = (contentWidth, lineWidth) => {
   switch (setting['desktopLyric.scrollAlign']) {
@@ -20,10 +19,6 @@ export default (isComputeWidth) => {
 
   const winEvent = {
     isMsDown: false,
-    msDownX: 0,
-    msDownY: 0,
-    windowW: 0,
-    windowH: 0,
   }
 
   let msDownX = 0
@@ -82,13 +77,9 @@ export default (isComputeWidth) => {
       msDownX = x
       msDownScrollX = dom_lyric.value.scrollLeft
     } else {
+      // 窗口移动：只报「开始」，位移与几何交给主进程（见 utils/windowDrag.ts）
       winEvent.isMsDown = true
-      winEvent.msDownX = x
-      winEvent.msDownY = y
-      winEvent.windowW = window.innerWidth
-      winEvent.windowH = window.innerHeight
-      // https://github.com/lyswhut/lx-music-desktop/issues/2244
-      if (isWin) setWindowResizeable(false)
+      startWindowDrag('move', x, y)
     }
   }
   const handleLyricMouseDown = event => {
@@ -103,7 +94,7 @@ export default (isComputeWidth) => {
   const handleMouseMsUp = () => {
     isMsDown.value = false
     winEvent.isMsDown = false
-    if (isWin) setWindowResizeable(true)
+    endWindowDrag()
   }
 
   const handleMove = (x, y) => {
@@ -116,22 +107,7 @@ export default (isComputeWidth) => {
       dom_lyric.value.scrollLeft = msDownScrollX + msDownX - x
       startLyricScrollTimeout()
     } else if (winEvent.isMsDown) {
-      // https://github.com/lyswhut/lx-music-desktop/issues/2244
-      if (isWin) {
-        setWindowBounds({
-          x: x - winEvent.msDownX,
-          y: y - winEvent.msDownY,
-          w: winEvent.windowW,
-          h: winEvent.windowH,
-        })
-      } else {
-        setWindowBounds({
-          x: x - winEvent.msDownX,
-          y: y - winEvent.msDownY,
-          w: window.innerWidth,
-          h: window.innerHeight,
-        })
-      }
+      updateWindowDrag(x, y)
     }
   }
   const handleMouseMsMove = event => {

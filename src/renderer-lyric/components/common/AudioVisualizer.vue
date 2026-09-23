@@ -63,7 +63,16 @@ export default {
     // const setting = useRefGetter('setting')
     // let themeColor = getComputedStyle(document.documentElement).getPropertyValue('--color-primary-light-200-alpha-800')
     // watch(theme, theme => {
+    // 上游把「取主题色」注释掉后留了写死的白色兜底，这里恢复成主题色：
+    // canvas 的 fillStyle 只认具体颜色值，所以把主题变量挂在 canvas 的 color 上
+    // （见本文件样式），再从计算样式里读出解析后的颜色。
+    const resolveThemeColor = () => {
+      const color = getComputedStyle(dom_canvas.value).color
+      return color || 'rgba(255, 255, 255, .12)' // 主题变量缺失时的兜底（等于上游写死的那支白）
+    }
     let themeColor = 'rgba(255, 255, 255, .12)'
+    // 主题变化时 window.setTheme 会重写 <style> 的内容，用 MutationObserver 跟上（没有专门的主题事件可用）
+    let themeObserver
     // })
 
     useEvent((event) => {
@@ -142,6 +151,7 @@ export default {
       MAX_HEIGHT = Math.round(HEIGHT * 0.46 / 255 * 10000) / 10000
       // console.log(MAX_HEIGHT)
       barWidth = getBarWidth(WIDTH)
+      themeColor = resolveThemeColor()
     }
 
     watch(isPlay, (isPlay) => {
@@ -154,6 +164,7 @@ export default {
     window.addEventListener('resize', handleResize)
     onBeforeUnmount(() => {
       handlePause()
+      themeObserver?.disconnect()
       window.removeEventListener('resize', handleResize)
     })
 
@@ -165,6 +176,11 @@ export default {
       WIDTH = canvas.width
       HEIGHT = canvas.height
       MAX_HEIGHT = Math.round(HEIGHT * 0.46 / 255 * 10000) / 10000
+      themeColor = resolveThemeColor()
+      themeObserver = new MutationObserver(() => {
+        themeColor = resolveThemeColor()
+      })
+      themeObserver.observe(window.dom_style_theme, { childList: true, characterData: true, subtree: true })
 
       // console.log(MAX_HEIGHT)
       if (isPlay.value) handlePlay()
@@ -190,6 +206,9 @@ export default {
 .canvas {
   width: 100%;
   height: 100%;
+  // 只是给 canvas 一个可读的「主题色载体」：fillStyle 不认 CSS 变量，
+  // 组件里从计算样式读出这个 color 的解析结果（见 script 的 resolveThemeColor）
+  color: var(--color-primary-light-200-alpha-800);
   // opacity: 0.1;
 }
 </style>

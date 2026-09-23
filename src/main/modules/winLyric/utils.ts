@@ -1,50 +1,8 @@
+import { clampWindowBoundsToWorkArea, MIN_SIZE, type WindowBounds } from '@common/utils/windowGeometry'
+
 // 设置窗口位置、大小
-export let minWidth = 38
-export let minHeight = 38
-
-
-// const updateBounds = (bounds: Bounds) => {
-//   bounds.x = bounds.x
-//   return bounds
-// }
-
-/**
- *
- * @param bounds 当前设置
- * @param param 新设置（相对于当前设置）
- * @returns
- */
-export const getLyricWindowBounds = (bounds: Electron.Rectangle, { x, y, w, h }: LX.DesktopLyric.NewBounds): Electron.Rectangle => {
-  if (w < minWidth) w = minWidth
-  if (h < minHeight) h = minHeight
-
-  if (global.lx.appSetting['desktopLyric.isLockScreen']) {
-    if (!global.envParams.workAreaSize) return bounds
-    const maxWinW = global.envParams.workAreaSize.width
-    const maxWinH = global.envParams.workAreaSize.height
-
-    if (w > maxWinW) w = maxWinW
-    if (h > maxWinH) h = maxWinH
-
-    const maxX = global.envParams.workAreaSize.width - w
-    const maxY = global.envParams.workAreaSize.height - h
-
-    x += bounds.x
-    y += bounds.y
-
-    if (x > maxX) x = maxX
-    else if (x < 0) x = 0
-
-    if (y > maxY) y = maxY
-    else if (y < 0) y = 0
-  } else {
-    y += bounds.y
-    x += bounds.x
-  }
-
-  // console.log('util bounds', bounds)
-  return { width: w, height: h, x, y }
-}
+export const minWidth = MIN_SIZE.minWidth
+export const minHeight = MIN_SIZE.minHeight
 
 
 export const watchConfigKeys = [
@@ -95,27 +53,19 @@ export const buildLyricConfig = (appSetting: Partial<LX.AppSetting>): Partial<LX
   return setting
 }
 
-export const initWindowSize = (x: LX.AppSetting['desktopLyric.x'], y: LX.AppSetting['desktopLyric.y'], width: LX.AppSetting['desktopLyric.width'], height: LX.AppSetting['desktopLyric.height']) => {
+/**
+ * 首次建窗/恢复时确定窗口几何：x/y 为 null（用户还没拖过）时落到工作区右下角，
+ * 否则按工作区做一次夹取。几何一律是**绝对值**（与 `getBounds()` 同义）。
+ */
+export const initWindowSize = (x: LX.AppSetting['desktopLyric.x'], y: LX.AppSetting['desktopLyric.y'], width: LX.AppSetting['desktopLyric.width'], height: LX.AppSetting['desktopLyric.height']): WindowBounds => {
+  const size = { width: Math.max(width, minWidth), height: Math.max(height, minHeight) }
+  const workAreaSize = global.envParams.workAreaSize
   if (x == null || y == null) {
-    if (width < minWidth) width = minWidth
-    if (height < minHeight) height = minHeight
-    if (global.envParams.workAreaSize) {
-      x = global.envParams.workAreaSize.width - width
-      y = global.envParams.workAreaSize.height - height
-    } else {
-      x = y = 0
-    }
-  } else {
-    let bounds = getLyricWindowBounds({ x, y, width, height }, { x: 0, y: 0, w: width, h: height })
-    x = bounds.x
-    y = bounds.y
-    width = bounds.width
-    height = bounds.height
+    return clampWindowBoundsToWorkArea({
+      ...size,
+      x: workAreaSize ? workAreaSize.width - size.width : 0,
+      y: workAreaSize ? workAreaSize.height - size.height : 0,
+    }, workAreaSize)
   }
-  return {
-    x,
-    y,
-    width,
-    height,
-  }
+  return clampWindowBoundsToWorkArea({ ...size, x, y }, global.lx.appSetting['desktopLyric.isLockScreen'] ? workAreaSize : null)
 }

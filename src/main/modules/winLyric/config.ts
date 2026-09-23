@@ -1,7 +1,8 @@
 import { isLinux } from '@common/utils'
+import { clampWindowBoundsToWorkArea } from '@common/utils/windowGeometry'
 import { closeWindow, createWindow, getBounds, isExistWindow, alwaysOnTopTools, setBounds, setIgnoreMouseEvents, setSkipTaskbar } from './main'
 import { sendConfigChange, sendMouseLeave } from './rendererEvent'
-import { buildLyricConfig, getLyricWindowBounds, initWindowSize, watchConfigKeys } from './utils'
+import { buildLyricConfig, initWindowSize, watchConfigKeys } from './utils'
 import { mouseCheckTools } from './mouseCheckTools'
 
 let isLock: boolean
@@ -62,12 +63,8 @@ export const setLrcConfig = (keys: Array<keyof LX.AppSetting>, setting: Partial<
     if (keys.includes('desktopLyric.isLockScreen') && isLockScreen != global.lx.appSetting['desktopLyric.isLockScreen']) {
       isLockScreen = global.lx.appSetting['desktopLyric.isLockScreen']
       if (global.lx.appSetting['desktopLyric.isLockScreen']) {
-        setBounds(getLyricWindowBounds(getBounds()!, {
-          x: 0,
-          y: 0,
-          w: global.lx.appSetting['desktopLyric.width'],
-          h: global.lx.appSetting['desktopLyric.height'],
-        }))
+        const bounds = getBounds()
+        if (bounds) setBounds(clampWindowBoundsToWorkArea(bounds, global.envParams.workAreaSize))
       }
     }
     if (keys.includes('desktopLyric.x') && setting['desktopLyric.x'] == null) {
