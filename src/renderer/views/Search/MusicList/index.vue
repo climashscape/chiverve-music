@@ -7,6 +7,7 @@
       :total="listInfo.total"
       :list="listInfo.list"
       :no-item="listInfo.noItemLabel"
+      :list-id="`search__${searchText}`"
       check-api-source
       @toggle-page="handleTogglePage"
       @play-list="handlePlayList"

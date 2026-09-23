@@ -14,11 +14,12 @@ import {
 } from '@renderer/store/player/action'
 import { appSetting } from '@renderer/store/setting'
 import { getMusicUrl, getPicPath, getLyricInfo } from '../music/index'
+import { LIST_IDS } from '@common/constants'
 import { filterList } from './utils'
 import { requestMsg } from '@renderer/utils/message'
 import { getRandom } from '@renderer/utils/index'
-import { addListMusics, removeListMusics } from '@renderer/store/list/action'
-import { loveList } from '@renderer/store/list/state'
+import { addListMusics, removeListMusics, setTempList } from '@renderer/store/list/action'
+import { loveList, tempListMeta } from '@renderer/store/list/state'
 import { addDislikeInfo } from '@renderer/core/dislikeList'
 // import { checkMusicFileAvailable } from '@renderer/utils/music'
 
@@ -260,13 +261,35 @@ export const playList = (listId: string, index: number) => {
   handlePlay()
 }
 
+/**
+ * 播放「一整个列表」：把这份列表灌进临时播放列表（`LIST_IDS.TEMP`）后从 index 开始播。
+ *
+ * 点单曲 = 从这首开始连播它所在的列表（ui-polish 工单 06 的方案 B）与专辑/歌单的「播放」按钮
+ * 共用这条路径，所以「下一首」永远是**当前列表**里的下一首，而不是试听列表里攒下的杂歌。
+ *
+ * `list` 用副本灌进去：`setTempList` 内部走 `overwriteListMusics` 原地 splice，
+ * 传原数组会因为引用同一个数组而出问题（订阅方看到的下标会漂）。
+ */
+export const playMusicList = async(listId: string, list: LX.Music.MusicInfo[], index: number = 0) => {
+  if (!list?.length) return
+  if (index < 0) index = 0
+  else if (index > list.length - 1) index = list.length - 1
+  // 换了「底层列表」就把已播放历史清掉：历史属于那个队列，否则随机/上一首会走错地方。
+  // `playList` 里那条只比较播放器当前的 listId，而这里换列表时它一直是 TEMP，判不出来。
+  const isOtherList = tempListMeta.id != listId
+  // 走这条路的都是在线列表（本地列表播自己的 listId，见 ListMusicTable/usePlay.js），
+  // 所以这里按在线对象交给临时列表
+  await setTempList(listId, [...list] as LX.Music.MusicInfoOnline[])
+  if (isOtherList) clearPlayedList()
+  playList(LIST_IDS.TEMP, index)
+}
+
 const handleToggleStop = () => {
   stop()
   setTimeout(() => {
     setPlayMusicInfo(null, null)
   })
 }
-
 const randomNextMusicInfo = {
   info: null as LX.Player.PlayMusicInfo | null,
   // index: -1,

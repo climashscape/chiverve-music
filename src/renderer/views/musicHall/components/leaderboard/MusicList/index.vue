@@ -7,6 +7,7 @@
       :total="listDetailInfo.total"
       :list="listDetailInfo.list"
       :no-item="listDetailInfo.noItemLabel"
+      :list-id="`board__${boardId}`"
       @show-menu="hideListsMenu"
       @play-list="handlePlayList"
       @toggle-page="togglePage"

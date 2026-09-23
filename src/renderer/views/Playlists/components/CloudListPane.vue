@@ -16,6 +16,7 @@
         :page="cloudListSongs.page"
         :limit="cloudListSongs.total || cloudListSongs.limit"
         :total="cloudListSongs.total"
+        :list-id="`cloud_${dirId}`"
         check-api-source
         show-remove-btn
         :remove-label="$t('playlists__cloud_remove_song')"
@@ -77,7 +78,8 @@ export default {
     const selectedList = ref<LX.Music.MusicInfoOnline[]>([])
     const { handlePlayMusic } = useOnlinePlay({
       selectedList,
-      props: { list: cloudListSongs.list },
+      // 队列身份（工单 06 方案 B）：云端歌单面板用 dirId，与「歌单详情页」那套 id 区分开
+      props: { list: cloudListSongs.list, listId: `cloud_${props.dirId}` },
       removeAllSelect: () => { selectedList.value = [] },
       emit: () => {},
     })

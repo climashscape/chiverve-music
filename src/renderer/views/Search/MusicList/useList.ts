@@ -1,10 +1,9 @@
-import { LIST_IDS } from '@common/constants'
 import { ref } from '@common/utils/vueTools'
-import { playList } from '@renderer/core/player/action'
-import { getListMusics, addListMusics } from '@renderer/store/list/action'
+import { playMusicList } from '@renderer/core/player/action'
 import { addHistoryWord } from '@renderer/store/search/action'
 // import { useI18n } from '@renderer/plugins/i18n'
 // import { } from '@renderer/store/search/state'
+import { searchText } from '@renderer/store/search/state'
 import { search as searchMusic, listInfos, normalizeSource, type ListInfo } from '@renderer/store/search/music'
 import { assertApiSupport } from '@renderer/store/utils'
 
@@ -35,17 +34,16 @@ export default () => {
     })
   }
 
+  /**
+   * 搜索结果里点一首 = 从这首开始连播**这一串搜索结果**（工单 06 方案 B）。
+   * 之前是「把这一首加进试听列表再播那一首」——下一首会跑到试听列表里攒下的杂歌上。
+   */
   const handlePlayList = async(index: number) => {
-    let targetSong = listInfo.value.list[index]
+    const targetSong = listInfo.value.list[index]
 
     if (!assertApiSupport(targetSong.source)) return
 
-    const defaultListMusics = await getListMusics(LIST_IDS.DEFAULT)
-
-    await addListMusics(LIST_IDS.DEFAULT, [targetSong])
-
-    let targetIndex = defaultListMusics.findIndex(s => s.id === targetSong.id)
-    if (targetIndex > -1) playList(LIST_IDS.DEFAULT, targetIndex)
+    await playMusicList(`search__${searchText.value ?? ''}`, [...listInfo.value.list], index)
   }
 
   return {

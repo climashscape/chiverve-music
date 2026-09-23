@@ -37,6 +37,7 @@
         :total="listDetailInfo.total"
         :list="listDetailInfo.list"
         :no-item="listDetailInfo.noItemLabel"
+        :list-id="`tx__${$route.query.id ?? ''}`"
         @play-list="handlePlayList"
         @toggle-page="togglePage"
       />
