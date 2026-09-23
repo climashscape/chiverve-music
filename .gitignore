@@ -66,6 +66,9 @@ build
 
 dist
 
+# 开发版（npm run dev）的产物：主进程与 user-api-preload，与 dist/ 分开以免互相撕
+dist-dev
+
 publish/assets
 
 publish/utils/githubToken.js

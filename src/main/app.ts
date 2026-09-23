@@ -1,5 +1,5 @@
 import path from 'node:path'
-import { existsSync, mkdirSync, renameSync } from 'fs'
+import { renameSync } from 'fs'
 import { app, shell, screen, nativeTheme, dialog } from 'electron'
 import { URL_SCHEME_RXP } from '@common/constants'
 import { getProxy, getTheme, initHotKey, initSetting, parseEnvParams } from './utils'
@@ -122,24 +122,6 @@ export const applyElectronEnvParams = () => {
     app.commandLine.appendSwitch('proxy-server', global.envParams.cmdParams['proxy-server'])
     app.commandLine.appendSwitch('proxy-bypass-list', global.envParams.cmdParams['proxy-bypass-list'] ?? '<local>')
   }
-}
-
-export const setUserDataPath = () => {
-  // windows平台下如果应用目录下存在 portable 文件夹则将数据存在此文件下
-  if (process.platform == 'win32') {
-    const portablePath = path.join(path.dirname(app.getPath('exe')), '/portable')
-    if (existsSync(portablePath)) {
-      app.setPath('appData', portablePath)
-      const appDataPath = path.join(portablePath, '/userData')
-      if (!existsSync(appDataPath)) mkdirSync(appDataPath)
-      app.setPath('userData', appDataPath)
-    }
-  }
-
-  const userDataPath = app.getPath('userData')
-  global.lxOldDataPath = userDataPath
-  global.lxDataPath = path.join(userDataPath, 'LxDatas')
-  if (!existsSync(global.lxDataPath)) mkdirSync(global.lxDataPath)
 }
 
 export const registerDeeplink = (startApp: () => void) => {

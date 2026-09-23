@@ -64,7 +64,8 @@ export const createWindow = async(userApi: LX.UserApi.UserApiInfo) => {
     html = await fs.promises.readFile(path.join(dir, 'renderer/user-api.html'), 'utf8')
   }
   const preloadUrl = process.env.NODE_ENV !== 'production'
-    ? `${path.join(__dirname, '../dist/user-api-preload.js')}`
+    // 开发版的产物在 dist-dev/（与 `npm run build` 的 dist/ 分开，见 build-config/*/webpack.config.dev.js）
+    ? `${path.join(__dirname, '../dist-dev/user-api-preload.js')}`
     : `${path.join(__dirname, 'user-api-preload.js')}`
   // console.log(preloadUrl)
 

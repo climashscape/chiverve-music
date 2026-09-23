@@ -2,6 +2,7 @@ process.env.NODE_ENV = 'development'
 
 const chalk = require('chalk')
 const electron = require('electron')
+const fs = require('fs')
 const path = require('path')
 // const { say } = require('cfonts')
 const { spawn } = require('child_process')
@@ -170,11 +171,29 @@ function startMain() {
   })
 }
 
+/**
+ * dist-dev/ 里放一份最小 package.json，并让 electron **以目录启动**（见 startElectron）。
+ *
+ * 原因（2026-09-23 实测）：`electron <脚本路径>` 时 Electron 不去脚本同级找应用清单，于是
+ * `app.getName()` 退化成 `Electron`、`app.getVersion()` 退化成 `0.0`——后者会让 electron-updater
+ * 在 import 时直接抛 `App version is not a valid semver version: "0.0"`，把整条 require 链打断
+ * （症状是 `global.lx` 未定义 + 一堆连带报错）。以目录启动就会读这份清单。
+ */
+function ensureDevPackageJson() {
+  const rootPkg = require('../package.json')
+  fs.writeFileSync(
+    path.join(__dirname, '../dist-dev/package.json'),
+    JSON.stringify({ name: rootPkg.name, version: rootPkg.version, main: 'main.js' }, null, 2),
+  )
+}
+
 function startElectron() {
+  ensureDevPackageJson()
   let args = [
     '--inspect=5858',
     // 'NODE_ENV=development',
-    path.join(__dirname, '../dist/main.js'),
+    // 传「目录」而不是 main.js 的路径：Electron 才会读 dist-dev/package.json（见上）
+    path.join(__dirname, '../dist-dev'),
   ]
 
   // detect yarn or npm and process commandline args accordingly

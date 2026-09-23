@@ -7,6 +7,10 @@ const baseConfig = require('./webpack.config.base')
 
 module.exports = merge(baseConfig, {
   mode: 'development',
+  // 同主进程：dev 的 preload 写 dist-dev/，与 `npm run build` 的 dist/ 互不打扰
+  output: {
+    path: path.join(__dirname, '../../dist-dev'),
+  },
   devtool: 'eval-source-map',
   plugins: [
     new webpack.DefinePlugin({
