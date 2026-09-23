@@ -1,4 +1,4 @@
-<h1 align="center">Ch'iverve</h1>
+<h1 align="center">Ch'iverve Music</h1>
 
 > ## 关于本仓库
 >

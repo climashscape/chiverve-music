@@ -67,7 +67,7 @@ const winOptions = {
     allowToChangeInstallationDirectory: true,
     // differentialPackage: true,
     license: './licenses/license.rtf',
-    shortcutName: 'Ch\'iverve',
+    shortcutName: 'Ch\'iverve Music',
   },
 }
 /**
@@ -91,9 +91,9 @@ const linuxOptions = {
       // https://specifications.freedesktop.org/desktop-entry-spec/latest/example.html
       // https://developer.gnome.org/documentation/guidelines/maintainer/integrating.html#desktop-files
       entry: {
-        Name: 'Ch\'iverve',
-        'Name[zh_CN]': 'Ch\'iverve',
-        'Name[zh_TW]': 'Ch\'iverve',
+        Name: 'Ch\'iverve Music',
+        'Name[zh_CN]': 'Ch\'iverve Music',
+        'Name[zh_TW]': 'Ch\'iverve Music',
         Encoding: 'UTF-8',
         MimeType: 'x-scheme-handler/chiverve-music',
         StartupNotify: 'false',
@@ -153,7 +153,7 @@ const macOptions = {
         path: '/Applications',
       },
     ],
-    title: 'Ch\'iverve v${version}',
+    title: 'Ch\'iverve Music v${version}',
   },
 }
 

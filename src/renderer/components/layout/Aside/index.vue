@@ -1,8 +1,15 @@
 <template>
   <div :class="[$style.aside, { [$style.fullscreen]: isFullscreen }]">
     <ControlBtns v-if="appSetting['common.controlBtnPosition'] == 'left'" />
-    <!-- 品牌字标（用户可见显示一律 Ch'iverve，2026-09-23 用户拍板）：窄栏里用 10px 才放得下 -->
-    <div v-else :class="$style.logo">Ch'iverve</div>
+    <!--
+      品牌字标（用户可见显示名的变体规则见 AGENTS §8）：窄栏里上下两行——短名 `Ch'iverve` + 副行 `MUSIC`。
+      用户 2026-09-23 明确「Ch'iverve / Music / Ch'iverve Music / MUSIC 在不同地方都可以用」，
+      所以这里不是单一字符串，按场景挑。
+    -->
+    <div v-else :class="$style.logo">
+      <span :class="$style.logoBrand">Ch'iverve</span>
+      <span :class="$style.logoSub">MUSIC</span>
+    </div>
     <NavBar />
   </div>
 </template>
@@ -42,19 +49,32 @@ import NavBar from './NavBar.vue'
 
 .logo {
   box-sizing: border-box;
-  padding: 0 4px;
+  padding: 4px 2px 0;
   height: 50px;
   color: var(--color-nav-font);
-  opacity: .8;
+  opacity: .85;
   flex: none;
   text-align: center;
-  line-height: 50px;
-  font-weight: bold;
-  // 左栏只有 @width-app-left（6.6%），整套「Ch'iverve」要小字号 + 不换行
-  font-size: 10px;
+  display: flex;
+  flex-flow: column nowrap;
+  align-items: center;
+  justify-content: center;
+  // 左栏只有 @width-app-left（6.6%），两行小字才放得下
   white-space: nowrap;
   overflow: hidden;
   // -webkit-app-region: no-drag;
+}
+.logoBrand {
+  font-size: 10px;
+  font-weight: bold;
+  line-height: 1.2;
+}
+.logoSub {
+  // 副行做字距展开的小字，像唱片厂牌的行标
+  font-size: 8px;
+  letter-spacing: .18em;
+  line-height: 1.4;
+  color: var(--color-font-label);
 }
 
 </style>
