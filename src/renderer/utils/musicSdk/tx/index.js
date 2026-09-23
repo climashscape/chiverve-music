@@ -40,6 +40,14 @@ const tx = {
   getMusicDetailPageUrl(songInfo) {
     return `https://y.qq.com/n/yqq/song/${songInfo.songmid}.html`
   },
+  /**
+   * 专辑的 QQ 网页链接（ui-polish 工单 02 补）。
+   * 本仓原来只有歌曲 / 歌单 / 榜单三个生成器，专辑的链接在「复制专辑链接」「在 QQ 音乐打开」里要现拼；
+   * 放在这里与上面那个同处一地，免得散在视图里。
+   */
+  getAlbumDetailPageUrl(albumMid) {
+    return `https://y.qq.com/n/ryqq/albumDetail/${albumMid}`
+  },
 }
 
 export default tx

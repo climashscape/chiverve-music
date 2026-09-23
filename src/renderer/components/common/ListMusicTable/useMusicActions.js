@@ -9,11 +9,41 @@ import { formatMusicName, toOldMusicInfo } from '@renderer/utils/index'
 import { addDislikeInfo, hasDislike } from '@renderer/core/dislikeList'
 import { playNext } from '@renderer/core/player'
 import { playMusicInfo } from '@renderer/store/player/state'
+import useMusicJump from '@renderer/utils/compositions/useMusicJump'
 
 
 export default ({ props, list, selectedList, removeAllSelect }) => {
   const router = useRouter()
   const t = useI18n()
+
+  // 跳转 / 分享 / 歌手选择菜单与在线歌曲表共用一份（见 useMusicJump 的注释）
+  const {
+    canJumpToAlbum,
+    canJumpToSinger,
+    handleSingerNameClick,
+    handleAlbumNameClick,
+    jumpToAlbum,
+    jumpToSinger,
+    copyMusicLink,
+    openMusicInQqMusic,
+    isShowSingerPicker,
+    singerPickerXy,
+    singerPickerMenus,
+    handleSingerPickerClick,
+  } = useMusicJump()
+
+  const handleJumpAlbum = index => {
+    jumpToAlbum(list.value[index])
+  }
+  const handleJumpSinger = async(index, location) => {
+    await jumpToSinger(list.value[index], { pageX: location?.x, pageY: location?.y })
+  }
+  const handleCopyLink = index => {
+    copyMusicLink(list.value[index])
+  }
+  const handleOpenInQqMusic = index => {
+    openMusicInQqMusic(list.value[index])
+  }
 
   const handleSearch = index => {
     const info = list.value[index]
@@ -74,5 +104,17 @@ export default ({ props, list, selectedList, removeAllSelect }) => {
     handleCopyName,
     handleDislikeMusic,
     handleRemoveMusic,
+    canJumpToAlbum,
+    canJumpToSinger,
+    handleSingerNameClick,
+    handleAlbumNameClick,
+    handleJumpAlbum,
+    handleJumpSinger,
+    handleCopyLink,
+    handleOpenInQqMusic,
+    isShowSingerPicker,
+    singerPickerXy,
+    singerPickerMenus,
+    handleSingerPickerClick,
   }
 }

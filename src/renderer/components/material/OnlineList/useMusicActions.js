@@ -4,11 +4,29 @@ import { playNext } from '@renderer/core/player'
 import { playMusicInfo } from '@renderer/store/player/state'
 import { dialog } from '@renderer/plugins/Dialog'
 import { useI18n } from '@renderer/plugins/i18n'
+import useMusicJump from '@renderer/utils/compositions/useMusicJump'
 
 
 export default ({ props }) => {
   const router = useRouter()
   const t = useI18n()
+
+  // 跳转 / 分享 / 歌手选择菜单与本地列表歌曲表共用一份（见 useMusicJump 的注释）
+  const {
+    canJumpToAlbum,
+    canJumpToSinger,
+    canShareMusic,
+    handleSingerNameClick,
+    handleAlbumNameClick,
+    jumpToAlbum,
+    jumpToSinger,
+    copyMusicLink,
+    openMusicInQqMusic,
+    isShowSingerPicker,
+    singerPickerXy,
+    singerPickerMenus,
+    handleSingerPickerClick,
+  } = useMusicJump()
 
   const handleSearch = index => {
     const info = props.list[index]
@@ -51,9 +69,37 @@ export default ({ props }) => {
   }
 
 
+  // 右键菜单里的「跳转至专辑 / 歌手」：专辑有 mid 直接跳；歌手要现取 mid（取不到会在
+  // jumpToSinger 里弹提示），多位歌手时在菜单处列出让用户挑（位置沿用行菜单的位置）
+  const handleJumpAlbum = index => {
+    jumpToAlbum(props.list[index])
+  }
+  const handleJumpSinger = async(index, location) => {
+    await jumpToSinger(props.list[index], { pageX: location?.x, pageY: location?.y })
+  }
+  const handleCopyLink = index => {
+    copyMusicLink(props.list[index])
+  }
+  const handleOpenInQqMusic = index => {
+    openMusicInQqMusic(props.list[index])
+  }
+
   return {
     handleSearch,
     handleOpenMusicDetail,
     handleDislikeMusic,
+    canJumpToAlbum,
+    canJumpToSinger,
+    canShareMusic,
+    handleSingerNameClick,
+    handleAlbumNameClick,
+    handleJumpAlbum,
+    handleJumpSinger,
+    handleCopyLink,
+    handleOpenInQqMusic,
+    isShowSingerPicker,
+    singerPickerXy,
+    singerPickerMenus,
+    handleSingerPickerClick,
   }
 }

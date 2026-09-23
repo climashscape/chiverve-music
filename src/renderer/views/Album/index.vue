@@ -33,6 +33,9 @@
         <base-btn :disabled="isFavLoading" @click="handleToggleFav">
           {{ isFav ? $t('fav__cancel') : $t('fav__add') }}
         </base-btn>
+        <!-- 复制链接 / 在 QQ 音乐打开（工单 02）：分享走 QQ 网页链接，与本应用深链不是一回事 -->
+        <base-btn v-if="detail.mid" min @click="handleCopyAlbumLink">{{ $t('album__copy_link') }}</base-btn>
+        <base-btn v-if="detail.mid" min @click="handleOpenAlbumInQq">{{ $t('list__open_in_qq') }}</base-btn>
         <base-btn @click="handleBack">{{ $t('back') }}</base-btn>
       </div>
     </div>
@@ -53,6 +56,7 @@
           :limit="songs.limit"
           :total="songs.total"
           :no-item="songs.noItemLabel"
+          :list-id="`album__${$route.query.mid ?? ''}`"
           check-api-source
           @toggle-page="handleTogglePage"
           @play-list="handlePlayList"
@@ -66,6 +70,7 @@
 import { computed, ref, watch, nextTick } from '@common/utils/vueTools'
 import { useRoute, useRouter } from '@common/utils/vueRouter'
 import usePlay from '@renderer/components/material/OnlineList/usePlay'
+import useMusicJump from '@renderer/utils/compositions/useMusicJump'
 import useAlbum from './useAlbum'
 import { getQQCredential } from '@renderer/utils/ipc'
 import { dialog } from '@renderer/plugins/Dialog'
@@ -84,7 +89,9 @@ export default {
     const selectedList = ref<LX.Music.MusicInfoOnline[]>([])
     const { handlePlayMusic } = usePlay({
       selectedList,
-      props: songs,
+      // 队列身份与模板上那个 :list-id 一致（工单 06）：两条播放入口（行内/双击 与 单击播放设置）
+      // 落到同一个队列标识上，换列表时才不会以为是同一个列表
+      props: { list: songs.list, listId: `album__${route.query.mid ?? ''}` },
       removeAllSelect: () => { selectedList.value = [] },
       emit: () => {},
     })
@@ -152,6 +159,11 @@ export default {
       void router.push({ path: '/singer', query: { mid: singer.mid } })
     }
 
+    // 复制专辑链接 / 在 QQ 音乐打开（工单 02）：专辑的 URL 生成器是本票新补的
+    const { copyAlbumLink, openAlbumInQqMusic } = useMusicJump()
+    const handleCopyAlbumLink = () => { copyAlbumLink(detail.mid) }
+    const handleOpenAlbumInQq = () => { openAlbumInQqMusic(detail.mid) }
+
     return {
       detail,
       songs,
@@ -163,6 +175,8 @@ export default {
       isFav,
       isFavLoading,
       handleToggleFav,
+      handleCopyAlbumLink,
+      handleOpenAlbumInQq,
       descEl,
       isDescOpen,
       isDescOverflow,

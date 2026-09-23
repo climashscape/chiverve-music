@@ -11,6 +11,7 @@ export default ({
   handleDuplicateList,
   handleSortList,
   handleOpenSourceDetailPage,
+  handleCopySourceLink,
   handleImportList,
   handleExportList,
   handleUpdateSourceList,
@@ -61,6 +62,12 @@ export default ({
       {
         name: t('lists__source_detail'),
         action: 'sourceDetail',
+        disabled: !menuControl.sourceDetail,
+      },
+      // 复制歌单链接（工单 02）：与「歌单详情页」同一条 URL，只是不打开而是复制
+      {
+        name: t('lists__copy_link'),
+        action: 'copyLink',
         disabled: !menuControl.sourceDetail,
       },
       {
@@ -166,6 +173,9 @@ export default ({
         break
       case 'sourceDetail':
         handleOpenSourceDetailPage(listInfo)
+        break
+      case 'copyLink':
+        handleCopySourceLink(listInfo)
         break
       case 'import':
         handleImportList(listInfo, index)

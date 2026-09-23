@@ -38,8 +38,20 @@
                   <span v-else-if="item.meta._qualitys.ape || item.meta._qualitys.flac || item.meta._qualitys.wav" class="no-select badge badge-theme-primary">{{ $t('tag__lossless') }}</span>
                   <span v-else-if="item.meta._qualitys['320k']" class="no-select badge badge-theme-secondary">{{ $t('tag__high_quality') }}</span>
                 </div>
-                <div class="list-item-cell" style="flex: 0 0 22%;"><span class="select" :aria-label="item.singer">{{ item.singer }}</span></div>
-                <div class="list-item-cell" style="flex: 0 0 22%;"><span class="select" :aria-label="item.meta.albumName">{{ item.meta.albumName }}</span></div>
+                <div class="list-item-cell" style="flex: 0 0 22%;">
+                  <span
+                    class="select" :class="{ [$style.jump]: canJumpToSinger(item) }"
+                    :title="canJumpToSinger(item) ? $t('list__jump_singer') : ''"
+                    :aria-label="item.singer" @click.stop="handleSingerNameClick(item, $event)"
+                  >{{ item.singer }}</span>
+                </div>
+                <div class="list-item-cell" style="flex: 0 0 22%;">
+                  <span
+                    class="select" :class="{ [$style.jump]: canJumpToAlbum(item) }"
+                    :title="canJumpToAlbum(item) ? $t('list__jump_album') : ''"
+                    :aria-label="item.meta.albumName" @click.stop="handleAlbumNameClick(item, $event)"
+                  >{{ item.meta.albumName }}</span>
+                </div>
                 <div class="list-item-cell" style="flex: 0 0 9%;"><span class="no-select">{{ item.interval || '--/--' }}</span></div>
                 <div class="list-item-cell" style="flex: 0 0 16%; padding-left: 0; padding-right: 0;">
                   <material-list-buttons :index="index" :remove-btn="showRemoveBtn" :remove-label="removeLabel" :download-btn="assertApiSupport(item.source)" :play-btn="checkApiSource ? assertApiSupport(item.source) : true" @btn-click="handleListBtnClick" />
@@ -65,8 +77,20 @@
                   <span v-else-if="item.meta._qualitys.ape || item.meta._qualitys.flac || item.meta._qualitys.wav" class="no-select badge badge-theme-primary">{{ $t('tag__lossless') }}</span>
                   <span v-else-if="item.meta._qualitys['320k']" class="no-select badge badge-theme-secondary">{{ $t('tag__high_quality') }}</span>
                 </div>
-                <div class="list-item-cell" style="flex: 0 0 24%;"><span class="select" :aria-label="item.singer">{{ item.singer }}</span></div>
-                <div class="list-item-cell" style="flex: 0 0 27%;"><span class="select" :aria-label="item.meta.albumName">{{ item.meta.albumName }}</span></div>
+                <div class="list-item-cell" style="flex: 0 0 24%;">
+                  <span
+                    class="select" :class="{ [$style.jump]: canJumpToSinger(item) }"
+                    :title="canJumpToSinger(item) ? $t('list__jump_singer') : ''"
+                    :aria-label="item.singer" @click.stop="handleSingerNameClick(item, $event)"
+                  >{{ item.singer }}</span>
+                </div>
+                <div class="list-item-cell" style="flex: 0 0 27%;">
+                  <span
+                    class="select" :class="{ [$style.jump]: canJumpToAlbum(item) }"
+                    :title="canJumpToAlbum(item) ? $t('list__jump_album') : ''"
+                    :aria-label="item.meta.albumName" @click.stop="handleAlbumNameClick(item, $event)"
+                  >{{ item.meta.albumName }}</span>
+                </div>
                 <div class="list-item-cell" style="flex: 0 0 10%;"><span class="no-select">{{ item.interval || '--/--' }}</span></div>
                 <!-- 只有调用方显式要「移除」时才补这一格：QQ 我喜欢页要的是「取消喜欢」，
                      而它不能依赖「显示操作按钮」这个显示设置（默认关闭） -->
@@ -102,6 +126,8 @@
     <common-download-modal v-model:show="isShowDownload" :music-info="selectedDownloadMusicInfo" teleport="#view" />
     <common-download-multiple-modal v-model:show="isShowDownloadMultiple" :list="selectedList" teleport="#view" @confirm="removeAllSelect" />
     <base-menu v-model="isShowItemMenu" :menus="menus" :xy="menuLocation" item-name="name" @menu-click="handleMenuClick" />
+    <!-- 多位歌手时让用户挑（工单 02）：用仓库既有的 base-menu，不自造弹窗 -->
+    <base-menu v-model="isShowSingerPicker" :menus="singerPickerMenus()" :xy="singerPickerXy" item-name="name" @menu-click="handleSingerPickerClick" />
   </div>
 </template>
 
@@ -154,6 +180,12 @@ export default {
       type: String,
       default: '',
     },
+    // 播放队列的身份（ui-polish 工单 06）：有真实列表 id 的宿主页传进来（专辑 / 歌单 / 榜单…），
+    // 没有的不传——点单曲一律「从这首开始连播这个列表」，见 usePlay.ts 的 handlePlayMusic
+    listId: {
+      type: String,
+      default: '',
+    },
   },
   emits: ['show-menu', 'play-list', 'togglePage', 'remove-music'],
   setup(props, { emit }) {
@@ -193,6 +225,18 @@ export default {
       handleSearch,
       handleOpenMusicDetail,
       handleDislikeMusic,
+      canJumpToAlbum,
+      canJumpToSinger,
+      handleSingerNameClick,
+      handleAlbumNameClick,
+      handleJumpAlbum,
+      handleJumpSinger,
+      handleCopyLink,
+      handleOpenInQqMusic,
+      isShowSingerPicker,
+      singerPickerXy,
+      singerPickerMenus,
+      handleSingerPickerClick,
     } = useMusicActions({ props })
 
     const {
@@ -213,6 +257,11 @@ export default {
       handleShowMusicAddModal,
       handleOpenMusicDetail,
       handleDislikeMusic,
+
+      handleJumpAlbum,
+      handleJumpSinger,
+      handleCopyLink,
+      handleOpenInQqMusic,
     })
 
     const handleListItemClick = (event, index) => {
@@ -227,7 +276,8 @@ export default {
     const handleMenuClick = (action) => {
       let index = rightClickSelectedIndex.value
       rightClickSelectedIndex.value = -1
-      menuClick(action, index)
+      // 第三参是行菜单的位置：多位歌手的「选择歌手」菜单要出现在同一个位置
+      menuClick(action, index, menuLocation)
     }
     const handleListRightClick = (event) => {
       if (!event.target.classList.contains('select')) return
@@ -295,6 +345,15 @@ export default {
 
       scrollToTop,
       actionButtonsVisible,
+
+      canJumpToAlbum,
+      canJumpToSinger,
+      handleSingerNameClick,
+      handleAlbumNameClick,
+      isShowSingerPicker,
+      singerPickerXy,
+      singerPickerMenus,
+      handleSingerPickerClick,
     }
   },
 }
@@ -350,6 +409,14 @@ export default {
   p {
     font-size: 24px;
     color: var(--color-font-label);
+  }
+}
+
+// 歌手名 / 专辑名可点（工单 02）：只加「可点」的提示，不改颜色（表格里颜色已经够花）
+.jump {
+  cursor: pointer;
+  &:hover {
+    text-decoration: underline;
   }
 }
 

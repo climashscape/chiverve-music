@@ -12,10 +12,15 @@
         <img :class="$style.cover" loading="lazy" decoding="async" :src="detail.img" alt="">
         <div :class="$style.songInfo">
           <h2 :class="$style.name" :title="detail.name">{{ detail.name }}</h2>
-          <p :class="$style.meta">{{ detail.singer }}</p>
+          <p
+            :class="[$style.meta, ...(detail.singers.length ? [$style.link] : [])]"
+            :title="detail.singers.length ? $t('list__jump_singer') : ''"
+            @click="handleSingerClick"
+          >{{ detail.singer }}</p>
           <p v-if="detail.albumMid" :class="[$style.meta, $style.link]" @click="toAlbum">{{ detail.albumName }}</p>
           <p v-else-if="detail.albumName" :class="$style.meta">{{ detail.albumName }}</p>
           <p :class="$style.meta">{{ detail.interval }}</p>
+          <p :class="[$style.meta, $style.link]" @click="handleOpenPlayDetail">{{ $t('song_detail__open_play_detail') }}</p>
         </div>
       </div>
 
@@ -103,6 +108,8 @@
       @close="closePlayer"
       @retry="retryUrl"
     />
+    <!-- 多位歌手时让用户挑（工单 02）：与歌曲表同一套 base-menu -->
+    <base-menu v-model="isShowSingerPicker" :menus="singerPickerMenus()" :xy="singerPickerXy" item-name="name" @menu-click="handleSingerPickerClick" />
   </div>
 </template>
 
@@ -112,6 +119,8 @@ import { useRoute, useRouter } from '@common/utils/vueRouter'
 import usePlay from '@renderer/components/material/OnlineList/usePlay'
 import MvPlayerModal from '@renderer/components/common/MvPlayerModal.vue'
 import { player, openMv as openMvPlayer, closePlayer, retryUrl, type MvInfo } from '@renderer/store/mv'
+import { setShowPlayerDetail } from '@renderer/store/player/action'
+import useMusicJump from '@renderer/utils/compositions/useMusicJump'
 import useSongDetail, { relatedMvs, relatedPlaylists } from './useSongDetail'
 
 /**
@@ -140,21 +149,34 @@ export default {
       { label: window.i18n.t('song_detail__lan' as any), value: detail.info.lan },
     ].filter(row => row.value))
 
-    // 播放复用在线列表那一套（加入试听列表并从该位置播放）
-    const createPlay = (block: { list: LX.Music.MusicInfoOnline[] }) => {
+    // 播放复用在线列表那一套（工单 06 方案 B：点一首 = 从这首开始连播这个列表，
+    // 所以队列身份要带上本页的上下文，见 usePlay 的 queueId）
+    const createPlay = (block: { list: LX.Music.MusicInfoOnline[] }, listId: string) => {
       const selectedList = ref<LX.Music.MusicInfoOnline[]>([])
       const { handlePlayMusic } = usePlay({
         selectedList,
-        props: block,
+        props: { list: block.list, listId },
         removeAllSelect: () => { selectedList.value = [] },
         emit: () => {},
       })
       return (index: number) => { void handlePlayMusic(index, true) }
     }
-    const handlePlaySimilar = createPlay(similar)
-    const handlePlayOther = createPlay(otherVersions)
+    const handlePlaySimilar = createPlay(similar, `songDetail__similar__${mid.value}`)
+    const handlePlayOther = createPlay(otherVersions, `songDetail__versions__${mid.value}`)
 
     const handleBack = () => { router.back() }
+    // 头部的歌手名可点（工单 02）：详情接口已经给了每位歌手的 mid（trackRaw.singer[]），
+    // 所以这里不用再发请求；多位歌手时弹出选择菜单（与歌曲表同一套 base-menu）
+    const { jumpToSingerList, isShowSingerPicker, singerPickerXy, singerPickerMenus, handleSingerPickerClick } = useMusicJump()
+    const handleSingerClick = (event: MouseEvent) => {
+      if (!detail.singers.length) return
+      jumpToSingerList(detail.singers, event)
+    }
+    // 回到播放详情（工单 02 的互跳；这一页原来整页没有可点元素）。
+    // 播放详情是覆盖层（不是路由），打开它即可——它显示的永远是「正在播放的那首」。
+    const handleOpenPlayDetail = () => {
+      setShowPlayerDetail(true)
+    }
     const toAlbum = () => {
       if (detail.albumMid) void router.push({ path: '/album', query: { mid: detail.albumMid } })
     }
@@ -195,6 +217,12 @@ export default {
       openMv,
       closePlayer,
       retryUrl,
+      handleSingerClick,
+      handleOpenPlayDetail,
+      isShowSingerPicker,
+      singerPickerXy,
+      singerPickerMenus,
+      handleSingerPickerClick,
     }
   },
 }

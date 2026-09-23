@@ -13,8 +13,23 @@ transition(enter-active-class="animated slideInRight" leave-active-class="animat
           img(v-if="musicInfo.pic" :class="$style.img" :src="musicInfo.pic")
           div.description(:class="['scroll', $style.description]")
             p {{ $t('player__music_name') }}{{ musicInfo.name }}
-            p {{ $t('player__music_singer') }}{{ musicInfo.singer }}
-            p(v-if="musicInfo.album") {{ $t('player__music_album') }}{{ musicInfo.album }}
+            p(
+              :class="{ [$style.jumpable]: canJumpToSinger(playMusicInfo.musicInfo) }"
+              :title="canJumpToSinger(playMusicInfo.musicInfo) ? $t('list__jump_singer') : ''"
+              @click="handlePlayDetailSingerClick"
+            ) {{ $t('player__music_singer') }}{{ musicInfo.singer }}
+            p(
+              v-if="musicInfo.album"
+              :class="{ [$style.jumpable]: canJumpToAlbum(playMusicInfo.musicInfo) }"
+              :title="canJumpToAlbum(playMusicInfo.musicInfo) ? $t('list__jump_album') : ''"
+              @click="handlePlayDetailAlbumClick"
+            ) {{ $t('player__music_album') }}{{ musicInfo.album }}
+            //- 播放详情页 ↔ 歌曲详情页互跳（工单 02）：本地文件没有 mid，不出这个入口
+            p(
+              v-if="canShareMusic(playMusicInfo.musicInfo)"
+              :class="$style.jumpLink"
+              @click="handleOpenSongDetail"
+            ) {{ $t('player__open_song_detail') }}
 
       transition(enter-active-class="animated fadeIn" leave-active-class="animated fadeOut")
         LyricPlayer(v-if="visibled")
@@ -48,6 +63,8 @@ import ControlBtnsRightHeader from './ControlBtnsRightHeader.vue'
 import { registerAutoHideMounse, unregisterAutoHideMounse } from './autoHideMounse'
 import { appSetting } from '@renderer/store/setting'
 import { closeWindow, maxWindow, minWindow, setFullScreen } from '@renderer/utils/ipc'
+import { useRouter } from '@common/utils/vueRouter'
+import useMusicJump from '@renderer/utils/compositions/useMusicJump'
 
 export default {
   name: 'CorePlayDetail',
@@ -60,6 +77,7 @@ export default {
   },
   setup() {
     const visibled = ref(false)
+    const router = useRouter()
 
     let clickTime = 0
 
@@ -98,6 +116,31 @@ export default {
     })
 
 
+    // 跳转 / 分享（工单 02）：这一页只显示播放器状态里的精简结构（name/singer/album），
+    // 所以一律以 playMusicInfo.musicInfo（新式歌曲对象，带 meta）为准——它才有 songmid / albumMid
+    const {
+      canJumpToAlbum,
+      canJumpToSinger,
+      canShareMusic,
+      handleSingerNameClick,
+      handleAlbumNameClick,
+      getSongMid,
+    } = useMusicJump()
+
+    const handlePlayDetailSingerClick = (event) => {
+      if (!canJumpToSinger(playMusicInfo.musicInfo)) return
+      handleSingerNameClick(playMusicInfo.musicInfo, event)
+    }
+    const handlePlayDetailAlbumClick = () => {
+      if (!canJumpToAlbum(playMusicInfo.musicInfo)) return
+      handleAlbumNameClick(playMusicInfo.musicInfo)
+    }
+    const handleOpenSongDetail = () => {
+      const mid = getSongMid(playMusicInfo.musicInfo)
+      if (!mid) return
+      void router.push({ path: '/songDetail', query: { mid } })
+    }
+
     return {
       appSetting,
       playMusicInfo,
@@ -111,6 +154,12 @@ export default {
       handleAfterLeave,
       visibled,
       isFullscreen,
+      canJumpToAlbum,
+      canJumpToSinger,
+      canShareMusic,
+      handlePlayDetailSingerClick,
+      handlePlayDetailAlbumClick,
+      handleOpenSongDetail,
       fullscreenExit() {
         void setFullScreen(false).then((fullscreen) => {
           isFullscreen.value = fullscreen
@@ -266,6 +315,22 @@ export default {
     line-height: 1.5;
     font-size: 14px;
     overflow-wrap: break-word;
+  }
+}
+
+// 可点的歌手名 / 专辑名（工单 02）：只加提示，不改颜色（背景是封面虚化，颜色改动容易糊）
+.jumpable {
+  cursor: pointer;
+  &:hover {
+    text-decoration: underline;
+  }
+}
+// 进「歌曲详情页」的入口：做得像一条链接（这一页原来整页没有可点元素）
+.jumpLink {
+  cursor: pointer;
+  color: var(--color-primary);
+  &:hover {
+    text-decoration: underline;
   }
 }
 

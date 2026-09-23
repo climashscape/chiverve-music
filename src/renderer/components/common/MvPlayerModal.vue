@@ -17,7 +17,18 @@
 
       <div :class="$style.info">
         <h3 :class="$style.name" :title="name">{{ name }}</h3>
-        <p v-if="singer" :class="$style.singer" :title="singer">{{ singer }}</p>
+        <!--
+          歌手名可点（工单 02）。这里**不用歌手选择菜单**：弹窗的层级（Modal.vue 的 z-index 99/100）
+          压得住 base-menu（z-index 10），菜单点不到。MV 数据本身带 singers[]，逐位渲染成链接，
+          要挑谁直接点谁——比「先弹菜单再挑」更直接。
+        -->
+        <p v-if="singers.length" :class="$style.singer">
+          <template v-for="(item, index) in singers" :key="item.mid">
+            <span v-if="index" :class="$style.singerGap"> / </span>
+            <span :class="$style.singerLink" :title="$t('list__jump_singer')" @click.stop="handleSingerJump(item)">{{ item.name || item.mid }}</span>
+          </template>
+        </p>
+        <p v-else-if="singer" :class="$style.singer" :title="singer">{{ singer }}</p>
         <p :class="$style.meta">
           <span v-if="playCount">{{ $t('mv__play_count') }}：{{ playText }}</span>
           <span v-if="interval">{{ $t('music_time') }}：{{ interval }}</span>
@@ -40,6 +51,8 @@
 import { computed, ref, watch } from '@common/utils/vueTools'
 import { openUrl } from '@common/utils/electron'
 import { formatPlayCount } from '@renderer/utils'
+import { normalizeSingers, type JumpSinger } from '@common/utils/musicLink'
+import useMusicJump from '@renderer/utils/compositions/useMusicJump'
 import type { MvDetail, MvInfo } from '@renderer/store/mv'
 
 export default {
@@ -98,6 +111,8 @@ export default {
     const info = computed<Partial<MvDetail & MvInfo>>(() => props.detail ?? props.mv ?? {})
     const name = computed(() => info.value.name ?? '')
     const singer = computed(() => info.value.singer ?? '')
+    // 运行期带 singers[]（tx/mv.js 的 toSinger），但 MvInfo/MvDetail 类型里没有声明——这里按运行期数据取
+    const singers = computed(() => normalizeSingers((info.value as MvInfo & { singers?: any[] }).singers))
     const playCount = computed(() => Number(info.value.playCount ?? 0))
     const playText = computed(() => playCount.value ? formatPlayCount(playCount.value) : '')
     const interval = computed(() => info.value.interval ?? '')
@@ -106,6 +121,9 @@ export default {
     const uploaderName = computed(() => info.value.uploader?.name ?? '')
 
     const handlePlayError = () => { playError.value = true }
+    // 点歌手名进歌手页：每一位自带 mid（详情/列表数据里就有），不用再请求
+    const { jumpToSingerList } = useMusicJump()
+    const handleSingerJump = (item: JumpSinger) => { jumpToSingerList([item]) }
     // 「用系统播放器打开」= 交给系统默认处理程序：这里复用仓库的 openUrl 包装
     // （内部就是 `shell.openExternal`，另外带 http(s) 校验，@common/utils/electron.ts:19）。
     // ⚠️ https 直链在 Linux 上是由默认浏览器接管，不一定是桌面播放器。
@@ -116,6 +134,8 @@ export default {
       playError,
       name,
       singer,
+      singers,
+      handleSingerJump,
       playCount,
       playText,
       interval,
@@ -170,6 +190,16 @@ export default {
   font-size: 13px;
   color: var(--color-font);
   .mixin-ellipsis-1();
+}
+// 可点的歌手名（工单 02）
+.singerLink {
+  cursor: pointer;
+  &:hover {
+    text-decoration: underline;
+  }
+}
+.singerGap {
+  color: var(--color-font-label);
 }
 .meta {
   margin-top: 6px;

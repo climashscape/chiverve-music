@@ -48,8 +48,20 @@
             <span class="select name">{{ item.name }}</span>
             <span v-if="isShowSource" class="no-select label-source">{{ item.source }}</span>
           </div>
-          <div class="list-item-cell" style="flex: 0 0 22%;"><span class="select" :aria-label="item.singer">{{ item.singer }}</span></div>
-          <div class="list-item-cell" style="flex: 0 0 22%;"><span class="select" :aria-label="item.meta.albumName">{{ item.meta.albumName }}</span></div>
+          <div class="list-item-cell" style="flex: 0 0 22%;">
+            <span
+              class="select" :class="{ [$style.jump]: canJumpToSinger(item) }"
+              :title="canJumpToSinger(item) ? $t('list__jump_singer') : ''"
+              :aria-label="item.singer" @click.stop="handleSingerNameClick(item, $event)"
+            >{{ item.singer }}</span>
+          </div>
+          <div class="list-item-cell" style="flex: 0 0 22%;">
+            <span
+              class="select" :class="{ [$style.jump]: canJumpToAlbum(item) }"
+              :title="canJumpToAlbum(item) ? $t('list__jump_album') : ''"
+              :aria-label="item.meta.albumName" @click.stop="handleAlbumNameClick(item, $event)"
+            >{{ item.meta.albumName }}</span>
+          </div>
           <div class="list-item-cell" style="flex: 0 0 9%;"><span class="no-select">{{ item.interval || '--/--' }}</span></div>
           <div class="list-item-cell" style="flex: 0 0 16%; padding-left: 0; padding-right: 0;">
             <material-list-buttons :index="index" :download-btn="assertApiSupport(item.source) && item.source != 'local'" @btn-click="handleListBtnClick" />
@@ -80,9 +92,20 @@
             <span class="select name" :aria-label="item.name">{{ item.name }}</span>
             <span v-if="isShowSource" class="no-select label-source">{{ item.source }}</span>
           </div>
-          <div class="list-item-cell" style="flex: 0 0 25%;"><span class="select" :aria-label="item.singer">{{ item.singer }}</span></div>
-          <div class="list-item-cell" style="flex: 0 0 28%;"><span class="select" :aria-label="item.meta.albumName">{{ item.meta.albumName }}</span></div>
-          <div class="list-item-cell" style="flex: 0 0 10%;"><span class="no-select">{{ item.interval || '--/--' }}</span></div>
+          <div class="list-item-cell" style="flex: 0 0 25%;">
+            <span
+              class="select" :class="{ [$style.jump]: canJumpToSinger(item) }"
+              :title="canJumpToSinger(item) ? $t('list__jump_singer') : ''"
+              :aria-label="item.singer" @click.stop="handleSingerNameClick(item, $event)"
+            >{{ item.singer }}</span>
+          </div>
+          <div class="list-item-cell" style="flex: 0 0 28%;">
+            <span
+              class="select" :class="{ [$style.jump]: canJumpToAlbum(item) }"
+              :title="canJumpToAlbum(item) ? $t('list__jump_album') : ''"
+              :aria-label="item.meta.albumName" @click.stop="handleAlbumNameClick(item, $event)"
+            >{{ item.meta.albumName }}</span>
+          </div>          <div class="list-item-cell" style="flex: 0 0 10%;"><span class="no-select">{{ item.interval || '--/--' }}</span></div>
         </div>
       </base-virtualized-list>
     </div>
@@ -102,6 +125,8 @@
     <search-list :list="list" :visible="isShowSearchBar" @action="handleMusicSearchAction" />
     <music-sort-modal v-model:show="isShowMusicSortModal" :music-info="selectedSortMusicInfo" :selected-num="selectedNum" @confirm="sortMusic" />
     <base-menu v-model="isShowItemMenu" :menus="menus" :xy="menuLocation" item-name="name" @menu-click="handleMenuClick" />
+    <!-- 多位歌手时让用户挑（工单 02）：用仓库既有的 base-menu，不自造弹窗 -->
+    <base-menu v-model="isShowSingerPicker" :menus="singerPickerMenus()" :xy="singerPickerXy" item-name="name" @menu-click="handleSingerPickerClick" />
   </div>
 </template>
 
@@ -207,6 +232,18 @@ export default {
       handleCopyName,
       handleDislikeMusic,
       handleRemoveMusic,
+      canJumpToAlbum,
+      canJumpToSinger,
+      handleSingerNameClick,
+      handleAlbumNameClick,
+      handleJumpAlbum,
+      handleJumpSinger,
+      handleCopyLink,
+      handleOpenInQqMusic,
+      isShowSingerPicker,
+      singerPickerXy,
+      singerPickerMenus,
+      handleSingerPickerClick,
     } = useMusicActions({ props, list, removeAllSelect, selectedList })
 
     const {
@@ -230,6 +267,11 @@ export default {
       handleCopyName,
       handleDislikeMusic,
       handleRemoveMusic,
+
+      handleJumpAlbum,
+      handleJumpSinger,
+      handleCopyLink,
+      handleOpenInQqMusic,
     })
 
     const {
@@ -257,7 +299,8 @@ export default {
     const handleMenuClick = (action) => {
       let index = rightClickSelectedIndex.value
       rightClickSelectedIndex.value = -1
-      menuClick(action, index)
+      // 第三参是行菜单的位置：多位歌手的「选择歌手」菜单要出现在同一个位置
+      menuClick(action, index, menuLocation)
     }
     const handleListRightClick = (event) => {
       if (!event.target.classList.contains('select')) return
@@ -342,6 +385,15 @@ export default {
       handleRestoreScroll,
 
       actionButtonsVisible,
+
+      canJumpToAlbum,
+      canJumpToSinger,
+      handleSingerNameClick,
+      handleAlbumNameClick,
+      isShowSingerPicker,
+      singerPickerXy,
+      singerPickerMenus,
+      handleSingerPickerClick,
     }
   },
 }
@@ -417,4 +469,12 @@ export default {
 }
 
 // 「我的收藏」的来源切换（base-tab 自带下划线指示器）现在在 views/Favorites/components/SongsPanel.vue
+
+// 歌手名 / 专辑名可点（工单 02）：只加「可点」的提示，不改颜色（表格里颜色已经够花）
+.jump {
+  cursor: pointer;
+  &:hover {
+    text-decoration: underline;
+  }
+}
 </style>

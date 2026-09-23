@@ -2,6 +2,7 @@ import { computed, ref, shallowReactive, reactive, nextTick } from '@common/util
 import musicSdk from '@renderer/utils/musicSdk'
 import { useI18n } from '@renderer/plugins/i18n'
 import { hasDislike } from '@renderer/core/dislikeList'
+import { canJumpToAlbum, canJumpToSinger, canShareMusic } from '@common/utils/musicLink'
 
 export default ({
   assertApiSupport,
@@ -18,6 +19,11 @@ export default ({
   handleCopyName,
   handleDislikeMusic,
   handleRemoveMusic,
+
+  handleJumpAlbum,
+  handleJumpSinger,
+  handleCopyLink,
+  handleOpenInQqMusic,
 }) => {
   const itemMenuControl = reactive({
     play: true,
@@ -31,6 +37,9 @@ export default ({
     dislike: true,
     remove: true,
     sourceDetail: true,
+    jumpAlbum: true,
+    jumpSinger: true,
+    share: true,
   })
   const t = useI18n()
   const menuLocation = shallowReactive({ x: 0, y: 0 })
@@ -78,6 +87,27 @@ export default ({
         action: 'sourceDetail',
         disabled: !itemMenuControl.sourceDetail,
       },
+      // 跳转 / 分享：本地文件**不显示**（没有在线 mid，显示出来就是点了没反应的项）
+      {
+        name: t('list__jump_album'),
+        action: 'jumpAlbum',
+        hide: !itemMenuControl.jumpAlbum,
+      },
+      {
+        name: t('list__jump_singer'),
+        action: 'jumpSinger',
+        hide: !itemMenuControl.jumpSinger,
+      },
+      {
+        name: t('list__copy_link'),
+        action: 'copyLink',
+        hide: !itemMenuControl.share,
+      },
+      {
+        name: t('list__open_in_qq'),
+        action: 'openInQq',
+        hide: !itemMenuControl.share,
+      },
       {
         name: t('list__search'),
         action: 'search',
@@ -101,6 +131,9 @@ export default ({
     // itemMenuControl.play =
     //   itemMenuControl.playLater =
     itemMenuControl.download = assertApiSupport(musicInfo.source) && musicInfo.source != 'local'
+    itemMenuControl.jumpAlbum = canJumpToAlbum(musicInfo)
+    itemMenuControl.jumpSinger = canJumpToSinger(musicInfo)
+    itemMenuControl.share = canShareMusic(musicInfo)
 
     itemMenuControl.dislike = !hasDislike(musicInfo)
 
@@ -119,7 +152,7 @@ export default ({
     isShowItemMenu.value = false
   }
 
-  const menuClick = (action, index) => {
+  const menuClick = (action, index, location) => {
     // console.log(action)
     hideMenu()
     if (!action) return
@@ -156,6 +189,20 @@ export default ({
         break
       case 'sourceDetail':
         handleOpenMusicDetail(index)
+        break
+      case 'jumpAlbum':
+        handleJumpAlbum(index)
+        break
+      case 'jumpSinger':
+        // 多位歌手时选择菜单要出现在行菜单的位置上
+        handleJumpSinger(index, location)
+        break
+      case 'copyLink':
+        handleCopyLink(index)
+        break
+      case 'openInQq':
+        handleOpenInQqMusic(index)
+        break
     }
   }
 

@@ -1,5 +1,6 @@
 import { markRawList, reactive } from '@common/utils/vueTools'
 import { deduplicationList, toNewMusicInfo } from '@renderer/utils'
+import { normalizeSingers, type JumpSinger } from '@common/utils/musicLink'
 import music from '@renderer/utils/musicSdk'
 
 /**
@@ -31,6 +32,8 @@ const detail = reactive<{
   mid: string
   name: string
   singer: string
+  /** 每位歌手的 mid 与 name（详情响应里就有）——头部歌手名可点的依据，见工单 02 */
+  singers: JumpSinger[]
   albumMid: string
   albumName: string
   img: string
@@ -46,6 +49,7 @@ const detail = reactive<{
   mid: '',
   name: '',
   singer: '',
+  singers: [],
   albumMid: '',
   albumName: '',
   img: '',
@@ -96,6 +100,7 @@ const load = async(mid: string) => {
       mid: track.songmid ?? mid,
       name: track.name ?? '',
       singer: track.singer ?? '',
+      singers: normalizeSingers(res.trackRaw?.singer),
       albumMid: track.albumMid ?? '',
       albumName: track.albumName ?? '',
       img: track.img ?? '',

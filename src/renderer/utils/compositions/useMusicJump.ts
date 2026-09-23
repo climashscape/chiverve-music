@@ -1,0 +1,152 @@
+import { ref, shallowReactive } from '@common/utils/vueTools'
+import { useRouter } from '@common/utils/vueRouter'
+import { clipboardWriteText, openUrl } from '@common/utils/electron'
+import { toOldMusicInfo } from '@common/utils/tools'
+import { canJumpToAlbum, canJumpToSinger, canShareMusic, getAlbumMid, getSongMid, resolveSingers, type JumpSinger } from '@common/utils/musicLink'
+import music from '@renderer/utils/musicSdk'
+import { dialog } from '@renderer/plugins/Dialog'
+import { useI18n } from '@renderer/plugins/i18n'
+
+/**
+ * 「歌曲跳转 / 分享」的共用行为（ui-polish 工单 02）：在线歌曲表与本地列表歌曲表共用这一份，
+ * 免得两处各写一套判定与跳转。纯判定与歌手解析在 `@common/utils/musicLink`（那里有单测）。
+ *
+ * 用到的既有能力，别另找：
+ * - 链接：歌曲用 `tx.getMusicDetailPageUrl`（原有），专辑用 `tx.getAlbumDetailPageUrl`（本票新补）
+ * - 外链：`@common/utils/electron` 的 `openUrl`（与「我的歌单」页的「歌单详情页」同一套）
+ * - 多位歌手让用户挑：仓库既有的 `base-menu`，不自造弹窗
+ */
+export default () => {
+  const router = useRouter()
+  const t = useI18n()
+
+  const toAlbum = (mid: string) => router.push({ path: '/album', query: { mid } })
+  const toSinger = (mid: string) => router.push({ path: '/singer', query: { mid } })
+
+  // 歌曲详情的适配器：`track_info.singer[]` 每位都带 mid 与 name（见 qq-music-native.md §5.10）
+  const fetchSingers = (mid: string) => music.tx.songDetail.getDetail(mid).then(detail => detail.trackRaw?.singer)
+
+  // 歌曲的网页链接用数据层原有的生成器（本地源没有这一项，取不到就是空串）
+  const musicWebUrl = (minfo: LX.Music.MusicInfo) => {
+    const sdk = (music as Record<string, any>)[minfo.source] as { getMusicDetailPageUrl?: (info: any) => string } | undefined
+    return sdk?.getMusicDetailPageUrl?.(toOldMusicInfo(minfo)) ?? ''
+  }
+  const albumWebUrl = (albumMid: string) => music.tx.getAlbumDetailPageUrl(albumMid)
+
+  // ── 多位歌手时让用户挑（用 base-menu，位置贴在触发点）───────────────────────
+  // 这几项平铺返回：模板里要直接绑 `v-model` / `:xy` / `:menus`，嵌套在对象里的 ref 不会被自动解包
+  const isShowSingerPicker = ref(false)
+  const singerPickerXy = shallowReactive({ x: 0, y: 0 })
+  const singerPickerSingers = ref<JumpSinger[]>([])
+  const showSingerPicker = (singers: JumpSinger[], event?: { pageX?: number, pageY?: number }) => {
+    singerPickerSingers.value = singers
+    singerPickerXy.x = event?.pageX ?? 0
+    singerPickerXy.y = event?.pageY ?? 0
+    isShowSingerPicker.value = true
+  }
+  const singerPickerMenus = () => {
+    const menus: Array<{ name: string, action: string, disabled?: boolean }> = [
+      // 菜单本身没有标题栏，用一条禁用的首项当标题（不新造弹窗组件）
+      { name: t('list__pick_singer'), action: 'title', disabled: true },
+    ]
+    for (const singer of singerPickerSingers.value) {
+      menus.push({ name: singer.name || singer.mid, action: singer.mid })
+    }
+    return menus
+  }
+  const handleSingerPickerClick = (item: { action?: string } | null) => {
+    isShowSingerPicker.value = false
+    if (!item || item.action == 'title') return
+    toSinger(item.action!)
+  }
+
+  // ── 跳转 ──────────────────────────────────────────────────────────────
+  const jumpToAlbum = (minfo: LX.Music.MusicInfo) => {
+    const mid = getAlbumMid(minfo)
+    // 菜单项与可点样式都按 canJumpToAlbum 关掉了，这里是兜底
+    if (!mid) return
+    toAlbum(mid)
+  }
+
+  /**
+   * 已经拿到歌手列表时的跳转：一位直接进，多位弹菜单让用户挑。
+   * （歌曲详情页手里就有 `track_info.singer[]`，不必再取一次详情。）
+   */
+  const jumpToSingerList = (singers: JumpSinger[], event?: { pageX?: number, pageY?: number }) => {
+    if (!singers.length) return
+    if (singers.length == 1) {
+      toSinger(singers[0].mid)
+      return
+    }
+    showSingerPicker(singers, event)
+  }
+
+  const jumpToSinger = async(minfo: LX.Music.MusicInfo, event?: { pageX?: number, pageY?: number }) => {
+    const singers = await resolveSingers(minfo, fetchSingers)
+    if (!singers.length) {
+      // 取不到歌手 id 时明确提示：不静默、也不退化成「按名字搜」（同名会跳错人）
+      void dialog({
+        message: t('list__jump_failed', { name: minfo?.name ?? '' }),
+        confirmButtonText: t('ok'),
+      })
+      return
+    }
+    jumpToSingerList(singers, event)
+  }
+
+  // ── 分享（QQ 网页链接，给人用；与本应用的深链不是一回事）────────────────
+  const copyMusicLink = (minfo: LX.Music.MusicInfo) => {
+    const url = musicWebUrl(minfo)
+    if (url) clipboardWriteText(url)
+  }
+  const openMusicInQqMusic = (minfo: LX.Music.MusicInfo) => {
+    const url = musicWebUrl(minfo)
+    if (url) void openUrl(url)
+  }
+  const copyAlbumLink = (albumMid: string) => {
+    if (albumMid) clipboardWriteText(albumWebUrl(albumMid))
+  }
+  const openAlbumInQqMusic = (albumMid: string) => {
+    if (albumMid) void openUrl(albumWebUrl(albumMid))
+  }
+
+  /**
+   * 名称可点：点歌手名 / 专辑名直接跳。
+   *
+   * 两道守卫：
+   * 1. **不可跳就什么都不做**（本地文件没有在线 mid——不做点了弹错误提示的项）；
+   * 2. **已经选中了文本就说明用户在复制**，这时不跳。
+   * 代价（可接受）：单击一次已经落下光标再拖选时首次点击会跳走——想复制就用按下即拖的一手势。
+   */
+  const hasTextSelection = () => (window.getSelection()?.toString() ?? '').length > 0
+  const handleSingerNameClick = (minfo: LX.Music.MusicInfo, event?: MouseEvent) => {
+    if (!canJumpToSinger(minfo) || hasTextSelection()) return
+    void jumpToSinger(minfo, event)
+  }
+  // 专辑这里也保留 event 形参：模板里统一传 `$event`，签名一致省得两处写法不同
+  const handleAlbumNameClick = (minfo: LX.Music.MusicInfo, _event?: MouseEvent) => {
+    if (!canJumpToAlbum(minfo) || hasTextSelection()) return
+    jumpToAlbum(minfo)
+  }
+
+  return {
+    canJumpToAlbum,
+    canJumpToSinger,
+    canShareMusic,
+    getAlbumMid,
+    getSongMid,
+    jumpToAlbum,
+    jumpToSinger,
+    jumpToSingerList,
+    copyMusicLink,
+    openMusicInQqMusic,
+    copyAlbumLink,
+    openAlbumInQqMusic,
+    handleSingerNameClick,
+    handleAlbumNameClick,
+    isShowSingerPicker,
+    singerPickerXy,
+    singerPickerMenus,
+    handleSingerPickerClick,
+  }
+}
