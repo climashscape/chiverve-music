@@ -195,6 +195,8 @@ export default {
 
 .container {
   height: 100%;
+  // 根容器带左右 padding 时必须 border-box，否则溢出窗口右侧（见 userCenter/index.vue 同名注释）
+  box-sizing: border-box;
   padding: 16px 22px 30px;
   color: var(--color-font);
   overflow-y: auto;

@@ -180,6 +180,9 @@ export default {
 
 .container {
   height: 100%;
+  // 路由页根容器带左右 padding 时必须 border-box：View.vue 给的是 width:100% + 默认 content-box，
+  // 否则整块比窗口宽出 2×padding，右侧内容（按钮等）被挤出可视区
+  box-sizing: border-box;
   padding: 16px 22px 30px;
   color: var(--color-font);
   overflow-y: auto;
