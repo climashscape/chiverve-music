@@ -4,7 +4,7 @@
     <section :class="$style.section">
       <h3 :class="$style.title">{{ $t('discover__feed') }}</h3>
       <div v-show="!feed.noItemLabel">
-        <div v-for="shelf in feed.shelves" :key="shelf.id" :class="$style.shelf">
+        <div v-for="shelf in visibleShelves" :key="shelf.id" :class="$style.shelf">
           <h4 v-if="shelf.name" :class="$style.shelfTitle">{{ shelf.name }}</h4>
           <ul :class="$style.cards">
             <li
@@ -120,7 +120,7 @@
 </template>
 
 <script lang="ts">
-import { ref } from '@common/utils/vueTools'
+import { ref, computed } from '@common/utils/vueTools'
 import { useRouter } from '@common/utils/vueRouter'
 import usePlay from '@renderer/components/material/OnlineList/usePlay'
 import SongCardGrid from '@renderer/views/songList/List/components/SongList.vue'
@@ -195,6 +195,20 @@ export default {
       const target = toCardTarget(card)
       if (target) void router.push(target)
     }
+    /**
+     * 只渲染**有点击目标**的卡片（用户 2026-09-23 反馈后定的口径）：
+     * 「一周听歌排行 / 8月听歌排行」这类排行榜卡（type 800）点不动，且 QQ 侧**没有对应端点**
+     * （参考实现 QQMusicApi 当前版 + 全历史 + 上游最新版穷举均无个人听歌排行；卡上只有
+     * id="0_8"/"0_9"、subtype=810/811、jumptype=10042，没有目标 URL），做不出真交互；
+     * 「音乐雷达」入口卡（type 900）服务端连 title 都是空的。留着只是噪音，先整类不渲染。
+     * 将来某类卡有了目标（例：把雷达入口接到本仓的雷达推荐，端点同为 GetRadarSong），
+     * 在 toCardTarget 里放开即可，不用改这里。
+     */
+    const visibleShelves = computed(() =>
+      feed.shelves
+        .map(shelf => ({ ...shelf, cards: shelf.cards.filter(card => toCardTarget(card) != null) }))
+        .filter(shelf => shelf.cards.length > 0),
+    )
     const toAlbum = (item: AlbumCard) => {
       // mid 优先（详情接口两种参数都收，见 tx/album.js 文件头第 2 条）
       void router.push({ path: '/album', query: { mid: item.mid || item.id } })
@@ -202,6 +216,7 @@ export default {
 
     return {
       feed,
+      visibleShelves,
       recommend,
       newAlbums,
       newSongs,
