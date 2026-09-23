@@ -8,6 +8,7 @@
         :limit="block.limit"
         :total="block.total"
         :no-item="block.noItemLabel"
+        :list-id="RADAR_QUEUE_ID"
         check-api-source
         @play-list="handlePlayList"
       />
@@ -22,7 +23,7 @@
 <script setup lang="ts">
 import { ref } from '@common/utils/vueTools'
 import usePlay from '@renderer/components/material/OnlineList/usePlay'
-import type { RadarBlock } from '../useRadar'
+import { RADAR_QUEUE_ID, type RadarBlock } from '../useRadar'
 
 // 纯展示：取数在 ../useRadar.ts，翻页由页面发 load-more（与 views/Discover 的分工一致）。
 const props = defineProps<{ block: RadarBlock }>()
@@ -30,10 +31,12 @@ defineEmits(['load-more'])
 
 // ⚠️ 传进去的是区块对象本身（不是 `{ list: block.list }`）：usePlay 会把 props.list 的数组
 // 引用存下来，而写回全部走 splice/push 原地改，所以这个引用一直有效。
+// `listId` 用雷达自己的标识（工单 06 方案 B）：点任意一首 = 从这首开始连播雷达列表，
+// 翻页新拿到的推荐也据此接到队列尾部（见 useRadar 的 appendToPlayQueue）。
 const selectedList = ref<LX.Music.MusicInfoOnline[]>([])
 const { handlePlayMusic } = usePlay({
   selectedList,
-  props: props.block,
+  props: { list: props.block.list, listId: RADAR_QUEUE_ID },
   removeAllSelect: () => { selectedList.value = [] },
   emit: () => {},
 })

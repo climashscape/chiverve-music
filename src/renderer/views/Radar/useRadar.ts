@@ -1,5 +1,9 @@
 import { markRawList, reactive, ref } from '@common/utils/vueTools'
 import { deduplicationList, toNewMusicInfo } from '@renderer/utils'
+import { LIST_IDS } from '@common/constants'
+import { addListMusics, getListMusicsFromCache } from '@renderer/store/list/action'
+import { tempListMeta } from '@renderer/store/list/state'
+import { playInfo } from '@renderer/store/player/state'
 import music from '@renderer/utils/musicSdk'
 
 /**
@@ -21,6 +25,12 @@ import music from '@renderer/utils/musicSdk'
  */
 
 const t = (key: string) => window.i18n.t(key as any)
+
+/**
+ * 雷达列表在播放队列里的身份（工单 06 的 `listId` 与工单 07 的「翻页续播」判定都用它）。
+ * 雷达没有真实歌单 id（是流式推荐），所以自造一个稳定的标识。
+ */
+export const RADAR_QUEUE_ID = 'radar__recommend'
 
 /** 雷达列表的区块状态（发现页 SongBlock 的同形状，字段含义见那边的注释）。 */
 export interface RadarBlock {
@@ -61,19 +71,33 @@ const toOnlineSongs = (list: any[]): LX.Music.MusicInfoOnline[] => {
 }
 
 /** 整块替换（保持数组引用不变，见文件头第 2 条）。 */
-const setSongs = (list: any[]) => {
-  const next = toOnlineSongs(list)
-  radar.list.splice(0, radar.list.length, ...next)
-  radar.total = next.length
-  radar.limit = next.length || 1
+const setSongs = (songs: LX.Music.MusicInfoOnline[]) => {
+  radar.list.splice(0, radar.list.length, ...songs)
+  radar.total = radar.list.length
+  radar.limit = radar.list.length || 1
 }
 
 /** 追加（「加载更多」）。 */
-const appendSongs = (list: any[]) => {
-  const next = toOnlineSongs(list)
-  radar.list.push(...next)
+const appendSongs = (songs: LX.Music.MusicInfoOnline[]) => {
+  radar.list.push(...songs)
   radar.total = radar.list.length
   radar.limit = radar.list.length || 1
+}
+
+/**
+ * 雷达在播时，翻页新拿到的推荐接到**播放队列尾部**（ui-polish 工单 07）。
+ *
+ * 雷达是流式推荐（一次给一屏、`HasMore` 恒 true），「一键播放」如果不能续播，
+ * 播完一屏就停——那不叫一键播放。只在「当前队列就是雷达队列」时追加，
+ * 用户切去别处听歌时不打扰他的队列。
+ */
+const appendToPlayQueue = async(songs: LX.Music.MusicInfoOnline[]) => {
+  if (!songs.length) return
+  if (playInfo.playerListId !== LIST_IDS.TEMP || tempListMeta.id !== RADAR_QUEUE_ID) return
+  const queued = new Set(getListMusicsFromCache(LIST_IDS.TEMP).map(song => song.id))
+  const next = songs.filter(song => !queued.has(song.id))
+  if (!next.length) return
+  await addListMusics(LIST_IDS.TEMP, next, 'bottom')
 }
 
 /** 失败文案：未登录与真失败分开，别把「没登录」说成「加载失败」。 */
@@ -90,9 +114,11 @@ const loadRadar = async(page = 1, more = false) => {
   try {
     const res = await music.tx.recommend.getRadarRecommend(page)
     if (radarKey !== key) return
-    const list = res?.list ?? []
-    if (more) appendSongs(list)
-    else setSongs(list)
+    const songs = toOnlineSongs(res?.list ?? [])
+    if (more) {
+      appendSongs(songs)
+      await appendToPlayQueue(songs)
+    } else setSongs(songs)
     radar.page = page
     radar.hasMore = res?.hasMore === true
     radar.noItemLabel = radar.list.length ? '' : t('no_item')

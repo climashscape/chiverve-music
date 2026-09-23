@@ -138,7 +138,8 @@ const router = createRouter({
         name: 'Setting',
       },
     },
-    { path: '/:pathMatch(.*)*', redirect: '/search' },
+    // 未知路径的兜底与「启动第一眼」一致（ui-polish 工单 07：落地页是雷达）
+    { path: '/:pathMatch(.*)*', redirect: '/radar' },
   ],
   linkActiveClass: 'active-link',
   linkExactActiveClass: 'exact-active-link',

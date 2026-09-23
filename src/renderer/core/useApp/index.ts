@@ -1,4 +1,4 @@
-import { getEnvParams, getViewPrevState, sendInited } from '@renderer/utils/ipc'
+import { getEnvParams, sendInited } from '@renderer/utils/ipc'
 
 import { proxy, isFullscreen, themeId } from '@renderer/store'
 import { appSetting } from '@renderer/store/setting'
@@ -56,9 +56,10 @@ export default () => {
       }
     }
 
-    void getViewPrevState().then(state => {
-      void router.push({ path: state.url, query: state.query })
-    })
+    // 启动直接进雷达（ui-polish 工单 07）**不再恢复上次浏览的页面**：雷达是日常听歌的第一眼。
+    // 「上次浏览状态」的写入仍保留（`renderer/main.ts` 的 afterEach）——它还给别的场景用
+    // （从详情页返回、下次进同一页时恢复筛选等），这里只改启动时的落点。
+    void router.push({ path: '/radar' })
 
     // 初始化我的列表、下载列表等数据
     void initData().then(() => {
