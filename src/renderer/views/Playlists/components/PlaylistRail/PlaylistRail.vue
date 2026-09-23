@@ -1,7 +1,7 @@
 <template>
   <div ref="dom_lists" :class="$style.lists">
     <div :class="$style.listHeader">
-      <h2 :class="$style.listsTitle">{{ $t('my_list') }}</h2>
+      <h2 :class="$style.listsTitle">{{ $t('playlists__local_group') }}</h2>
       <div :class="$style.headerBtns">
         <button :class="$style.listsAdd" :aria-label="$t('lists__new_list_btn')" @click="isShowNewList = true">
           <svg version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" height="70%" viewBox="0 0 24 24" space="preserve">
@@ -17,41 +17,12 @@
     </div>
     <ul ref="dom_lists_list" class="scroll" :class="[$style.listsContent, { [$style.sortable]: isModDown }]">
       <li
-        class="default-list" :class="[$style.listsItem, {[$style.active]: defaultList.id == listId}, {[$style.clicked]: rightClickItemIndex == -2}, {[$style.fetching]: fetchingListStatus[defaultList.id]}]"
-        :aria-label="$t(defaultList.name)" :aria-selected="defaultList.id == listId"
-        @contextmenu="handleListsItemRigthClick($event, -2)" @click="handleListToggle(defaultList.id)"
-      >
-        <!-- <div v-if="defaultList.id == listId" :class="$style.activeIcon">
-          <svg version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" height="40%" viewBox="0 0 451.846 451.847" space="preserve">
-            <use xlink:href="#icon-right" />
-          </svg>
-        </div> -->
-        <span :class="$style.listsLabel">
-          <transition name="list-active">
-            <svg-icon v-if="defaultList.id == listId" name="angle-right-solid" :class="$style.activeIcon" />
-          </transition>
-          {{ $t(defaultList.name) }}
-        </span>
-      </li>
-      <li
-        class="default-list" :class="[$style.listsItem, {[$style.active]: loveList.id == listId}, {[$style.clicked]: rightClickItemIndex == -1}, {[$style.fetching]: fetchingListStatus[loveList.id]}]"
-        :aria-label="$t(loveList.name)" :aria-selected="loveList.id == listId"
-        @contextmenu="handleListsItemRigthClick($event, -1)" @click="handleListToggle(loveList.id)"
-      >
-        <span :class="$style.listsLabel">
-          <transition name="list-active">
-            <svg-icon v-if="loveList.id == listId" name="angle-right-solid" :class="$style.activeIcon" />
-          </transition>
-          {{ $t(loveList.name) }}
-        </span>
-      </li>
-      <li
         v-for="(item, index) in userLists"
         :key="item.id" class="user-list"
         :class="[$style.listsItem, {[$style.active]: item.id == listId}, {[$style.clicked]: rightClickItemIndex == index}, {[$style.fetching]: fetchingListStatus[item.id]}]"
-        :data-index="index" :aria-label="item.name" :aria-selected="defaultList.id == listId" @contextmenu="handleListsItemRigthClick($event, index)"
+        :data-index="index" :aria-label="item.name" :aria-selected="item.id == listId" @contextmenu="handleListsItemRigthClick($event, index)"
       >
-        <span :class="$style.listsLabel" @click="handleListToggle(item.id, index + 2)">
+        <span :class="$style.listsLabel" @click="handleListToggle(item.id)">
           <transition name="list-active">
             <svg-icon v-if="item.id == listId" name="angle-right-solid" :class="$style.activeIcon" />
           </transition>
@@ -71,6 +42,47 @@
         </li>
       </transition>
     </ul>
+
+    <!-- ── QQ 云端自建歌单（工单 06）─────────────────────────────────────────
+         与上面那组是**两套数据、两种写语义**：这组改的是 QQ 云端。只放开已实现的能力
+         （建 / 删 / 加歌 / 删歌），重命名、排序、导入导出不出现——点了没反应比没有更糟。 -->
+    <div :class="$style.listHeader">
+      <h2 :class="$style.listsTitle">{{ $t('playlists__cloud_group') }}</h2>
+      <div :class="$style.headerBtns">
+        <button :class="$style.listsAdd" :aria-label="$t('playlists__cloud_new')" @click="isShowNewCloudList = true">
+          <svg version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" height="70%" viewBox="0 0 24 24" space="preserve">
+            <use xlink:href="#icon-list-add" />
+          </svg>
+        </button>
+      </div>
+    </div>
+    <ul class="scroll" :class="$style.listsContent">
+      <li v-if="cloudLists.length === 0 && !isShowNewCloudList" :class="$style.cloudTip">
+        <span v-text="cloudListsLabel" />
+      </li>
+      <li
+        v-for="item in cloudLists"
+        :key="`cloud__${item.dirId}`" class="cloud-list"
+        :class="[$style.listsItem, {[$style.active]: String(item.dirId) == cloudDirId}, {[$style.clicked]: rightClickCloudItem?.dirId === item.dirId}]"
+        :aria-label="item.name" @contextmenu="handleCloudItemRigthClick($event, item)" @click="handleCloudListToggle(item)"
+      >
+        <span :class="$style.listsLabel">
+          <transition name="list-active">
+            <svg-icon v-if="String(item.dirId) == cloudDirId" name="angle-right-solid" :class="$style.activeIcon" />
+          </transition>
+          {{ item.name }}
+        </span>
+      </li>
+      <transition enter-active-class="animated-fast slideInLeft" leave-active-class="animated-fast fadeOut" @after-leave="isNewCloudListLeave = false" @after-enter="$refs.dom_cloudNewInput.focus()">
+        <li v-if="isShowNewCloudList" :class="[$style.listsItem, $style.listsNew, {[$style.newLeave]: isNewCloudListLeave}]">
+          <base-input
+            ref="dom_cloudNewInput" :class="$style.listsInput" type="text" :placeholder="$t('playlists__cloud_new_input')"
+            @keyup.enter="handleCreateCloudList" @blur="handleCreateCloudList"
+          />
+        </li>
+      </transition>
+    </ul>
+    <base-menu v-model="isShowCloudMenu" :menus="cloudMenus" :xy="cloudMenuLocation" item-name="name" @menu-click="handleCloudMenuClick" />
     <base-menu v-model="isShowMenu" :menus="menus" :xy="menuLocation" item-name="name" @menu-click="handleMenuClick" />
     <DuplicateMusicModal v-model:visible="isShowDuplicateMusicModal" :list-info="duplicateListInfo" />
     <ListSortModal v-model:visible="isShowListSortModal" :list-info="sortListInfo" />
@@ -86,11 +98,13 @@ import DuplicateMusicModal from './components/DuplicateMusicModal.vue'
 import ListSortModal from './components/ListSortModal.vue'
 import ListUpdateModal from './components/ListUpdateModal.vue'
 
-import { defaultList, loveList, userLists, fetchingListStatus } from '@renderer/store/list/state'
+import { defaultList, userLists, fetchingListStatus } from '@renderer/store/list/state'
 import { removeUserList } from '@renderer/store/list/action'
+import { createdLists, labels as userLabels } from '@renderer/store/user/state'
+import { createCloudList, initUserCenter, removeCloudList } from '@renderer/store/user/action'
 
-import { ref, watch } from '@common/utils/vueTools'
-import { useRouter } from '@common/utils/vueRouter'
+import { computed, nextTick, ref, watch } from '@common/utils/vueTools'
+import { useRoute, useRouter } from '@common/utils/vueRouter'
 import { LIST_IDS } from '@common/constants'
 
 import { dialog } from '@renderer/plugins/Dialog'
@@ -110,7 +124,7 @@ import useListScroll from './useListScroll'
 import useDuplicate from './useDuplicate'
 
 export default {
-  name: 'MyLists',
+  name: 'PlaylistRail',
   components: {
     DuplicateMusicModal,
     ListSortModal,
@@ -121,14 +135,79 @@ export default {
       type: String,
       required: true,
     },
+    cloudDirId: {
+      type: String,
+      default: '',
+    },
   },
   emits: ['show-menu'],
   setup(props, { emit }) {
     const router = useRouter()
+    const route = useRoute()
     const t = useI18n()
 
     const dom_lists_list = ref(null)
     const rightClickItemIndex = ref(-10)
+
+    // ── QQ 云端自建歌单（工单 06）───────────────────────────────────────────
+    // 只读列表 + 建/删两个写操作；「我喜欢」（dirId=201）在「我的收藏」页里，不在这里重复
+    void initUserCenter()
+    const I_LIKE_DIR_ID = '201'
+    const cloudLists = computed(() => createdLists.filter(item => item.dirId !== I_LIKE_DIR_ID))
+    const cloudListsLabel = computed(() => userLabels.createdLists || t('no_item'))
+    const isShowNewCloudList = ref(false)
+    const isNewCloudListLeave = ref(false)
+    const rightClickCloudItem = ref(null)
+
+    const handleCloudListToggle = (item) => {
+      void router.replace({ path: route.path, query: { cloud: String(item.dirId) } })
+    }
+    const handleCreateCloudList = async(event) => {
+      const target = event.target
+      if (target.readOnly) return
+      const name = target.value.trim()
+      target.readOnly = true
+      if (!name) {
+        isShowNewCloudList.value = false
+        return
+      }
+      try {
+        await createCloudList(name)
+      } catch (err) {
+        void dialog({ message: err?.message || String(err), type: 'error' })
+      }
+      isNewCloudListLeave.value = true
+      void nextTick(() => { isShowNewCloudList.value = false })
+    }
+    const cloudMenus = [{ name: t('playlists__cloud_remove'), action: 'remove' }]
+    const isShowCloudMenu = ref(false)
+    const cloudMenuLocation = ref({ x: 0, y: 0 })
+    const handleCloudItemRigthClick = (event, item) => {
+      event.preventDefault()
+      rightClickCloudItem.value = item
+      cloudMenuLocation.value = { x: event.clientX, y: event.clientY }
+      isShowCloudMenu.value = true
+    }
+    const handleCloudMenuClick = (action) => {
+      const item = rightClickCloudItem.value
+      rightClickCloudItem.value = null
+      if (action !== 'remove' || item == null) return
+      void dialog.confirm({
+        message: t('playlists__cloud_remove_tip', { name: item.name }),
+        confirmButtonText: t('lists__remove_tip_button'),
+      }).then(async(isRemove) => {
+        if (!isRemove) return
+        try {
+          await removeCloudList(item.dirId)
+          // 删掉的正是当前选中的那个 → 回到本地第一组（否则右侧会停在已不存在的歌单上）
+          if (String(item.dirId) === props.cloudDirId) {
+            void router.replace({ path: route.path, query: { id: userLists[0]?.id ?? LIST_IDS.DEFAULT } })
+          }
+        } catch (err) {
+          void dialog({ message: err?.message || String(err), type: 'error' })
+        }
+      })
+    }
 
     const { handleImportList, handleExportList } = useShare()
     const { isShowListUpdateModal, handleUpdateSourceList } = useListUpdate()
@@ -190,10 +269,11 @@ export default {
 
     const handleListToggle = (id) => {
       if (id == props.listId) return
-      router.replace({
-        path: '/list',
+      // 选中本地列表时清掉 cloud：两个参数只该有一个生效
+      void router.replace({
+        path: route.path,
         query: { id },
-      }).catch(_ => _)
+      })
     }
 
     const handleMenuClick = (action) => {
@@ -207,26 +287,35 @@ export default {
 
 
     watch(() => props.listId, (listId) => {
-      saveListPrevSelectId(listId)
+      if (listId) saveListPrevSelectId(listId)
     })
 
     watch(() => userLists, (lists) => {
       if (lists.some(l => l.id == props.listId)) return
       void router.replace({
-        path: '/list',
+        path: route.path,
         query: {
-          id: defaultList.id,
+          id: lists[0]?.id ?? defaultList.id,
         },
       })
     })
 
     return {
       rightClickItemIndex,
-      defaultList,
-      loveList,
       userLists,
       fetchingListStatus,
       dom_lists_list,
+      cloudLists,
+      cloudListsLabel,
+      isShowNewCloudList,
+      isNewCloudListLeave,
+      cloudMenus,
+      isShowCloudMenu,
+      cloudMenuLocation,
+      handleCloudListToggle,
+      handleCreateCloudList,
+      handleCloudItemRigthClick,
+      handleCloudMenuClick,
       isShowListUpdateModal,
       isShowListSortModal,
       sortListInfo,
@@ -258,6 +347,16 @@ export default {
   width: 16%;
   display: flex;
   flex-flow: column nowrap;
+}
+// 云端那一组：列表自身可滚，两组各占一半高度，谁的内容多谁自己滚
+.listsContent:last-of-type {
+  flex: auto;
+}
+.cloudTip {
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--color-font-label);
+  .mixin-ellipsis-2();
 }
 .listHeader {
   position: relative;

@@ -110,6 +110,33 @@ export const favLists = shallowReactive<PlaylistCard[]>([])
 export const favAlbums = shallowReactive<PlaylistCard[]>([])
 export const followSingers = shallowReactive<FollowSinger[]>([])
 
+/** 每页条数：QQ 这几个接口都按 offset/size 分页。 */
+export const PAGE_SIZE = 50
+
+/** 云端歌单取歌的每页条数（`CgiGetDiss` 的 `song_num`）。 */
+export const CLOUD_LIST_PAGE_SIZE = 30
+
+/**
+ * 「我的歌单」页里选中的**云端自建歌单**的歌曲（工单 06）。
+ * 与 `favSongs`（我喜欢，dirId=201）分开存：两者来源不同、翻页参数也不同。
+ */
+export const cloudListSongs = reactive<{
+  list: LX.Music.MusicInfoOnline[]
+  total: number
+  page: number
+  limit: number
+  noItemLabel: string
+  /** 当前这份数据属于哪个歌单（切换时用来丢弃迟到的响应） */
+  dirId: string
+}>({
+  list: [],
+  total: 0,
+  page: 1,
+  limit: CLOUD_LIST_PAGE_SIZE,
+  noItemLabel: '',
+  dirId: '',
+})
+
 /** 各区块的加载/失败文案（§2.11 的三段式：loading → 数据 → 失败文案）。 */
 export const labels = reactive<Record<'profile' | 'musicGene' | 'favSongs' | 'createdLists' | 'favLists' | 'favAlbums' | 'followSingers', string>>({
   profile: '',
@@ -130,6 +157,3 @@ export const pagers = reactive({
   favAlbums: { page: 1, hasMore: false },
   followSingers: { page: 1, hasMore: false },
 })
-
-/** 每页条数：QQ 这几个接口都按 offset/size 分页。 */
-export const PAGE_SIZE = 50

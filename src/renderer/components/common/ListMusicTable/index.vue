@@ -1,9 +1,9 @@
 <template>
   <div :class="$style.list">
-    <!-- 「我的收藏」有两个来源：本地收藏（原有列表）+ QQ 音乐的「我喜欢」
-         （云端 dirId=201，进入页面即自动加载）。切换只动显示，本地列表留在 DOM 里。 -->
-    <base-tab v-if="isLoveList" v-model="loveSource" :list="loveSourceTabs" :class="$style.sourceTabs" />
-    <div v-show="!isShowCloudFav" class="thead">
+    <!-- 本地列表的歌曲表（试听列表 / 我的收藏 / 本地自建列表共用同一份实现）。
+         「我的收藏」的两个来源（本地收藏 / QQ 音乐·我喜欢）不在这里——那是
+         「我的收藏」页的展示逻辑，见 views/Favorites/components/SongsPanel.vue。 -->
+    <div class="thead">
       <table>
         <thead>
           <tr v-if="actionButtonsVisible">
@@ -24,7 +24,7 @@
         </thead>
       </table>
     </div>
-    <div v-show="list.length && !isShowCloudFav" ref="dom_listContent" :class="$style.content">
+    <div v-show="list.length" ref="dom_listContent" :class="$style.content">
       <base-virtualized-list
         v-if="actionButtonsVisible" ref="listRef" v-slot="{ item, index }" :list="list" key-name="id"
         :item-height="listItemHeight" container-class="scroll" content-class="list"
@@ -86,23 +86,8 @@
         </div>
       </base-virtualized-list>
     </div>
-    <div v-show="!list.length && !isShowCloudFav" :class="$style.noItem">
+    <div v-show="!list.length" :class="$style.noItem">
       <p v-text="$t('no_item')" />
-    </div>
-    <!-- 这里必须用 v-if 而不是 v-show：base-virtualized-list 在 onMounted 的 rAF 里
-         按容器 clientHeight 算渲染区间，若挂载时还是 display:none 就只会渲染一行，
-         之后要等滚动才会纠正。 -->
-    <div v-if="isShowCloudFav" :class="$style.cloudPane">
-      <qq-fav-list
-        :list="favSongs.list"
-        :no-item="cloudFavNoItem"
-        :page="favSongs.page"
-        :limit="favSongs.total || favSongs.limit"
-        :total="favSongs.total"
-        @play-list="handlePlayFav"
-        @load-more="handleLoadMoreFav"
-        @unlove="handleUnloveFav"
-      />
     </div>
     <common-list-add-modal
       v-model:show="isShowListAdd" :is-move="isMove" :from-list-id="listId"
@@ -125,7 +110,6 @@ import { clipboardWriteText } from '@common/utils/electron'
 import { assertApiSupport } from '@renderer/store/utils'
 import SearchList from './components/SearchList.vue'
 import MusicSortModal from './components/MusicSortModal.vue'
-import QqFavList from './components/QqFavList.vue'
 import useListInfo from './useListInfo'
 import useList from './useList'
 import useMenu from './useMenu'
@@ -137,22 +121,12 @@ import useMusicActions from './useMusicActions'
 import useSearch from './useSearch'
 import useListScroll from './useListScroll'
 import { appSetting } from '@renderer/store/setting'
-import { computed, ref, watch } from '@common/utils/vueTools'
-import { LIST_IDS } from '@common/constants'
-import { useI18n } from '@root/lang'
-import { favSongs, labels as userLabels } from '@renderer/store/user/state'
-import { loadFavSongs, loadMoreFavSongs, removeFavSongFromCloud } from '@renderer/store/user/action'
-import { dialog } from '@renderer/plugins/Dialog'
-// 在线歌曲列表的播放逻辑（加入试听列表并从该位置播放）复用 OnlineList 的同一套，
-// 不另写一份——注意与本目录的 usePlay（本地列表播放）重名，所以起别名
-import useOnlinePlay from '@renderer/components/material/OnlineList/usePlay'
 
 export default {
-  name: 'MusicList',
+  name: 'ListMusicTable',
   components: {
     SearchList,
     MusicSortModal,
-    QqFavList,
   },
   props: {
     listId: {
@@ -163,63 +137,6 @@ export default {
   emits: ['show-menu'],
   setup(props, { emit }) {
     const actionButtonsVisible = appSetting['list.actionButtonsVisible']
-
-    // ── 「我的收藏」的双来源切换（本地收藏 / QQ 音乐的我喜欢）─────────────────
-    // 只有「我的收藏」有第二个来源；其它列表（试听列表、自建歌单…）不受影响。
-    const t = useI18n()
-    const loveSource = ref('local')
-    const isLoveList = computed(() => props.listId == LIST_IDS.LOVE)
-    const isShowCloudFav = computed(() => isLoveList.value && loveSource.value == 'cloud')
-    const loveSourceTabs = computed(() => ([
-      { id: 'local', label: t('list__source_local') },
-      { id: 'cloud', label: t('list__source_qq_fav') },
-    ]))
-    // 未登录时 loadFavSongs 会落「请先登录 QQ 音乐」文案（它认的就是凭证层抛的
-    // `QQ 音乐未登录`），所以这里不自己判登录态——那个状态目前只在「设置」页初始化过。
-    // ⚠️ `no-item` 在 material-online-list 里同时是**列表容器的显隐开关**（`v-show="!noItem"`），
-    // 所以「一切正常」时必须给空串；恒给非空值会让列表永远被藏起来（表现为一直显示空列表文案）。
-    const cloudFavNoItem = computed(() => userLabels.favSongs || (favSongs.list.length ? '' : t('no_item')))
-
-    // 「在收藏页面自动加载 QQ 的我喜欢」：进页面就拉一次（重复进页面就重拉，
-    // loadFavSongs 不受 initUserCenter 的 isInited 守卫约束）
-    watch(isLoveList, (isLove) => {
-      if (!isLove) return
-      void loadFavSongs()
-    }, {
-      immediate: true,
-    })
-
-    const selectedCloudList = ref([])
-    const { handlePlayMusic: handlePlayCloudMusic } = useOnlinePlay({
-      selectedList: selectedCloudList,
-      props: { list: favSongs.list },
-      removeAllSelect: () => { selectedCloudList.value = [] },
-      emit: () => {},
-    })
-    const handlePlayFav = (index) => {
-      void handlePlayCloudMusic(index, true)
-    }
-    const handleLoadMoreFav = () => {
-      void loadMoreFavSongs()
-    }
-    // 取消喜欢：行内「取消喜欢」按钮 → 二次确认 → 写 QQ（失败给出明确提示，不静默）
-    const handleUnloveFav = async(index) => {
-      const musicInfo = favSongs.list[index]
-      if (musicInfo == null) return
-      const confirm = await dialog.confirm({
-        message: t('list_unlove__tip', { name: musicInfo.name }),
-        confirmButtonText: t('list__unlove'),
-      })
-      if (!confirm) return
-      try {
-        await removeFavSongFromCloud(musicInfo)
-      } catch (err) {
-        void dialog({
-          message: err?.message || String(err),
-          type: 'error',
-        })
-      }
-    }
 
     let scrollIndex = null
     let isAnimation = false
@@ -425,16 +342,6 @@ export default {
       handleRestoreScroll,
 
       actionButtonsVisible,
-
-      loveSource,
-      isLoveList,
-      isShowCloudFav,
-      loveSourceTabs,
-      cloudFavNoItem,
-      favSongs,
-      handlePlayFav,
-      handleUnloveFav,
-      handleLoadMoreFav,
     }
   },
 }
@@ -509,18 +416,5 @@ export default {
   }
 }
 
-// 「我的收藏」的来源切换（base-tab 自带下划线指示器）
-.sourceTabs {
-  flex: none;
-}
-// QQ 我喜欢那一栏。它是 .list 的兄弟节点，用 flex 撑满剩余高度；
-// 里面 material-online-list 是绝对定位自滚动，所以这一层必须给出确定高度
-// （同 views/Leaderboard/MusicList 的 .container、views/userCenter 的 .songList）
-.cloudPane {
-  flex: auto;
-  min-height: 0;
-  display: flex;
-  flex-flow: column nowrap;
-}
-
+// 「我的收藏」的来源切换（base-tab 自带下划线指示器）现在在 views/Favorites/components/SongsPanel.vue
 </style>

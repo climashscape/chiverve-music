@@ -36,10 +36,13 @@ export default ({ props, listRef, list, handleRestoreScroll }) => {
   onMounted(() => {
     handleRestoreScroll(route.query.scrollIndex, false)
     if (route.query.scrollIndex != null) {
+      // 消费掉 scrollIndex（保留其它 query：宿主页可能带 tab / list 等参数）。
+      // 路径用当前路由，不写死——这个组件现在被「我的收藏」与「我的歌单」两个页面共用。
       router.replace({
-        path: '/list',
+        path: route.path,
         query: {
-          id: props.listId,
+          ...route.query,
+          scrollIndex: undefined,
           updated: true,
         },
       })

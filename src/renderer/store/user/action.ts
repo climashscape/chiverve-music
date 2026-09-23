@@ -2,7 +2,8 @@ import { markRawList } from '@common/utils/vueTools'
 import { deduplicationList, toNewMusicInfo } from '@renderer/utils'
 import music from '@renderer/utils/musicSdk'
 import {
-  createdLists, favAlbums, favLists, favSongs, followSingers, isInited, isLoading, labels, musicGene, pagers, PAGE_SIZE, profile, vip,
+  cloudListSongs, createdLists, favAlbums, favLists, favSongs, followSingers, isInited, isLoading, labels, musicGene, pagers,
+  CLOUD_LIST_PAGE_SIZE, PAGE_SIZE, profile, vip, type PlaylistCard,
 } from './state'
 
 /**
@@ -200,4 +201,86 @@ export const loadMoreFollowSingers = async(): Promise<void> => {
   const res = await user().getFollowSingers(next, PAGE_SIZE)
   appendList(followSingers, res.list as any)
   pagers.followSingers = { page: next, hasMore: res.hasMore === true }
+}
+
+// ── 云端自建歌单的读与写（工单 06）─────────────────────────────────────────
+// 读走 `songList.getListDetailByCgi`（disstid = tid、dirid = 0，dir 型歌单也能读，
+// 见 `tx/songList.js` 的注释）；写走 `createList / removeList / addSongToList / removeSongFromList`。
+// 写操作**失败必须抛给调用方**（用户主动发起的动作，静默失败会让人以为已经生效）。
+
+/** 重新拉云端自建歌单列表（建/删歌单之后刷新）。 */
+export const refreshCreatedLists = async(): Promise<void> => {
+  const res = await user().getCreatedSonglist()
+  setList(createdLists, res.list as any)
+}
+
+/**
+ * 读某个云端歌单的歌曲。
+ * @param id 歌单的 tid（`createdLists` 里卡片的 `id` 就是它）
+ * @param more true = 追加下一页
+ */
+export const loadCloudListSongs = async(id: string, page = 1, more = false): Promise<void> => {
+  cloudListSongs.noItemLabel = more ? cloudListSongs.noItemLabel : t('list__loading')
+  if (!more) cloudListSongs.dirId = id
+  try {
+    const res = await music.tx.songList.getListDetailByCgi(id, page, CLOUD_LIST_PAGE_SIZE)
+    // 迟到的响应丢掉：期间用户可能已经切到别的歌单
+    if (cloudListSongs.dirId !== id) return
+    const list = toOnlineList(res.list ?? [])
+    if (more) cloudListSongs.list.push(...list)
+    else cloudListSongs.list.splice(0, cloudListSongs.list.length, ...list)
+    cloudListSongs.total = Number(res.total ?? cloudListSongs.list.length)
+    cloudListSongs.page = page
+    cloudListSongs.noItemLabel = cloudListSongs.list.length ? '' : t('no_item')
+  } catch (err: any) {
+    if (cloudListSongs.dirId !== id) return
+    console.log('[user] cloudListSongs', err)
+    if (!more) cloudListSongs.list.splice(0, cloudListSongs.list.length)
+    cloudListSongs.total = more ? cloudListSongs.total : 0
+    cloudListSongs.noItemLabel = err?.message === 'QQ 音乐未登录'
+      ? t('user_center__need_login')
+      : (more ? t('list__load_failed') : (err?.message || t('list__load_failed')))
+  }
+}
+
+/** 新建云端歌单（返回服务端给的 dirId/tid）。 */
+export const createCloudList = async(name: string): Promise<{ dirId: number, tid: number }> => {
+  const res = await music.tx.songList.createList(name)
+  await refreshCreatedLists()
+  return res
+}
+
+/** 删除云端歌单。 */
+export const removeCloudList = async(dirId: number): Promise<void> => {
+  const ok = await music.tx.songList.removeList(dirId)
+  if (!ok) throw new Error(t('playlists__cloud_remove_failed'))
+  // 当前正在看这个歌单的话，把歌曲也清掉（避免停在已删歌单的内容上）
+  if (String(dirId) === cloudListSongs.dirId) {
+    cloudListSongs.dirId = ''
+    cloudListSongs.list.splice(0, cloudListSongs.list.length)
+    cloudListSongs.total = 0
+  }
+  await refreshCreatedLists()
+}
+
+/** 新式歌曲对象 → 写接口要的 `{ songId, songType }`（songId 在 `meta.id`，见 tools.ts 的映射）。 */
+const toWriteSongs = (list: LX.Music.MusicInfoOnline[]) => list.map(m => {
+  const songId = Number(m?.meta?.id ?? 0)
+  if (!songId) throw new Error(t('list_add__cloud_no_song_id'))
+  return { songId, songType: Number(m.meta.songType ?? 0) }
+})
+
+/** 往云端歌单加歌（多首）。`card` 是 `createdLists` 里的卡片（dirId 写、id=tid 写）。 */
+export const addSongsToCloudList = async(card: PlaylistCard, songs: LX.Music.MusicInfoOnline[]): Promise<void> => {
+  const ok = await music.tx.songList.addSongToList(Number(card.dirId), toWriteSongs(songs), Number(card.id))
+  if (!ok) throw new Error(t('playlists__cloud_add_failed'))
+  // 正在看这个歌单就刷新一下，让新歌立刻出现
+  if (String(card.dirId) === cloudListSongs.dirId) await loadCloudListSongs(String(card.id), 1, false)
+}
+
+/** 从云端歌单删歌（多首）。 */
+export const removeSongsFromCloudList = async(card: PlaylistCard, songs: LX.Music.MusicInfoOnline[]): Promise<void> => {
+  const ok = await music.tx.songList.removeSongFromList(Number(card.dirId), toWriteSongs(songs), Number(card.id))
+  if (!ok) throw new Error(t('playlists__cloud_remove_song_failed'))
+  if (String(card.dirId) === cloudListSongs.dirId) await loadCloudListSongs(String(card.id), 1, false)
 }

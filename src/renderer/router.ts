@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-var-requires */
 // import Vue from 'vue'
 import { createRouter, createWebHashHistory } from 'vue-router'
+import { LIST_IDS } from '@common/constants'
 
 
 const router = createRouter({
@@ -85,11 +86,32 @@ const router = createRouter({
       },
     },
     {
-      path: '/list',
-      name: 'List',
-      component: require('./views/List/index.vue').default,
+      path: '/favorites',
+      name: 'Favorites',
+      component: require('./views/Favorites/index.vue').default,
       meta: {
-        name: 'List',
+        name: 'Favorites',
+      },
+    },
+    {
+      path: '/playlists',
+      name: 'Playlists',
+      component: require('./views/Playlists/index.vue').default,
+      meta: {
+        name: 'Playlists',
+      },
+    },
+    // 旧「我的列表」页退场（工单 07）：歌曲类列表归「我的收藏」，自建列表归「我的歌单」。
+    // 播放栏点进度区、旧书签都还在用 `/list?id=…`，所以按 id 分派而不是留死链。
+    {
+      path: '/list',
+      redirect: to => {
+        const id = to.query.id as string | undefined
+        if (id === LIST_IDS.DEFAULT || id === LIST_IDS.LOVE || id == null) {
+          return { path: '/favorites', query: { ...to.query, id: undefined, tab: 'songs', list: id ?? LIST_IDS.DEFAULT } }
+        }
+        if (id === LIST_IDS.DOWNLOAD) return { path: '/download', query: { ...to.query, id: undefined } }
+        return { path: '/playlists', query: { ...to.query } }
       },
     },
     {

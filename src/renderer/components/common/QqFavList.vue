@@ -23,7 +23,7 @@
 
 <script setup>
 // QQ 音乐「我喜欢」（云端 dirId=201）在「我的收藏」页里的展示。
-// 纯展示组件：取数与播放都留在 views/List/MusicList/index.vue（与 store/user 的分工一致）。
+// 纯展示组件：取数与播放都留在 views/Favorites/components/SongsPanel.vue（与 store/user 的分工一致）。
 defineProps({
   list: {
     type: Array,

@@ -1,0 +1,66 @@
+<template>
+  <div :class="$style.container">
+    <!-- 卡片网格组件内部是「绝对定位 + 自滚动」，父级必须给出确定高度 -->
+    <div :class="$style.grid">
+      <song-card-grid :list-info="listInfo" />
+    </div>
+    <div v-if="pagers.favLists.hasMore" :class="$style.more">
+      <base-btn min @click="loadMoreFavLists">{{ $t('user_center__load_more') }}</base-btn>
+    </div>
+  </div>
+</template>
+
+<script lang="ts">
+import { computed } from '@common/utils/vueTools'
+import { favLists, labels, pagers } from '@renderer/store/user/state'
+import { initUserCenter, loadMoreFavLists } from '@renderer/store/user/action'
+
+/** 我的收藏 → 歌单：QQ 账号收藏的**他人歌单**（与本地自建列表是两回事，见 CONTEXT 的「我的歌单」条）。 */
+export default {
+  name: 'FavoritesListsPanel',
+  setup() {
+    void initUserCenter()
+
+    // 卡片网格组件要 ListInfo 形状（它自带「点卡片进歌单详情」的跳转）；一次拉完，limit 取长度让分页器不出现
+    const listInfo = computed(() => ({
+      list: favLists,
+      total: favLists.length,
+      page: 1,
+      limit: favLists.length || 1,
+      key: null,
+      noItemLabel: labels.favLists || (favLists.length ? '' : window.i18n.t('no_item' as any)),
+      tagId: '',
+      sortId: '',
+      source: 'tx' as LX.OnlineSource,
+    }))
+
+    return {
+      pagers,
+      listInfo,
+      loadMoreFavLists,
+    }
+  },
+}
+</script>
+
+<style lang="less" module>
+@import '@renderer/assets/styles/layout.less';
+
+.container {
+  height: 100%;
+  display: flex;
+  flex-flow: column nowrap;
+}
+
+.grid {
+  flex: auto;
+  min-height: 0;
+  position: relative;
+}
+
+.more {
+  flex: none;
+  padding: 10px 0;
+  text-align: center;
+}
+</style>

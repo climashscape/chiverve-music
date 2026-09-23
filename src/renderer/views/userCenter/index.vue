@@ -68,82 +68,27 @@
       </div>
     </section>
 
-    <!-- 我的歌单（自建，不含"我喜欢"——它已在上面的列表里） -->
-    <section v-if="createdCards.length || labels.createdLists" :class="$style.section">
-      <h3 :class="$style.title">{{ $t('user_center__created_lists') }}</h3>
-      <div :class="$style.grid">
-        <song-card-grid :list-info="createdListInfo" />
-      </div>
-    </section>
-
-    <!-- 收藏的歌单 -->
-    <section v-if="favLists.length || labels.favLists" :class="$style.section">
-      <h3 :class="$style.title">{{ $t('user_center__fav_lists') }}</h3>
-      <div :class="$style.grid">
-        <song-card-grid :list-info="favListInfo" />
-      </div>
-      <div v-if="pagers.favLists.hasMore" :class="$style.more">
-        <base-btn min @click="loadMoreFavLists">{{ $t('user_center__load_more') }}</base-btn>
-      </div>
-    </section>
-
-    <!-- 收藏的专辑 -->
-    <section v-if="favAlbums.length || labels.favAlbums" :class="$style.section">
-      <h3 :class="$style.title">{{ $t('user_center__fav_albums') }}</h3>
-      <ul :class="$style.cards">
-        <li v-for="item in favAlbums" :key="item.id" :class="$style.card" @click="toAlbum(item)">
-          <img :class="$style.cardImg" loading="lazy" decoding="async" :src="item.img" alt="">
-          <h4 :class="$style.cardName">{{ item.name }}</h4>
-          <p :class="$style.cardMeta">{{ item.author }}</p>
-        </li>
-      </ul>
-      <div v-if="pagers.favAlbums.hasMore" :class="$style.more">
-        <base-btn min @click="loadMoreFavAlbums">{{ $t('user_center__load_more') }}</base-btn>
-      </div>
-    </section>
-
-    <!-- 关注的歌手 -->
-    <section v-if="followSingers.length || labels.followSingers" :class="$style.section">
-      <h3 :class="$style.title">{{ $t('user_center__follow_singers') }}</h3>
-      <ul :class="$style.singers">
-        <li v-for="item in followSingers" :key="item.id" :class="$style.singer" @click="toSinger(item)">
-          <img :class="$style.singerImg" loading="lazy" decoding="async" :src="item.img" alt="">
-          <div :class="$style.singerInfo">
-            <h4 :class="$style.cardName">{{ item.name }}</h4>
-            <p :class="$style.cardMeta">{{ item.desc }}</p>
-          </div>
-        </li>
-      </ul>
-      <div v-if="pagers.followSingers.hasMore" :class="$style.more">
-        <base-btn min @click="loadMoreFollowSingers">{{ $t('user_center__load_more') }}</base-btn>
-      </div>
-    </section>
+      <!--
+        「我的歌单」「收藏的歌单」「收藏的专辑」「关注的歌手」四个板块已迁出（工单 05/06）：
+        收藏类归「我的收藏」页（/favorites），歌单归「我的歌单」页（/playlists）。
+        留在这里就等于同一个东西散落两处——那正是本次 IA 重组要解决的问题。
+      -->
     </div>
   </div>
 </template>
 
 <script>
-import { computed, ref } from '@common/utils/vueTools'
-import { useRouter } from '@common/utils/vueRouter'
+import { ref } from '@common/utils/vueTools'
 import usePlay from '@renderer/components/material/OnlineList/usePlay'
-import SongCardGrid from '@renderer/components/common/SongCardGrid.vue'
 import {
-  createdLists, favAlbums, favLists, favSongs, followSingers, isLoading, labels, musicGene, pagers, profile, vip,
+  favSongs, isLoading, labels, musicGene, profile, vip,
 } from '@renderer/store/user/state'
 import {
-  initUserCenter, loadMoreFavAlbums, loadMoreFavLists, loadMoreFavSongs, loadMoreFollowSingers,
+  initUserCenter, loadMoreFavSongs,
 } from '@renderer/store/user/action'
 
-// QQ 的「我喜欢」在自建歌单列表里是一条 dirId=201 的目录，它已经由上面的歌曲列表承担，
-// 这里从卡片网格里剔除，避免同一个东西出现两次（且它的取歌端点是 dirid 那套，点进歌单详情页取不到）
-const I_LIKE_DIR_ID = '201'
-
 export default {
-  components: {
-    SongCardGrid,
-  },
   setup() {
-    const router = useRouter()
     void initUserCenter()
 
     // 播放复用「在线列表」组件的同一套逻辑（加入默认列表并从该位置播放），不另写一份
@@ -155,27 +100,8 @@ export default {
       emit: () => {},
     })
 
-    const createdCards = computed(() => createdLists.filter(item => item.dirId !== I_LIKE_DIR_ID))
-    // 卡片网格组件要求 ListInfo 形状（它自带分页与"打开歌单详情"的跳转）；
-    // 这里一次拉完，limit 取长度让分页器不出现
-    const toListInfo = (cards, noItemLabel) => ({
-      list: cards,
-      total: cards.length,
-      page: 1,
-      limit: cards.length || 1,
-      key: null,
-      noItemLabel,
-      tagId: '',
-      sortId: '',
-      source: 'tx',
-    })
-    const createdListInfo = computed(() => toListInfo(createdCards.value, labels.createdLists))
-    const favListInfo = computed(() => toListInfo(favLists, labels.favLists))
-
     const handleRefresh = () => { void initUserCenter(true) }
     const handlePlayFav = (index) => { void handlePlayMusic(index, true) }
-    const toAlbum = (item) => { void router.push({ path: '/album', query: { mid: item.id } }) }
-    const toSinger = (item) => { void router.push({ path: '/singer', query: { mid: item.id } }) }
 
     // 「无数据时不出现空白块」：有歌手或曲风才算有基因（接口未登录时会抛错，那时只留 labels 文案）
     const hasGene = computed(() => !!(musicGene.singers.length || musicGene.genres.length || musicGene.mainDescription))
@@ -188,21 +114,9 @@ export default {
       musicGene,
       hasGene,
       favSongs,
-      favLists,
-      favAlbums,
-      followSingers,
-      pagers,
-      createdCards,
-      createdListInfo,
-      favListInfo,
       handleRefresh,
       handlePlayFav,
-      toAlbum,
-      toSinger,
       loadMoreFavSongs,
-      loadMoreFavLists,
-      loadMoreFavAlbums,
-      loadMoreFollowSingers,
     }
   },
 }
