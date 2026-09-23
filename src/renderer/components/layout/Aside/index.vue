@@ -1,7 +1,8 @@
 <template>
   <div :class="[$style.aside, { [$style.fullscreen]: isFullscreen }]">
     <ControlBtns v-if="appSetting['common.controlBtnPosition'] == 'left'" />
-    <div v-else :class="$style.logo">C M</div>
+    <!-- 品牌字标（用户可见显示一律 Ch'iverve，2026-09-23 用户拍板）：窄栏里用 10px 才放得下 -->
+    <div v-else :class="$style.logo">Ch'iverve</div>
     <NavBar />
   </div>
 </template>
@@ -41,7 +42,7 @@ import NavBar from './NavBar.vue'
 
 .logo {
   box-sizing: border-box;
-  padding: 0 13%;
+  padding: 0 4px;
   height: 50px;
   color: var(--color-nav-font);
   opacity: .8;
@@ -49,6 +50,10 @@ import NavBar from './NavBar.vue'
   text-align: center;
   line-height: 50px;
   font-weight: bold;
+  // 左栏只有 @width-app-left（6.6%），整套「Ch'iverve」要小字号 + 不换行
+  font-size: 10px;
+  white-space: nowrap;
+  overflow: hidden;
   // -webkit-app-region: no-drag;
 }
 

@@ -327,7 +327,7 @@ const setLyric = (lyricLineText?: string) => {
   }
 }
 
-const defaultTip = 'Chiverve Music'
+const defaultTip = 'Ch\'iverve'
 const setTip = () => {
   if (!tray) return
 
