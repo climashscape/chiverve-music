@@ -12,9 +12,10 @@ const SONG_WRITE_MODULE = 'music.musicasset.PlaylistDetailWrite'
 /**
  * 写接口要带的「我喜欢」tid——**拿不到就回 0**（= 旧行为）。
  *
- * 为什么要带：自建歌单那次受控真机往返（M6）传的是目标歌单自己的 tid；201 这条路径
- * 此前一律传 0（参考实现 `like_song` 也传 0，且有 CI 覆盖，所以 tid 是否必需没定论）。
- * 这里只做「有真实值就用真实值」；解析失败**绝不能挡住写**，所以吞掉异常回落 0。
+ * 真机 A/B（2026-09-24）已证 **tid 不是成败变量**：给 0 时服务端会自己解析成真实 tid
+ * （3802852742）并回显，`code` 一样是 0。留着它是因为它让「写哪个目录」显式化，也是唯一有
+ * 完整记录的那次成功形状（M6 自建歌单往返传的是目标歌单自己的 tid）。解析失败**绝不能挡住写**，
+ * 所以吞掉异常回落 0。⚠️ 别把这里的失败当成写失败——写失败的真因（comm 档案）在 `_writeSongList`。
  */
 const favDirTid = async() => {
   try {
@@ -29,27 +30,34 @@ const favDirTid = async() => {
  * 判读写歌单接口的响应节点（**纯函数**，单测直接喂响应）。
  *
  * 响应是 `req_1` 节点，实测形状 `{ code: 0, data: { retCode: 0, result: {...} } }`
- * （M6 的四个写操作记录见 `docs/agents/qq-music-native.md` §5.3）。判据两条，改之前先看：
+ * （M6 的四个写操作记录见 `docs/agents/qq-music-native.md` §5.3）。判据先看这两条：
  *
- *   1. **只有 `retCode === 0`（数值或数值串）算成功**。旧实现是
- *      `retCode === 0 || retCode === 80092`——80092 的语义是猜的（注释写「歌单里没有这首歌」），
- *      而参考实现 `modules/songlist.py:152-155,186-189` 对 80092 **两个方向都返回 False**，
- *      且它的两个 docstring 明确说「已在歌单里」/「不在歌单里」这两种幂等情况走的是
- *      retCode 0 的成功分支。→ 80092 一律按失败处理：把失败当成功就是**假成功**
- *      （界面不报错、还就地改了收藏态，QQ 侧却没有），正是本票「点了没反应也没报错」的现成解释。
- *      本轮**不给任何方向留例外**：宁可让用户看到一句带码的失败，也不静默替服务端宣布成功。
+ *   1. **模块级 `code` 与 `data.retCode` 都是 0 才算成功**（数值或数值串都认）。
+ *      两个都是「判据」不是「诊断」，缺一个就会出**假成功**：
+ *      - 只看 `retCode`（2026-09-24 之前）：真机实测被拒的响应是
+ *        `{ code: 80105, data: { retCode: 0, result: {...} } }`——`retCode` 照样是 0，
+ *        于是界面报成功、还就地改了收藏态，QQ 侧却什么都没发生（用户原话「点后没加也没移除」）。
+ *      - 旧实现还把 `retCode === 80092` 当成功。80092 的语义是猜的（注释写「歌单里没有这首歌」），
+ *        而参考实现 `modules/songlist.py:152-155,186-189` 对 80092 **两个方向都返回 False**，
+ *        且它的 docstring 明确说「已在歌单里」/「不在歌单里」这两种幂等情况走 `retCode 0`。
+ *      → 本轮不给任何方向留例外：宁可让用户看到一句带码的失败，也不静默替服务端宣布成功。
  *   2. 判不出成功时，把 `code` / `retCode` / `msg` **原样带出去**。旧实现只回一个 false，
  *      连 QQ 的错误码都丢了；真机上「收藏点了没反应」时无从查起（本票的硬要求：
  *      失败必须能原样贴回来）。
  *
+ * ⚠️ `Number(null) === 0`：缺字段（`null`/`undefined`/空串）必须算**缺失**而不是 0，
+ * 否则「响应形状变了、连 code 都没有」会被读成成功。`toNum` 就是为这一条存在的。
+ *
  * @returns {{ ok: boolean, code: number|null, retCode: number|null, msg: string }}
  */
+const toNum = value => (value == null || value === '' ? Number.NaN : Number(value))
+
 export const readWriteResult = node => {
-  const code = Number(node?.code)
-  const retCode = Number(node?.data?.retCode ?? node?.retCode)
+  const code = toNum(node?.code)
+  const retCode = toNum(node?.data?.retCode ?? node?.retCode)
   const msg = String(node?.data?.msg ?? node?.msg ?? '')
   return {
-    ok: retCode === 0,
+    ok: code === 0 && retCode === 0,
     code: Number.isFinite(code) ? code : null,
     retCode: Number.isFinite(retCode) ? retCode : null,
     msg,
@@ -542,13 +550,13 @@ export default {
   /**
    * 收藏歌曲到 QQ 的「我喜欢」。
    *
-   * dirId 固定 201（与 `tx/user.js` 的 `getFavSong` 读取侧同一个目录，常量从那里导入）。
-   * tid 用**运行时解析出来的真实 tid**（`user.getFavDirTid()`，拿不到回 0）：
-   *   - 自建歌单那次受控真机往返（M6）传的是目标歌单自己的 tid；
-   *   - 201 这条路径此前一律传 0，且真机记录互相矛盾——`docs/agents/qq-music-native.md`
-   *     §5.3 记过一次成功（总数 922 → 923），2026-09-24 用户又报「点了没加也没移」（本票）。
-   *   所以本轮把「能拿到真实 tid 就带真实 tid」补上（对齐唯一有完整记录的那次成功形状），
-   *   tid 到底是不是必需仍有待真机 A/B（见票面的验证清单）。
+   * dirId 固定 201（与 `tx/user.js` 的 `getFavSong` 读取侧同一个目录，常量从那里导入），
+   * comm 走安卓档案（`_writeSongList` 里按 dirId 分档，那里记着 A/B 证据）。
+   *
+   * tid 用**运行时解析出来的真实 tid**（`user.getFavDirTid()`，拿不到回 0）。2026-09-24 的 A/B
+   * 已证 **tid 不是成败变量**（给 0 服务端自己解析成 3802852742，一样 `code: 0`），真正卡住的是
+   * comm 档案；但带上真实 tid 让请求「指哪个目录」显式化，且这是唯一有完整记录的那次成功形状
+   * （M6 自建歌单往返传的就是目标自己的 tid），所以留着。解析失败只回落 0，**绝不挡写**。
    *
    * 失败不再只回 false：诊断信息由 `readWriteResult` 带出，调用方（store/user/action.ts）
    * 必须把它塞进报错文案，别静默吞掉。
@@ -585,6 +593,17 @@ export default {
 
   /**
    * 增删歌曲的公共实现（两者只差 method）。返回 `readWriteResult` 的结构（含诊断）。
+   *
+   * ⚠️ **comm 档案按 dirId 分档**（工单 09 的真机 A/B，2026-09-24）：
+   *   - `dirId=201`（「我喜欢」）**必须走安卓档案**（`ct: 11, cv: 14090008, v, chid`）。用 WEB
+   *     档案（`ct: 24, cv: 0`）时服务端**解析不出目标目录**——响应回显 `dirId: 0 / tid: 0 /
+   *     dirName: ""`，模块级 `code: 80105`，`data.retCode` 却照旧是 0（读侧总数纹丝不动）。
+   *     `tid` 给 0 或给真实的 3802852742、`songType` 给 0/1/13 都不改变这个结果 → 变量只有档案。
+   *     同一份 payload 换安卓档案后：`code: 0`、回显 `dirId: 201 / dirName: "我喜欢" /
+   *     tid: 3802852742`，读侧总数 928 → 929；删除方向同样 `code: 0`、总数回到 928。
+   *   - 自建歌单（`dirId` 非 201）**维持 WEB 档案**：这条路有 M6 的受控往返记录，且 2026-09-24
+   *     用同一 payload 复验过一次（建临时歌单 → 加新歌 → 回读 songNum 1 → 删歌单，`code: 0`）。
+   *     安卓档案在自建歌单上**没有实测记录**——没测过的不动。
    */
   async _writeSongList(method, dirId, songs, tid = 0) {
     const credential = await requireCredential()
@@ -595,6 +614,7 @@ export default {
     if (!v_songInfo.length) throw new Error('未选择歌曲')
     const numericDirId = Number(dirId)
     const numericTid = Number(tid)
+    const commProfile = numericDirId === FAV_DIR_ID ? 'android' : 'web'
     const node = await txCgi({
       module: SONG_WRITE_MODULE,
       method,
@@ -604,14 +624,16 @@ export default {
         bFmtUtf8: true,
         v_songInfo,
       },
-    }, buildComm(credential)).promise
+    }, buildComm(credential, commProfile)).promise
     const result = readWriteResult(node)
     if (!result.ok) {
       // 诊断一行：只有请求形状与 QQ 的错误码，凭证/签名（authst、musickey）一律不进日志。
       // 真机上「点了没反应」时要的就是这一行（票面把它的位置写给用户）。
+      // `comm` 是档案名（web/android）——2026-09-24 那次假成功的变量就是它，别再漏掉。
       console.log('[tx] 写歌单被拒', {
         module: SONG_WRITE_MODULE,
         method,
+        comm: commProfile,
         dirId: numericDirId,
         tid: numericTid,
         songs: v_songInfo,

@@ -118,6 +118,21 @@ describe('store/user/action 的写失败诊断', () => {
     await expect(removeFavSongFromCloud(song('1'))).rejects.toThrow(/retCode=80092/)
   })
 
+  it('**被拒但 retCode 是 0**（真机实测形状 `code: 80105`）→ 照样抛，且不改收藏态', async() => {
+    // 2026-09-24 真机实测：服务端拒绝时 `code: 80105` 而 `data.retCode: 0`。
+    // SDK 两条都判之后这里才是 ok:false；store 这一层要保证「retCode 0」不能让它当成功放行。
+    favSongIdsLoaded.value = true
+    likeSong.mockResolvedValue({ ok: false, code: 80105, retCode: 0, msg: '' })
+
+    await expect(addFavSongToCloud(song('1'))).rejects.toThrow(/code=80105/)
+    expect(favSongIds.includes('1')).toBe(false)
+
+    unlikeSong.mockResolvedValue({ ok: false, code: 80105, retCode: 0, msg: '' })
+    favSongIds.push('1')
+    await expect(removeFavSongFromCloud(song('1'))).rejects.toThrow(/code=80105/)
+    expect(favSongIds.includes('1')).toBe(true)
+  })
+
   it('旧形状（SDK 回布尔 true）仍然算成功——契约没收窄', async() => {
     likeSong.mockResolvedValue(true)
 

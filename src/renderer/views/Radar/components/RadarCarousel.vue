@@ -63,9 +63,15 @@
             <span>{{ $t('discover__refresh') }}</span>
           </span>
         </base-btn>
+        <!-- 收藏键的心形与其余四处入口同一份映射（工单 10 立的 `favIconOf`，这里是工单 12 明说的
+             漏网处）：未喜欢 → 空心 `#icon-love`，已喜欢 → 实心 `#icon-love-solid`。**形状是第一层**
+             （灰度/高对比主题下颜色可能不生效），`btnIconOn` 的主色只是叠加的第二层。
+             尺寸不动：这一排 6 个键的口径是同一个 14×14 盒（`.btnIcon`），心形的 viewBox 贴着墨迹裁，
+             在该盒里墨迹 14.00×12.33，落在同排邻居（刷新 9.33×12.83 / 下载 14.03×14.03 /
+             用户 10.81×13.26 / 专辑 14.03×14.03 / 更多 14.13×8.06）的区间内，不需要单独改。 -->
         <base-btn min :class="$style.btnAction" :disabled="!current" @click="handleToggleLove">
           <span :class="$style.btnInner">
-            <svg :class="[$style.btnIcon, { [$style.btnIconOn]: isLoved }]" version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" viewBox="0 0 444.87 391.18" space="preserve"><use xlink:href="#icon-love" /></svg>
+            <svg :class="[$style.btnIcon, { [$style.btnIconOn]: isLoved }]" version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" viewBox="0 0 444.87 391.18" space="preserve"><use :xlink:href="favIconOf(isLoved)" /></svg>
             <span>{{ isLoved ? $t('list__unlove') : $t('list__love') }}</span>
           </span>
         </base-btn>
@@ -125,6 +131,7 @@ import useMusicAdd from '@renderer/components/material/OnlineList/useMusicAdd'
 import useMusicDownload from '@renderer/components/material/OnlineList/useMusicDownload'
 import useMenu from '@renderer/components/material/OnlineList/useMenu'
 import { assertApiSupport } from '@renderer/store/utils'
+import { favIconOf } from '@renderer/utils/compositions/useFavSong'
 import useRadar, { RADAR_QUEUE_ID, type RadarBlock } from '../useRadar'
 import { DAILY_30_QUEUE_ID } from '../useDaily30'
 import { DRAG_SLOP, pushSample, resolveSwipeStep, sampleVelocity, type SwipeSample } from '../swipe'
@@ -442,6 +449,9 @@ export default {
     // 收藏 = 收藏到 QQ 音乐的「我喜欢」（与播放栏收藏键、快捷键 music_love 同一套语义）。
     // 本地收藏已取消（2026-09-24），所以「已收藏没」问云端：全量 id 集合在 store/user 里缓存，
     // 收藏/取消后就地更新（isFavSongInCloud 读的是 shallowReactive 数组，computed 会跟着变）。
+    // `favIconOf` 只按 `isLoved` 取图标（映射在 `useFavSong` 一处，与另外四处入口共用），
+    // 直接给模板用——Options API 的 setup 里拿不到本组件的 computed，而在 computed 里写
+    // `favIconOf(...)` 会被 `@typescript-eslint/unbound-method` 判成「把方法当值传出去」。
     const isLoved = computed(() => !!current.value && isFavSongInCloud(current.value))
     // 只影响按钮状态，拉不到（未登录等）按「没收藏」处理，不让雷达页报错
     void loadFavSongIds().catch(err => { console.log('[radar] fav song ids', err) })
@@ -570,6 +580,7 @@ export default {
       handleSingerClick,
       handleToggleLove,
       isLoved,
+      favIconOf,
       handleDislike,
       handleDownload,
       handleJumpSingerClick,
