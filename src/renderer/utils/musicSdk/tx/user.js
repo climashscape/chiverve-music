@@ -87,6 +87,25 @@ const getPlaylistsRaw = async() => {
   return { raw: d.v_playlist ?? [], total: d.total }
 }
 
+/**
+ * 卡片「总数」的取值。**字段名跨端点不统一，两种拼法都认**——别只留一个：
+ *
+ *   - `GetPlaylistByUin`（自建歌单，含「我喜欢」那一行）的行实测是 **`songNum`（驼峰）**：
+ *     2026-09-24 的真机读侧基线记的是该行 `songNum=928`（票 09「真机证据」），M6 的受控往返
+ *     也校验同一字段 `songNum` 0 → 1（doc §5.3）。旧实现只读小写 `songnum`，因此自建 / 收藏
+ *     歌单卡片的「总数」**恒为空**——`SongCardGrid` 的 `v-if="item.total != null"` 拦不住空串
+ *     （`'' != null` 为真），界面渲染成「一个音符图标、没有数字」。
+ *   - 收藏专辑 `CgiGetAlbumFavInfo` 的行是 **`songnum`（小写）**：参考实现
+ *     `QQMusicApi/models/user.py:150` 是直读无别名的字段名（同形；而歌单侧的基类
+ *     `models/base.py:198` 给了 `AliasChoices("songnum", "songNum", "song_cnt")`，两拼都收）。
+ *
+ * 多认一个不存在的键无副作用，少认一个就是界面上少个数字，所以不做「只留实测的那一个」这种收紧。
+ */
+const pickCardTotal = raw => {
+  const num = raw?.songNum ?? raw?.songnum
+  return num == null ? '' : String(num)
+}
+
 /** QQ 歌单（自建 / 收藏同构）→ LX 歌单卡片对象（对齐 store/songList/state.ts 的 ListInfoItem）。
  *  `id` 用 tid（打开详情页要用它）；另带 `dirId`——「我喜欢」就是靠 dirId=201 识别的。 */
 const toPlaylistInfo = raw => ({
@@ -95,7 +114,7 @@ const toPlaylistInfo = raw => ({
   name: raw.name ?? raw.dirName ?? '',
   img: raw.logo ?? raw.picUrl ?? raw.albumPicUrl ?? '',
   author: raw.nickname ?? raw.nick ?? '',
-  total: raw.songnum != null ? String(raw.songnum) : '',
+  total: pickCardTotal(raw),
   time: toDate(raw.updateTime ?? raw.createtime),
   desc: null,
   source: 'tx',
@@ -107,7 +126,7 @@ const toAlbumInfo = raw => ({
   name: raw.name ?? '',
   img: raw.logo ?? '',
   author: singerNames(raw.v_singer),
-  total: raw.songnum != null ? String(raw.songnum) : '',
+  total: pickCardTotal(raw),
   time: toDate(raw.pubtime),
   desc: null,
   source: 'tx',

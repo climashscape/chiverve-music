@@ -10,6 +10,9 @@ import user, { FAV_DIR_ID, pickFavDirTid } from './user'
  * 2. `getFavDirTid`（「我喜欢」的真实 tid）：写接口要带它。**不能把 dirId 201 当 tid 用**
  *    ——旧卡片映射（`toPlaylistInfo`）在没有 tid 时会把 `id` 兜底成 dirId，兜底值当 tid 写会写错目标，
  *    所以这里从原始行取 `tid`，缺就是 0。
+ * 3. 卡片「总数」：`GetPlaylistByUin` 的**实测字段是 `songNum`（驼峰）**，旧实现只读小写 `songnum`
+ *    → 自建 / 收藏歌单卡片的总数恒为空。两种拼法都要认（见 `user.js` 的 `pickCardTotal`），
+ *    这里用「真机字段 / 历史字段 / 两个都没有」三行对照把口径钉住。
  *
  * 真接口不在测试里打（本机约定）；线上数值的复验步骤见票面清单。
  */
@@ -74,6 +77,38 @@ describe('tx/user 的 pickFavDirTid（从 GetPlaylistByUin 的原始行取「我
       module: 'music.musicasset.PlaylistBaseRead',
       method: 'GetPlaylistByUin',
     })
+  })
+})
+
+describe('tx/user 的卡片总数（行里的字段是 songNum 驼峰 —— 2026-09-24 真机实测）', () => {
+  it('getCreatedSonglist：认 songNum（真机字段）、songnum（历史字段），两者都缺才留空', async() => {
+    txCgi.mockReturnValue(node({
+      code: 0,
+      data: {
+        total: 53,
+        v_playlist: [
+          { dirId: FAV_DIR_ID, tid: 3802852742, dirName: '我喜欢', songNum: 928 },
+          { dirId: 126, tid: 9782527408, dirName: '旧拼法', songnum: 0 },
+          { dirId: 127, tid: 9782527409, dirName: '两个都没有' },
+        ],
+      },
+    }))
+
+    const res = await user.getCreatedSonglist()
+
+    // 0 也要落成 '0'（空歌单是「0 首」，不是「没有这个字段」）
+    expect(res.list.map((item: any) => item.total)).toEqual(['928', '0', ''])
+  })
+
+  it('getFavAlbum：同一口径（收藏专辑侧参考实现是直读小写，两种都留）', async() => {
+    txCgi.mockReturnValue(node({
+      code: 0,
+      data: { total: 2, v_list: [{ mid: 'mid1', name: 'A', songNum: 12 }, { mid: 'mid2', name: 'B', songnum: 7 }] },
+    }))
+
+    const res = await user.getFavAlbum()
+
+    expect(res.list.map((item: any) => item.total)).toEqual(['12', '7'])
   })
 })
 

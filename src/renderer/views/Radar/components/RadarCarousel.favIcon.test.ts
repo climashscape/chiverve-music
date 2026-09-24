@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { favSongIds, favSongIdsLoaded } from '@renderer/store/user/state'
 import BaseBtn from '@renderer/components/base/Btn.vue'
@@ -12,14 +12,22 @@ import RadarCarousel from './RadarCarousel.vue'
  * 另外四处共用 `useFavSong` 的 `favIconOf`——此前这里写死 `#icon-love`，已喜欢只换个颜色，
  * 「喜欢和取消看着区别不大」（用户 2026-09-24 的原话）。
  *
- * 只桩三件事：会话菜单/两个弹窗（本用例不点它们）与 SDK 的收藏 id 拉取（测试环境没人应答）。
+ * 票 12 又补了**动作**这一半：这里原先自己按 `isLoved` 判方向（`isLoved` 在 id 集合没拉完时
+ * 恒为 false），点「取消喜欢」会走成「加入」。现在走共用的 `useFavSong().toggleFav`
+ * ——它先 await `loadFavSongIds()` 再定方向，所以本文件后一个 describe 钉的就是那个方向判定。
+ *
+ * 只桩三件事：会话菜单/两个弹窗（本用例不点它们）与 SDK 的收藏读 / 写（测试环境没人应答）。
  * `base-btn` 用**真的**——心形就在它的默认插槽里，换成桩就看不到这颗心了。
  */
 
-const { getFavSongIds } = vi.hoisted(() => ({ getFavSongIds: vi.fn() }))
+const { getFavSongIds, likeSong, unlikeSong } = vi.hoisted(() => ({
+  getFavSongIds: vi.fn(),
+  likeSong: vi.fn(),
+  unlikeSong: vi.fn(),
+}))
 
 vi.mock('@renderer/utils/musicSdk', () => ({
-  default: { sources: [], tx: { user: { getFavSongIds }, songList: {} } },
+  default: { sources: [], tx: { user: { getFavSongIds }, songList: { likeSong, unlikeSong } } },
 }))
 
 // 本用例不碰路由（跳转在 `useMusicJump` 里），桩掉免得每次挂载刷一屏 router 注入告警
@@ -71,8 +79,13 @@ const favBtn = (wrapper: ReturnType<typeof mountCarousel>) => {
 const favIconHtml = (wrapper: ReturnType<typeof mountCarousel>) => favBtn(wrapper).find('use').element.outerHTML
 
 beforeEach(() => {
+  vi.clearAllMocks()
   favSongIds.splice(0, favSongIds.length)
   favSongIdsLoaded.value = true
+  // 写通道默认成功（旧契约的 `true`，`isWriteOk` 两种都认）；`getFavSongIds` 的桩在用例里各给各的，
+  // 因为「点下去那一刻收藏态到没到」正是下面第二个 describe 的自变量
+  likeSong.mockResolvedValue(true)
+  unlikeSong.mockResolvedValue(true)
 })
 
 describe('views/Radar/RadarCarousel 底部收藏键的心形', () => {
@@ -92,5 +105,41 @@ describe('views/Radar/RadarCarousel 底部收藏键的心形', () => {
     expect(favIconHtml(wrapper)).toContain('xlink:href="#icon-love-solid"')
     // CSS Modules 的类名带哈希，只断言「带上了这个状态类」（同 ControlBtns.favIcon.test.ts 的口径）
     expect(favBtn(wrapper).find('svg').classes().some(name => name.includes('btnIconOn'))).toBe(true)
+  })
+})
+
+describe('views/Radar/RadarCarousel 底部收藏键的动作（票 12：走共用入口，不自己判方向）', () => {
+  it('收藏态还没拉完时点它：先等 id 集合回来再定方向 —— 歌已在「我喜欢」里就是取消，不是加入', async() => {
+    favSongIdsLoaded.value = false
+    // 挂载时那次「拉收藏态」与点击后 `toggleFav` 内部那次共用一个**挂起**的请求：
+    // 释放之前雷达页手上的收藏态就是空的（旧实现正是在这一刻把取消判成加入的）
+    let release: (ids: string[]) => void = () => {}
+    getFavSongIds.mockReturnValue(new Promise(resolve => { release = resolve }))
+    const wrapper = mountCarousel()
+
+    await favBtn(wrapper).trigger('click')
+    // 此刻 id 集合还没到：不许当场写（写下去就是写反方向）
+    expect(likeSong).not.toHaveBeenCalled()
+    expect(unlikeSong).not.toHaveBeenCalled()
+
+    release(['1'])
+    await flushPromises()
+
+    expect(getFavSongIds).toHaveBeenCalled()
+    // songId/songType 从 `meta` 取（同 ListMusicTable 的用例口径）
+    expect(unlikeSong).toHaveBeenCalledWith([{ songId: 1, songType: 0 }])
+    expect(likeSong).not.toHaveBeenCalled()
+  })
+
+  it('歌不在「我喜欢」里时点它是加入（另一个方向照旧）', async() => {
+    favSongIdsLoaded.value = false
+    getFavSongIds.mockResolvedValue([])
+    const wrapper = mountCarousel()
+
+    await favBtn(wrapper).trigger('click')
+    await flushPromises()
+
+    expect(likeSong).toHaveBeenCalledWith([{ songId: 1, songType: 0 }])
+    expect(unlikeSong).not.toHaveBeenCalled()
   })
 })

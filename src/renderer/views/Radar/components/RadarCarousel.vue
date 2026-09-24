@@ -121,7 +121,7 @@ import { playMusicList, togglePlay } from '@renderer/core/player'
 import { musicInfo, isPlay, playInfo } from '@renderer/store/player/state'
 import { tempListMeta } from '@renderer/store/list/state'
 import { addTempPlayList } from '@renderer/store/player/action'
-import { addFavSongToCloud, removeFavSongFromCloud, loadFavSongIds, isFavSongInCloud, favErrorText } from '@renderer/store/user/action'
+import { isFavSongInCloud } from '@renderer/store/user/action'
 import { addDislikeInfo, hasDislike } from '@renderer/core/dislikeList'
 import { dialog } from '@renderer/plugins/Dialog'
 import { useI18n } from '@renderer/plugins/i18n'
@@ -131,7 +131,7 @@ import useMusicAdd from '@renderer/components/material/OnlineList/useMusicAdd'
 import useMusicDownload from '@renderer/components/material/OnlineList/useMusicDownload'
 import useMenu from '@renderer/components/material/OnlineList/useMenu'
 import { assertApiSupport } from '@renderer/store/utils'
-import { favIconOf } from '@renderer/utils/compositions/useFavSong'
+import useFavSong, { favIconOf } from '@renderer/utils/compositions/useFavSong'
 import useRadar, { RADAR_QUEUE_ID, type RadarBlock } from '../useRadar'
 import { DAILY_30_QUEUE_ID } from '../useDaily30'
 import { DRAG_SLOP, pushSample, resolveSwipeStep, sampleVelocity, type SwipeSample } from '../swipe'
@@ -453,17 +453,15 @@ export default {
     // 直接给模板用——Options API 的 setup 里拿不到本组件的 computed，而在 computed 里写
     // `favIconOf(...)` 会被 `@typescript-eslint/unbound-method` 判成「把方法当值传出去」。
     const isLoved = computed(() => !!current.value && isFavSongInCloud(current.value))
+    // 动作走**共用入口** `useFavSong().toggleFav`（与行内键 / 右键菜单 / 播放栏 / 播放详情页同一条）。
+    // 别在这里自己按 `isLoved` 判方向：`toggleFav` 会先 await `loadFavSongIds()` 再定方向，而 `isLoved`
+    // 在 id 集合没拉完或拉失败时恒为 false——那时点「取消喜欢」会走成「加入」，歌已经在里面，
+    // 用户看到的就是「点了没反应」（票 09 根因 D 的实测口径）。`isLoved` 只留给图标与文案显示。
+    const { toggleFav, loadFavState } = useFavSong()
     // 只影响按钮状态，拉不到（未登录等）按「没收藏」处理，不让雷达页报错
-    void loadFavSongIds().catch(err => { console.log('[radar] fav song ids', err) })
+    loadFavState()
     const handleToggleLove = async() => {
-      const song = current.value
-      if (!song) return
-      try {
-        if (isLoved.value) await removeFavSongFromCloud(song)
-        else await addFavSongToCloud(song)
-      } catch (err) {
-        void dialog({ message: favErrorText(err) })
-      }
+      await toggleFav(current.value)
     }
 
     /**
