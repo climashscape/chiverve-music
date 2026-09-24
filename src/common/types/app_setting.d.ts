@@ -290,6 +290,57 @@ declare global {
       'player.isAutoCleanPlayedList': boolean
 
       /**
+       * 出链失败重试间隔（秒）：加载中每过这么久刷新一次 URL（第二次仍失败才按失败策略处理）
+       */
+      'player.retryUrlDelay': number
+
+      /**
+       * 同源刷新 URL 的次数上限（次）：策略 retry 下是刷新次数，degrade 下是允许降的档数
+       */
+      'player.retryUrlMaxNum': number
+
+      /**
+       * 失败（出链失败 / 取流失败）后自动下一首的延迟（秒）
+       */
+      'player.errorSkipDelay': number
+
+      /**
+       * 取流等待上限（秒）：超过则视为取流失败，刷新 URL 或切歌
+       */
+      'player.getUrlTimeout': number
+
+      /**
+       * 卡顿（buffering）判定阈值（秒）：卡住这么久才开始往前跳
+       */
+      'player.stallSkipThreshold': number
+
+      /**
+       * 卡顿跳转步长下限（秒）
+       */
+      'player.stallSkipMin': number
+
+      /**
+       * 卡顿跳转步长上限（秒）
+       */
+      'player.stallSkipMax': number
+
+      /**
+       * 快进/快退快捷键的步长（秒）
+       */
+      'player.skipStepSeconds': number
+
+      /**
+       * 音量快捷键的步进，单位 %（4 = 0.04）
+       */
+      'player.volumeStep': number
+
+      /**
+       * 取流失败策略：retry（同源刷新 URL，上限 `retryUrlMaxNum`）/ degrade（沿档位阶梯降档重取）/
+       * error（不重试，直接按 `errorSkipDelay` 提示或跳过）
+       */
+      'player.onUrlFailStrategy': 'retry' | 'degrade' | 'error'
+
+      /**
        * 播放详情页-是否缩放当前播放的歌词行
        */
       'playDetail.isZoomActiveLrc': boolean
@@ -419,11 +470,6 @@ declare global {
        * 歌词间距大小
        */
       'desktopLyric.style.lineGap': number
-
-      /**
-       * 桌面歌词加粗字体
-       */
-      // 'desktopLyric.style.fontWeight': boolean
 
       /**
        * 桌面歌词字体透明度
@@ -562,6 +608,9 @@ declare global {
 
       /**
        * 歌曲源不可用时，是否启用换源下载
+       *
+       * 单源（只做 QQ 音乐）下无实现：保留 key 只为老备份文件迁移时不丢字段
+       * （`migrateSetting.ts` 的迁移映射）。多源恢复时启用，设置页不给入口。
        */
       'download.isUseOtherSource': boolean
 

@@ -43,7 +43,7 @@ import { getThemes, applyTheme, findTheme, buildBgUrl } from '@renderer/store/ut
  * 外观 → 主题（`appearance_theme`）：元数据里这一组的三项都是 `custom` 控件——
  * `theme.id` = 色卡本身；`theme.lightId` / `theme.darkId` = 右键「跟随系统」色卡打开的
  * `ThemeSelectorModal` 里两个列表（弹窗是复用的既有文件，绑定点不在本组件里）。
- * 代码整体从 SettingBasic.vue 的主题块搬来（行为不变），旧文件待统一退场。
+ * 代码整体从旧 SettingBasic.vue 的主题块搬来（行为不变）；旧文件已随票 04 删除。
  */
 export default {
   name: 'AppearanceTheme',

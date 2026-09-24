@@ -2,7 +2,11 @@
   <div :class="$style.player">
     <div :class="$style.picContent" :aria-label="$t('player__pic_tip')" :title="$t('player__pic_tip')" @contextmenu="handleToMusicLocation" @click="showPlayerDetail">
       <img v-if="musicInfo.pic" :src="musicInfo.pic" decoding="async" @error="imgError">
-      <div v-else :class="$style.emptyPic">L<span>X</span></div>
+      <!-- 无封面时的字标占位（票 04 换掉上游的「L X」字母标）：变体口径同左栏 `Aside/index.vue` 的短名 + 副行 -->
+      <div v-else :class="$style.emptyPic" aria-hidden="true">
+        <span :class="$style.emptyPicBrand">Ch'iverve</span>
+        <span :class="$style.emptyPicSub">MUSIC</span>
+      </div>
     </div>
     <div :class="$style.infoContent">
       <div :class="$style.title" :aria-label="title + $t('copy_tip')" :title="title + $t('copy_tip')" @click="handleCopy(title)">
@@ -220,15 +224,25 @@ export default {
     width: 100%;
     height: 100%;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
     color: var(--color-primary-light-400-alpha-200);
     user-select: none;
-    font-size: 20px;
-    font-family: Consolas, "Courier New", monospace;
 
-    span {
-      padding-left: 3px;
+    .emptyPicBrand {
+      font-size: 9px;
+      font-weight: bold;
+      line-height: 1.2;
+      white-space: nowrap;
+    }
+    .emptyPicSub {
+      // 副行做字距展开的小字（同左栏字标）
+      font-size: 6px;
+      letter-spacing: .18em;
+      line-height: 1.4;
+      white-space: nowrap;
+      color: var(--color-font-label);
     }
   }
 }

@@ -20,8 +20,8 @@ import koKr from '@root/lang/ko-kr.json'
  * 三条纪律：
  * 1. 表里的节 / 分组的**内容**不在这里钉（那是 `settingMetadata.test.ts` 的事），这里只钉
  *    「骨架有没有把元数据一个不少地接出来」。
- * 2. 旧组件一个都不许在中途丢掉（`SECTION_CONTENT` 的并集必须等于旧节全集）——票 03 归位前，
- *    丢了就是入口消失。
+ * 2. 旧节组件（17 个）不再挂在内容区上——票 03 归位后 `SECTION_CONTENT` 只认新节组件，
+ *    票 04 已把旧文件删掉；它们的名字只在 `LEGACY_SECTION_MAP` 里为旧深链活着。
  * 3. 锚点 id 是**跨文件契约**（元数据的 `group.id` ↔ 组件里的 `h3#<group.id>`）：这里直接读
  *    组件文件核对，改名漏改会被抓住。还没落位的分组列在 `PENDING_ANCHOR_GROUPS` 里，
  *    票 03/05-09 落一个删一个。
@@ -51,12 +51,13 @@ const readSectionSources = (sectionId: string): string[] => {
 }
 
 /**
- * 内容区里**还没有锚点**的分组：`play_stability` 是票 06 才建 key 的新设置（元数据里 `items: []` 的位子）。
- * 目录只列有锚点的分组（见 useSettingToc.ts），所以这份名单就是「目录里暂时少的那些」。
+ * 内容区里**还没有锚点**的分组（落一个从名单里删一个）：目录只列有锚点的分组（见 useSettingToc.ts），
+ * 所以这份名单就是「目录里暂时少的那些」。
+ *
+ * 当前为空：最后一批 `play_stability` 已由票 06 在 `sections/play/PlayStability.vue` 落位
+ * （`network_timeout` 是「只有组标题保锚点」的空组，锚点在 `sections/network/index.vue` 里）。
  */
-const PENDING_ANCHOR_GROUPS = [
-  'play_stability',
-]
+const PENDING_ANCHOR_GROUPS: string[] = []
 
 const ALL_SECTION_IDS = SETTING_SECTIONS.map(section => section.id)
 const ALL_GROUP_IDS = SETTING_SECTIONS.flatMap(section => section.groups.map(group => group.id))

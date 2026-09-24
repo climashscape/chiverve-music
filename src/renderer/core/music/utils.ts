@@ -223,6 +223,27 @@ export const getPlayQuality = (highQuality: LX.Quality, musicInfo: LX.Music.Musi
   return type
 }
 
+/**
+ * 档位阶梯（从高到低）：`TRY_QUALITYS_LIST` 是「会去尝试取的档位」，末尾补上取流实现的兜底档 128k。
+ * 设置页的音质选项（`PlayQuality.vue`）也是「`TRY_QUALITYS_LIST` + 128k 倒序」，同一套顺序。
+ */
+export const QUALITY_LADDER: readonly LX.Quality[] = [...TRY_QUALITYS_LIST, '128k']
+
+/**
+ * 降档取流：把「当前实际生效的档位」沿 `QUALITY_LADDER` 往下走 `steps` 档（默认一档），
+ * 复用 `getPlayQuality` 的可用性判定（只在「这首歌真有、音源也支持」的档位里挑）；
+ * 已到最低档、或本就按 128k 取流时返回 `null`（调用方转去提示/跳过，别硬造更低的档）。
+ *
+ * 生效档位按 `player.playQuality` 现算——与首次取流走的是同一个函数，不会出现
+ * 「首次按 flac 取、降档时又从目标档重算」的漂移。消费点：失败策略 `degrade`（`usePlayEvent.ts`）。
+ */
+export const getDegradedQuality = (musicInfo: LX.Music.MusicInfoOnline, steps = 1): LX.Quality | null => {
+  const index = QUALITY_LADDER.indexOf(getPlayQuality(appSetting['player.playQuality'], musicInfo))
+  const nextIndex = index + steps
+  if (index < 0 || nextIndex >= QUALITY_LADDER.length) return null
+  return getPlayQuality(QUALITY_LADDER[nextIndex], musicInfo)
+}
+
 export const getOnlineOtherSourceMusicUrl = async({ musicInfos, quality, onToggleSource, isRefresh, retryedSource = [] }: {
   musicInfos: LX.Music.MusicInfoOnline[]
   quality?: LX.Quality

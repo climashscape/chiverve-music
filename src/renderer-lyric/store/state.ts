@@ -37,7 +37,6 @@ const lyricConfigKeys = {
   'desktopLyric.style.font': true,
   'desktopLyric.style.fontSize': true,
   'desktopLyric.style.lineGap': true,
-  // 'desktopLyric.style.fontWeight': true,
   'desktopLyric.style.opacity': true,
   'desktopLyric.style.ellipsis': true,
   'desktopLyric.style.isFontWeightFont': true,

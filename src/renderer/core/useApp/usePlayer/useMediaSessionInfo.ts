@@ -3,6 +3,7 @@ import { getDuration, getPlaybackRate, getCurrentTime } from '@renderer/plugins/
 import { isPlay, musicInfo, playMusicInfo } from '@renderer/store/player/state'
 import { playProgress } from '@renderer/store/player/playProgress'
 import { pause, play, playNext, playPrev, stop } from '@renderer/core/player'
+import { appSetting } from '@renderer/store/setting'
 
 export default () => {
   // 创建一个空白音频以保持对 Media Session 的注册
@@ -100,12 +101,13 @@ export default () => {
   })
   navigator.mediaSession.setActionHandler('seekbackward', details => {
     console.log('seekbackward')
-    const seekOffset = details.seekOffset ?? 5
+    // 系统没给 seekOffset 时的兜底 = 快进/快退步长设置（`player.skipStepSeconds`，默认 5 秒）
+    const seekOffset = details.seekOffset ?? appSetting['player.skipStepSeconds']
     setProgress(Math.max(getCurrentTime() - seekOffset, 0))
   })
   navigator.mediaSession.setActionHandler('seekforward', details => {
     console.log('seekforward')
-    const seekOffset = details.seekOffset ?? 5
+    const seekOffset = details.seekOffset ?? appSetting['player.skipStepSeconds']
     setProgress(Math.min(getCurrentTime() + seekOffset, getDuration()))
   })
   navigator.mediaSession.setActionHandler('seekto', details => {

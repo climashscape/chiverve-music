@@ -30,7 +30,7 @@ const createGettingUrlId = (musicInfo: LX.Music.MusicInfo | LX.Download.ListItem
   const tInfo = 'progress' in musicInfo ? musicInfo.metadata.musicInfo.meta.toggleMusicInfo : musicInfo.meta.toggleMusicInfo
   return `${musicInfo.id}_${tInfo?.id ?? ''}`
 }
-const createDelayNextTimeout = (delay: number) => {
+const createDelayNextTimeout = (getDelayMs: () => number) => {
   let timeout: NodeJS.Timeout | null
   const clearDelayNextTimeout = () => {
     // console.log(this.timeout)
@@ -41,6 +41,9 @@ const createDelayNextTimeout = (delay: number) => {
   }
 
   const addDelayNextTimeout = () => {
+    // 定时器是模块级单例，延时要**在启动时现读设置**（`player.errorSkipDelay` / `player.getUrlTimeout`
+    // 改了立即生效，不用重启；烘进闭包的话得等下一次模块加载）
+    const delay = getDelayMs()
     clearDelayNextTimeout()
     timeout = setTimeout(() => {
       timeout = null
@@ -55,8 +58,8 @@ const createDelayNextTimeout = (delay: number) => {
     addDelayNextTimeout,
   }
 }
-const { addDelayNextTimeout, clearDelayNextTimeout } = createDelayNextTimeout(5000)
-const { addDelayNextTimeout: addLoadTimeout, clearDelayNextTimeout: clearLoadTimeout } = createDelayNextTimeout(100000)
+const { addDelayNextTimeout, clearDelayNextTimeout } = createDelayNextTimeout(() => appSetting['player.errorSkipDelay'] * 1000)
+const { addDelayNextTimeout: addLoadTimeout, clearDelayNextTimeout: clearLoadTimeout } = createDelayNextTimeout(() => appSetting['player.getUrlTimeout'] * 1000)
 
 /**
  * 检查音乐信息是否已更改
@@ -67,13 +70,13 @@ const diffCurrentMusicInfo = (curMusicInfo: LX.Music.MusicInfo | LX.Download.Lis
 }
 
 let cancelDelayRetry: (() => void) | null = null
-const delayRetry = async(musicInfo: LX.Music.MusicInfo | LX.Download.ListItem, isRefresh = false): Promise<string | null> => {
+const delayRetry = async(musicInfo: LX.Music.MusicInfo | LX.Download.ListItem, isRefresh = false, quality?: LX.Quality): Promise<string | null> => {
   // if (cancelDelayRetry) cancelDelayRetry()
   return new Promise<string | null>((resolve, reject) => {
     const time = getRandom(2, 6)
     setAllStatus(window.i18n.t('player__getting_url_delay_retry', { time }))
     const tiemout = setTimeout(() => {
-      getMusicPlayUrl(musicInfo, isRefresh, true).then((result) => {
+      getMusicPlayUrl(musicInfo, isRefresh, true, quality).then((result) => {
         cancelDelayRetry = null
         resolve(result)
       }).catch(async(err: any) => {
@@ -88,7 +91,10 @@ const delayRetry = async(musicInfo: LX.Music.MusicInfo | LX.Download.ListItem, i
     }
   })
 }
-const getMusicPlayUrl = async(musicInfo: LX.Music.MusicInfo | LX.Download.ListItem, isRefresh = false, isRetryed = false): Promise<string | null> => {
+/**
+ * @param quality 指定档位（只由失败策略 `degrade` 传入：降档重取）。不传 = 按 `player.playQuality` 现算
+ */
+const getMusicPlayUrl = async(musicInfo: LX.Music.MusicInfo | LX.Download.ListItem, isRefresh = false, isRetryed = false, quality?: LX.Quality): Promise<string | null> => {
   // this.musicInfo.url = await getMusicPlayUrl(targetSong, type)
   setAllStatus(window.i18n.t('player__getting_url'))
   if (appSetting['player.autoSkipOnError']) addLoadTimeout()
@@ -100,10 +106,12 @@ const getMusicPlayUrl = async(musicInfo: LX.Music.MusicInfo | LX.Download.ListIt
   return (toggleMusicInfo ? getMusicUrl({
     musicInfo: toggleMusicInfo,
     isRefresh,
+    quality,
   }) : Promise.reject(new Error('not found'))).catch(async() => {
     return getMusicUrl({
       musicInfo,
       isRefresh,
+      quality,
     })
   }).then(url => {
     if (window.lx.isPlayedStop || diffCurrentMusicInfo(musicInfo)) return null
@@ -116,20 +124,20 @@ const getMusicPlayUrl = async(musicInfo: LX.Music.MusicInfo | LX.Download.ListIt
       diffCurrentMusicInfo(musicInfo) ||
       err.message == requestMsg.cancelRequest) return null
 
-    if (err.message == requestMsg.tooManyRequests) return delayRetry(musicInfo, isRefresh)
+    if (err.message == requestMsg.tooManyRequests) return delayRetry(musicInfo, isRefresh, quality)
 
-    if (!isRetryed) return getMusicPlayUrl(musicInfo, isRefresh, true)
+    if (!isRetryed) return getMusicPlayUrl(musicInfo, isRefresh, true, quality)
 
     throw err
   })
 }
 
-export const setMusicUrl = (musicInfo: LX.Music.MusicInfo | LX.Download.ListItem, isRefresh?: boolean) => {
+export const setMusicUrl = (musicInfo: LX.Music.MusicInfo | LX.Download.ListItem, isRefresh?: boolean, quality?: LX.Quality) => {
   // if (appSetting['player.autoSkipOnError']) addLoadTimeout()
   if (!diffCurrentMusicInfo(musicInfo)) return
   if (cancelDelayRetry) cancelDelayRetry()
   gettingUrlId = createGettingUrlId(musicInfo)
-  void getMusicPlayUrl(musicInfo, isRefresh).then((url) => {
+  void getMusicPlayUrl(musicInfo, isRefresh, false, quality).then((url) => {
     if (!url) return
     setResource(url)
   }).catch((err: any) => {

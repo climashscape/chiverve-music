@@ -102,14 +102,15 @@ export default () => {
     window.app_event.setProgress(time)
   }
   const handleSeekforward = () => {
-    const seekOffset = 5
+    // 快进 / 快退的步长读设置（`player.skipStepSeconds`，默认 5 秒）
+    const seekOffset = appSetting['player.skipStepSeconds']
     const curTime = getCurrentTime()
     const time = Math.min(getCurrentTime() + seekOffset, getDuration())
     if (Math.trunc(curTime) == Math.trunc(time)) return
     setProgress(time)
   }
   const handleSeekbackward = () => {
-    const seekOffset = 5
+    const seekOffset = appSetting['player.skipStepSeconds']
     const curTime = getCurrentTime()
     const time = Math.max(getCurrentTime() - seekOffset, 0)
     if (Math.trunc(curTime) == Math.trunc(time)) return

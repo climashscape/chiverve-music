@@ -16,13 +16,9 @@ material-modal(:show="modelValue" teleport="#view" @close="handleCloseModal" @af
 </template>
 
 <script>
-import { useTimeout, startTimeoutStop, stopTimeoutStop } from '@renderer/core/player/timeoutStop'
+import { useTimeout, startTimeoutStop, stopTimeoutStop, normalizeTimeoutStopMinutes } from '@renderer/core/player/timeoutStop'
 import { ref } from '@common/utils/vueTools'
 import { appSetting, updateSetting } from '@renderer/store/setting'
-
-const MAX_MIN = 1440
-
-const rxp = /([1-9]\d*)/
 
 export default {
   props: {
@@ -47,17 +43,10 @@ export default {
     }
     const verify = () => {
       const orgText = time.value
-      let text = time.value
-
-      if (rxp.test(text)) {
-        text = RegExp.$1
-        if (parseInt(text) > MAX_MIN) {
-          text = MAX_MIN
-        }
-      } else {
-        text = ''
-      }
+      // 校验口径与设置页的时长输入框共用（`normalizeTimeoutStopMinutes`）：抓第一段正整数、上限 1440
+      const text = normalizeTimeoutStopMinutes(orgText)
       time.value = text
+      // 输入被规整过（如 `30 分` → `30`）就当没确认：让用户看一眼改成了什么，别静默按另一个值开始
       return text && orgText == text ? parseInt(text) : ''
     }
     const handleConfirm = () => {

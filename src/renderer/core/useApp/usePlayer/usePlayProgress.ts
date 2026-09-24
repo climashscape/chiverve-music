@@ -27,13 +27,17 @@ export default () => {
   const startBuffering = () => {
     console.log('start t')
     if (mediaBuffer.timeout) return
+    // 每次启动定时器现读设置：`player.stallSkipThreshold` 改了立即生效
     mediaBuffer.timeout = setTimeout(() => {
       mediaBuffer.timeout = null
       if (window.lx.isPlayedStop) return
       const currentTime = getCurrentTime()
 
       mediaBuffer.playTime ||= currentTime
-      let skipTime = currentTime + getRandom(3, 6)
+      // 跳转步长 = [stallSkipMin, stallSkipMax) 里的随机秒数；两个值顺序写反时按大小取（量程由设置页夹取）
+      const skipMin = Math.min(appSetting['player.stallSkipMin'], appSetting['player.stallSkipMax'])
+      const skipMax = Math.max(appSetting['player.stallSkipMin'], appSetting['player.stallSkipMax'])
+      let skipTime = currentTime + getRandom(skipMin, skipMax)
       if (skipTime > playProgress.maxPlayTime) skipTime = (playProgress.maxPlayTime - currentTime) / 2
       if (skipTime - mediaBuffer.playTime < 1 || playProgress.maxPlayTime - skipTime < 1) {
         mediaBuffer.playTime = 0
@@ -47,7 +51,7 @@ export default () => {
       setCurrentTime(skipTime)
       console.log(mediaBuffer.playTime)
       console.log(currentTime)
-    }, 3000)
+    }, appSetting['player.stallSkipThreshold'] * 1000)
   }
   const clearBufferTimeout = () => {
     console.log('clear t')

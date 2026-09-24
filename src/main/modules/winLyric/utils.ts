@@ -27,7 +27,6 @@ export const watchConfigKeys = [
   'desktopLyric.style.font',
   'desktopLyric.style.fontSize',
   'desktopLyric.style.lineGap',
-  // 'desktopLyric.style.fontWeight',
   'desktopLyric.style.opacity',
   'desktopLyric.style.ellipsis',
   'desktopLyric.style.isFontWeightFont',

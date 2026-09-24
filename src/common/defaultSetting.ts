@@ -56,6 +56,18 @@ const defaultSetting: LX.AppSetting = {
   'player.waitPlayEndStopTime': '',
   'player.autoSkipOnError': true,
   'player.isAutoCleanPlayedList': false,
+  // 播放稳定性阈值（设置页「播放 → 播放稳定性」，票 06）：默认值 = 各自消费点原来的硬编码常量，
+  // 所以老配置升级上来行为不变。时长类单位一律「秒」，设置页负责夹取（1–600 / 步进 1–20%）。
+  'player.retryUrlDelay': 25, // 出链失败重试间隔（usePlayEvent 的加载超时）
+  'player.retryUrlMaxNum': 2, // 同源刷新 URL 的次数上限（策略 retry / degrade 共用）
+  'player.errorSkipDelay': 5, // 失败（或取流失败）后自动下一首的延迟
+  'player.getUrlTimeout': 100, // 取流等待上限，超时即刷新 URL / 切歌
+  'player.stallSkipThreshold': 3, // 卡顿判定阈值：卡住这么久才开始往前跳
+  'player.stallSkipMin': 3, // 卡顿跳转步长下限（与 Max 组成随机区间）
+  'player.stallSkipMax': 6, // 卡顿跳转步长上限
+  'player.skipStepSeconds': 5, // 快进/快退快捷键的固定步长
+  'player.volumeStep': 4, // 音量快捷键的步进，单位「%」（4 = 0.04）
+  'player.onUrlFailStrategy': 'retry', // 取流失败策略：retry（默认，= 老行为）/ degrade / error
   'player.soundEffect.convolution.fileName': '',
   'player.soundEffect.convolution.mainGain': 10,
   'player.soundEffect.convolution.sendGain': 0,
@@ -102,7 +114,6 @@ const defaultSetting: LX.AppSetting = {
   'desktopLyric.style.fontSize': 20,
   'desktopLyric.style.lineGap': 15,
   // 歌词未播/已播/阴影色不是设置项：只由主题派生，见 renderer-lyric/utils/lyricColors.ts（ADR-0007）
-  // 'desktopLyric.style.fontWeight': false,
   'desktopLyric.style.opacity': 95,
   'desktopLyric.style.ellipsis': false,
   'desktopLyric.style.isZoomActiveLrc': false,
@@ -132,6 +143,7 @@ const defaultSetting: LX.AppSetting = {
   'download.isEmbedLyricLx': true,
   'download.isEmbedLyricT': false,
   'download.isEmbedLyricR': false,
+  // 单源下无实现，多源恢复时启用（不给入口，登记在 settingMetadata 的 INTERNAL_ONLY_KEYS）
   'download.isUseOtherSource': false,
 
   'search.isShowHotSearch': false,

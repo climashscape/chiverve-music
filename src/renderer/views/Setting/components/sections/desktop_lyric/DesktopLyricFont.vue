@@ -28,7 +28,7 @@ dd
     .gap-top(data-setting-key="desktopLyric.style.isZoomActiveLrc")
       base-checkbox(id="setting_desktop_lyric_zoom" :model-value="appSetting['desktopLyric.style.isZoomActiveLrc']" :label="$t('setting__desktop_lyric_font_zoom')" @update:model-value="updateSetting({ 'desktopLyric.style.isZoomActiveLrc': $event })")
     //- 「对哪些歌词加粗」三项：旧的那个「加粗字体」分组（拿 i18n key 当 DOM id 的那个）并进本组，
-    //- 这行说明文字保留（票 04 会把它的四语文案改成「对哪些歌词加粗」）；三个复选框各自带 data-setting-key
+    //- 这行说明文字的四语文案票 04 已改成「对哪些歌词加粗」；三个复选框各自带 data-setting-key
     .p.small.gap-top {{ $t('setting__desktop_lyric_font_weight') }}
     div
       base-checkbox.gap-left(id="setting_setting__desktop_lyric_font_weight_font" :model-value="appSetting['desktopLyric.style.isFontWeightFont']" :label="$t('setting__desktop_lyric_font_weight_font')" data-setting-key="desktopLyric.style.isFontWeightFont" @update:model-value="updateSetting({ 'desktopLyric.style.isFontWeightFont': $event })")

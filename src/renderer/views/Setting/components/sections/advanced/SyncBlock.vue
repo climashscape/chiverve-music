@@ -58,8 +58,8 @@ import SettingSyncClient from '../../SettingSync/SyncClient.vue'
  *
  * 复用方式：**模式相关的整块内容原样复用 `SettingSync/SyncServer.vue` 与 `SettingSync/SyncClient.vue`**
  * （它们本来就是「一个子组件 = 一种模式」的切分，模板是 `dd`，可直接嵌进本组），本文件只负责
- * 总开关、模式二选一与快照上限。旧 `SettingSync/index.vue` 不再被本目录引用（它自带 `dt#advanced_sync`
- * 与裸开关，是票 03 前的形态），票 04 清理旧组件时一并删。
+ * 总开关、模式二选一与快照上限。`SettingSync/index.vue`（自带 `dt#advanced_sync` 与裸开关的票 03 前形态）
+ * 已随票 04 删除，`SettingSync/` 目录只留这三个被复用的子组件（含 `ServerDeviceListModal.vue`）。
  *
  * 行为保留：模式与端口 / 服务地址在「已开启同步」期间被 `:disabled`（要先关掉才能改）——端口与服务
  * 地址的 disabled 在复用的子组件里，模式二选一的在这里。

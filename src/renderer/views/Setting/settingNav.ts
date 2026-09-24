@@ -82,9 +82,9 @@ export const SETTING_NAV_TREE: readonly NavTreeNode[] = SETTING_NAV_GROUPS.map(g
  * 每节的内容由哪个组件渲染（值就是 `index.vue` 的 `components:` 里注册的组件名，一个节一个组件）。
  *
  * 票 03 已完成逐节归位：内容在 `components/sections/<节 id>/index.vue`，按元数据的分组顺序摆好，
- * 分组锚点 id = `group.id`、每个设置项带 `data-setting-key`。旧的 17 个节组件**已从内容区退场**
- * （文件仍在 `components/` 下，票 04 收尾时删），所以这张表不再背「旧组件不许丢」的约束——
- * 单测改为钉「每个节都有组件文件、且旧组件不再挂在任何节上」。
+ * 分组锚点 id = `group.id`、每个设置项带 `data-setting-key`。旧的 17 个节组件**已退场**
+ * （票 03 从内容区摘掉，票 04 删文件；它们只在本文件的 `LEGACY_SECTION_MAP` 里作为旧深链的名字活着），
+ * 所以这张表不再背「旧组件不许丢」的约束——单测改为钉「每个节都有组件文件、且旧组件不再挂在任何节上」。
  */
 export const SECTION_CONTENT: Readonly<Record<string, readonly string[]>> = {
   appearance: ['SettingSectionAppearance'],

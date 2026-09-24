@@ -2,6 +2,7 @@ import { getEnvParams, sendInited } from '@renderer/utils/ipc'
 
 import { proxy, isFullscreen, themeId } from '@renderer/store'
 import { appSetting } from '@renderer/store/setting'
+import { restoreTimeoutStop } from '@renderer/core/player/timeoutStop'
 
 import useSync from './useSync'
 import useOpenAPI from './useOpenAPI'
@@ -64,6 +65,9 @@ export default () => {
     // 初始化我的列表、下载列表等数据
     void initData().then(() => {
       initPlayer()
+      // 上次设的「定时暂停」时长接着计时（票 04 救活 `player.waitPlayEndStopTime`）：
+      // 放在 initPlayer 之后，暂停所需的播放器已就绪
+      restoreTimeoutStop()
       handleEnvParams(envParams) // 处理传入的启动参数
       void initDeeplink(envParams)
       void initSyncService()

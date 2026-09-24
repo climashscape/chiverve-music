@@ -26,10 +26,12 @@ export default () => {
     setVolume(_volume)
   }
 
-  const handleSetVolumeUp = (step = 0.04) => {
+  // 音量步进读设置（`player.volumeStep`，单位 %，默认 4 = 0.04）：快捷键每次调这么多
+  const getVolumeStep = () => appSetting['player.volumeStep'] / 100
+  const handleSetVolumeUp = (step = getVolumeStep()) => {
     handleSetVolume(volume.value + step)
   }
-  const handleSetVolumeDown = (step = 0.04) => {
+  const handleSetVolumeDown = (step = getVolumeStep()) => {
     handleSetVolume(volume.value - step)
   }
 

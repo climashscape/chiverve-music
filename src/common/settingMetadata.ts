@@ -313,10 +313,33 @@ export const SETTING_SECTIONS: readonly Section[] = [
         ],
       },
       {
-        // §2.6 播放稳定性（新组）：9 个阈值 + 1 个失败策略由票 06 新增 key 后填进来
+        // §2.6 播放稳定性（票 06 新增组）：原本写死在播放核心里的 9 个阈值 + 1 个失败策略。
+        // 每一项的默认值 = 改造前消费点上的硬编码常量，所以老配置升级上来行为不变。
+        // 顺序即组件里的渲染顺序（`sections/play/PlayStability.vue`）：先策略（它决定要不要刷新/降档），
+        // 再取流与刷新相关，再卡顿，最后是「操作步长」两项（严格说不属于稳定性，但 spec §5-A 判给了本组）。
         id: 'play_stability',
         i18nKey: 'setting__play_stability_title', // 新增
-        items: [],
+        items: [
+          // 三档：retry（默认 = 老行为，同源刷新 URL）/ degrade（沿档位阶梯降一档重取）/ error（不重试）
+          { key: 'player.onUrlFailStrategy', i18nKey: 'setting__play_on_url_fail_strategy', control: 'checkboxGroup', helpI18nKey: 'setting__play_on_url_fail_strategy_tip' },
+          // 老行为是写死的 2 次（usePlayEvent.ts 的 `retryNum < 2`）；degrade 档下它同时是「最多降几档」
+          { key: 'player.retryUrlMaxNum', i18nKey: 'setting__play_retry_url_max_num', control: 'numberInput' },
+          // 老行为 25 秒：加载超时先刷新一次 URL，第二次超时直接切歌
+          { key: 'player.retryUrlDelay', i18nKey: 'setting__play_retry_url_delay', control: 'numberInput' },
+          // 老行为 100 秒：一次取流（含降档重取）的总等待上限，超时按失败处理
+          { key: 'player.getUrlTimeout', i18nKey: 'setting__play_get_url_timeout', control: 'numberInput' },
+          // 老行为 5 秒：报错后等这么久再自动下一首（窗口不可见时立即跳，不等）
+          { key: 'player.errorSkipDelay', i18nKey: 'setting__play_error_skip_delay', control: 'numberInput' },
+          // 老行为 3 秒：缓冲卡住这么久才开始往前跳
+          { key: 'player.stallSkipThreshold', i18nKey: 'setting__play_stall_skip_threshold', control: 'numberInput' },
+          // 老行为 3–6 秒的随机区间；两值顺序写反时消费点按大小取（不额外报错）
+          { key: 'player.stallSkipMin', i18nKey: 'setting__play_stall_skip_min', control: 'numberInput' },
+          { key: 'player.stallSkipMax', i18nKey: 'setting__play_stall_skip_max', control: 'numberInput' },
+          // 老行为 5 秒：快进/快退快捷键（与系统媒体键的兜底步长）一次走多远
+          { key: 'player.skipStepSeconds', i18nKey: 'setting__play_skip_step_seconds', control: 'numberInput' },
+          // 老行为 4%（0.04）：音量加减快捷键一次调多少
+          { key: 'player.volumeStep', i18nKey: 'setting__play_volume_step', control: 'numberInput' },
+        ],
       },
       {
         // §2.7 定时暂停（原「按钮在基本设置节、开关在弹窗」两处，附 B1 收到本组）
@@ -325,8 +348,8 @@ export const SETTING_SECTIONS: readonly Section[] = [
         items: [
           // 定时到点：开 = 等本曲放完自然停；关 = 立即暂停
           { key: 'player.waitPlayEndStop', i18nKey: 'play_timeout_end', control: 'checkbox' },
-          // 分钟数（1–1440）。现在只有弹窗自己读写、「等待播放完毕」时不参与计时（死设置），
-          // spec §4 要求救活：票 05/06 让 timeoutStop 真按它计时
+          // 分钟数（1–1440）。原来只有弹窗自己读写、「等待播放完毕」时不参与计时（死设置），
+          // 票 04 已救活：`timeoutStop.ts` 真按它计时，并在启动时恢复（`restoreTimeoutStop`）
           { key: 'player.waitPlayEndStopTime', i18nKey: 'setting__play_timeout_time', control: 'numberInput', helpI18nKey: 'setting__play_timeout_time_tip' },
         ],
       },

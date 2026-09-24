@@ -26,7 +26,7 @@ import AppearanceTray from './AppearanceTray.vue'
  * - 分组的 DOM 锚点 id = `settingMetadata` 的 `group.id`，写在分组自己的 `h3` 上；
  * - 每个设置项的控件带 `data-setting-key="<item.key>"`（搜索命中高亮按它定位，见 useSettingToc.ts）。
  * 内容来源：SettingBasic 全部（除「定时暂停」按钮 → 播放节）+ SettingOther 的 `transparentWindow` / 托盘图标两项。
- * 旧组件 `SettingBasic.vue` / `SettingOther.vue` 由票 03 的收口统一退场，本票不删。
+ * 旧组件 `SettingBasic.vue` / `SettingOther.vue` 已退场（票 03 摘内容、票 04 删文件）。
  */
 export default {
   name: 'SettingSectionAppearance',

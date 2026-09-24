@@ -18,13 +18,14 @@ import DesktopLyricReset from './DesktopLyricReset.vue'
  * `_font` / `_reset`（13 个裸开关按语义拆进前两组，「加粗对象」三项并进排版与字体）。
  *
  * 颜色组（`desktop_lyric_color`）按 ADR-0007 **整组不存在**（元数据里也没有这个 Group），
- * 所以 SettingDesktopLyric.vue 里那句 `setting__desktop_lyric_color_theme_tip` 与本票无关——
- * 它是死内容（文案还指着「基本设置 → 主题颜色」这条旧路径），归票 04/10 处置，这里不搬。
+ * 所以旧 `SettingDesktopLyric.vue` 那句 `setting__desktop_lyric_color_theme_tip` 没有搬过来——
+ * 它是死内容（文案还指着「基本设置 → 主题颜色」这条已不存在的路径），票 04 删了旧组件后
+ * 四份语言里这个 key 成了无引用条目，是否补一句「颜色跟随主题」的说明留给票 10 定。
  *
  * 契约（票 02 立、本票接着守）：
  * - 分组的 DOM 锚点 id = `settingMetadata` 的 `group.id`，写在分组自己的 `h3` 上；
  * - 每个设置项的控件带 `data-setting-key="<item.key>"`（搜索命中高亮按它定位，见 useSettingToc.ts）。
- * 旧组件 `SettingDesktopLyric.vue` 由票 03 的收口统一退场，本票不删。
+ * 旧组件 `SettingDesktopLyric.vue` 已退场（票 03 摘内容、票 04 删文件）。
  */
 export default {
   name: 'SettingSectionDesktopLyric',

@@ -42,7 +42,8 @@ import migrateSetting from '@common/utils/migrateSetting'
  * 8 个按钮全是**非 key 控件**：元数据表的 `Item.key` 必填，装不下它们，所以本节把它们
  * 登记在这里而不是元数据里（票 01 已声明：「items 为空，票 03 落 UI 时另行登记」）。
  * 搬运时**行为一字未改**：三个子块（部分数据 / 所有数据 / 其他备份格式）保留为无 id 的 `h3`
- * 子标题（有 id 就会变成元数据之外的野锚点），默认文件名里的 `lx_*` 与「试听列表」文案属票 04。
+ * 子标题（有 id 就会变成元数据之外的野锚点）。默认文件名票 04 已从上游的旧前缀改成 `chiverve_*`
+ * （`.lxmc` 后缀是上游的配置文件格式名，与 `readLxConfigFile` 同一套，不动）。
  *
  * 导入设置的副作用（**别当 bug 修**）：`common.isAgreePact` 被强制写成 false
  * （`importOldSettingData` / `importNewSettingData`），下次启动会重新走协议弹窗。
@@ -180,7 +181,7 @@ export default {
     const handleExportAllData = () => {
       void openSaveDir({
         title: t('setting__backup_all_export_desc'),
-        defaultPath: 'lx_datas_v2.lxmc',
+        defaultPath: 'chiverve_datas_v2.lxmc',
       }).then(result => {
         if (result.canceled) return
         void exportAllData(result.filePath)
@@ -197,7 +198,7 @@ export default {
     const handleExportSetting = () => {
       void openSaveDir({
         title: t('setting__backup_part_export_setting_desc'),
-        defaultPath: 'lx_setting_v2.lxmc',
+        defaultPath: 'chiverve_setting_v2.lxmc',
       }).then(result => {
         if (result.canceled) return
         exportSetting(result.filePath)
@@ -246,7 +247,7 @@ export default {
     const handleExportPlayList = () => {
       void openSaveDir({
         title: t('setting__backup_part_export_list_desc'),
-        defaultPath: 'lx_list.lxmc',
+        defaultPath: 'chiverve_list.lxmc',
       }).then(result => {
         if (result.canceled) return
         void exportPlayList(result.filePath)
@@ -309,7 +310,7 @@ export default {
       if (confirm) {
         void openSaveDir({
           title: t('setting__backup_other_export_dir'),
-          defaultPath: 'lx_list_all.txt',
+          defaultPath: 'chiverve_list_all.txt',
         }).then(result => {
           if (result.canceled) return
           let path = result.filePath
@@ -340,7 +341,7 @@ export default {
       if (confirm) {
         void openSaveDir({
           title: t('setting__backup_other_export_dir'),
-          defaultPath: 'lx_list_all.csv',
+          defaultPath: 'chiverve_list_all.csv',
         }).then(result => {
           if (result.canceled) return
           let path = result.filePath

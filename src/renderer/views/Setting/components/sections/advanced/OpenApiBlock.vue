@@ -40,7 +40,7 @@ import { debounce } from '@common/utils'
  *
  * 该功能是**本地 HTTP 服务**：默认只绑回环，开了「允许来自局域网的访问」后绑 0.0.0.0，
  * 局域网内任何设备都能调用且**没有鉴权**（帮助文案里点明了）；改端口会重启服务。
- * 归类表 §10.1 的「悬空冒号」说明文案改写属票 04，这里原样保留 `setting__open_api_tip` 的措辞。
+ * `setting__open_api_tip` 的「悬空冒号」票 04 已改掉：这句话现在直说本应用不提供对外接口文档。
  */
 export default {
   name: 'SettingAdvancedOpenApi',
