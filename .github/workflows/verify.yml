@@ -1,0 +1,31 @@
+# 校验 workflow（2026-09-24 按 ADR-0008 收口）
+#
+# **本仓库仅研究用途、不对外发布任何打包版**（见 `docs/adr/0008-research-only-no-packaged-releases.md`）。
+# 因此原「全平台出包」workflow 的**三个打包 job 与全部 `upload-artifact` 都已移除**——公开仓库的
+# Actions Artifacts 对任何登录且有 read 权限的用户可下载，它本身就是分发口；同时删掉
+# `push: tags: 'v*'` 触发（版本号迭代规矩刚立，下次顺手打 tag 就会引爆出包）。
+#
+# 现在只做一件事：**坏代码不该进主分支**——跑 test + lint。
+# 想给自己打包：在**你自己的机器**上按 `docs/agents/build-and-pack.md` 构建（本仓库不提供任何二进制）。
+#
+# 注意：test 与 lint 都不需要 Electron 二进制（vitest 里 electron 走桩），所以这里不需要配
+# ELECTRON_MIRROR / NODEJS_ORG_MIRROR；若将来往 CI 里加真的打包步骤，先读 `docs/agents/pitfalls.md` 坑 3/4。
+name: verify
+
+on:
+  workflow_dispatch:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run test
+      - run: npm run lint

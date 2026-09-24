@@ -80,3 +80,6 @@ src/**/*-internal.js
 
 # ZCode 会话工具状态（plan 产物与 spec 重复，不入库）
 .zcode/plans/
+
+# 本地工单与探索笔记：只留本机，不入公开历史（2026-09-24 用户定；历史已用 git filter 重写去掉）
+.scratch/
