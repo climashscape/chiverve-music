@@ -61,7 +61,7 @@ LX Music 的美术资产），但**不是最终设计**——用户以后想换�
   `src/renderer/assets/styles/index.less` 的 `color-primary`、`color-primary-light-100`、
   `color-primary-dark-200`（CSS 变量名带两个减号前缀，本文件与 SVG 注释里都没写前缀——
   XML 注释不允许出现连续两个减号，写了会让 inkscape 静默产出半成品图）。
-- **字标两行 `Ch'iverve` / `MUSIC`**（`AGENTS.md` §8 的品牌变体表）；字体只写通用栈
+- **字标两行 `Ch'iverve` / `MUSIC`**（短名 + 副行的写法；正式场合的全名是 `Ch'iverve Music`）；字体只写通用栈
   `Arial, Helvetica, sans-serif`，不绑定本机专有字体。
 - **`C` 与撇号是路径/描边画的，不依赖字体**——小尺寸下笔画宽度才可控。
   `app-icon-compact.svg` 与 `tray-glyph.svg` 用同一套比例：撇号必须落在缺口外侧、
@@ -77,4 +77,4 @@ LX Music 的美术资产），但**不是最终设计**——用户以后想换�
   心形），不含品牌标识——与 `src/renderer/assets/svgs/*` 同类，本轮的"换图标"没算它们。
   要一并换就在 `src/static/images/taskbar/` 里替换，同样保持文件名与 48×48 尺寸。
 - `src/common/theme/images/*`、`src/renderer/assets/images/*`：主题背景图/占位头像，
-  同属上游素材但属"主题图"而非品牌标识，另行判断（见 `.scratch/open-source-prep/issues/09-*.md`）。
+  同属上游素材但属"主题图"而非品牌标识，另行判断。

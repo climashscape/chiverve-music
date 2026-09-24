@@ -9,7 +9,7 @@
   - 配色取自 UI 的品牌 token（src/renderer/assets/styles/index.less 里名为
     color-primary / color-primary-light-100 / color-primary-dark-200 的 CSS 变量，
     分别是 rgb(77,175,124)、rgb(113,191,150)、rgb(62,142,101)），图标与界面同色系。
-  - 字标是两行 `Ch'iverve` / `MUSIC`（AGENTS.md §8 的品牌变体表）。
+  - 字标是两行 `Ch'iverve` / `MUSIC`（短名 + 副行的写法；全名是 `Ch'iverve Music`）。
   - 注释里不能出现连续两个减号（XML 规范禁止），写 CSS 变量名时别带前缀。
   - 字体只写通用栈 Arial/Helvetica/sans-serif：Arial 与 Helvetica 覆盖
     Win/mac，Linux 由 fontconfig 的 Liberation Sans 等度量兼容字体兜底，

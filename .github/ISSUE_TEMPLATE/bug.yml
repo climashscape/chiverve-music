@@ -4,7 +4,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        ⚠️ 本仓库**仅研究用途，不对外发布任何打包版**（见 `docs/adr/0008-research-only-no-packaged-releases.md`）：
+        ⚠️ 本仓库**仅研究用途，不对外发布任何打包版**（见 README「关于本仓库」）：
         请先按 `README.md` 自行构建，再用**你自己构建的版本**复现。
 
         🔴 **不要在 issue 里粘贴凭证**（token / cookie / musickey / refreshKey）、QQ 号或本机绝对路径。

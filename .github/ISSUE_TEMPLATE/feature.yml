@@ -4,11 +4,10 @@ body:
   - type: markdown
     attributes:
       value: |
-        本仓库是**单源 QQ 音乐客户端**（`docs/adr/0003-single-source-qq-music-only.md`）：不做多源选择器，
-        加源属于要改 ADR 的事。另外**只发源码、不发打包版**（ADR-0008），所以「出个安装包」之类的请求不会被接受。
+        本仓库是**单源 QQ 音乐客户端**：不做多源选择器，加源属于要改定位的事。
+        另外**只发源码、不发打包版**，所以「出个安装包」之类的请求不会被接受。
 
-        提之前可以先看一眼 `docs/agents/status.md` 的「功能边界」表与 `CONTEXT.md` 的术语表——
-        有些能力是**有意不做**的（那里写了理由）。
+        提之前建议先扫一眼 README——有些能力是**有意不做**的。
   - type: textarea
     id: want
     attributes:

@@ -1,6 +1,6 @@
 # 安全政策
 
-> 本仓库**仅供研究用途**，**不对外发布任何打包版、不提供任何构建产物**（决策见 `docs/adr/0008-research-only-no-packaged-releases.md`）。
+> 本仓库**仅供研究用途**，**不对外发布任何打包版、不提供任何构建产物**（定位见 README「关于本仓库」）。
 > 由此推出两条与本文件直接相关的结论：
 >
 > 1. **没有「补丁包 / 新版本」这种修复形态**——安全修复只体现在源码提交里，由使用者自行拉取、自行构建；
@@ -21,9 +21,9 @@
 
 | 面 | 现状 | 位置 |
 |---|---|---|
-| QQ 登录凭证 | **明文 JSON 落盘**（`<userData>/LxDatas/qq_auth.json`），不引 `safeStorage`/keytar：**任何能读该文件的本地进程都能冒充账号**。前提是「单用户本地机器」 | `docs/adr/0005-plaintext-credential-storage.md`；文件位置见 `docs/agents/build-and-pack.md` §7.1 |
-| 同步凭证 | 同为明文（`<userData>/LxDatas/sync/client/syncAuthKey.json`） | `docs/agents/qq-music-native.md` §2.3 的安全现状段 |
-| 主窗口 / 歌词窗渲染进程 | `nodeIntegration: true` + `contextIsolation: false` + `sandbox: false` + `webSecurity: false`（上游既有形态）：**渲染层的代码等价于本地 Node 权限**，一旦发生注入即任意代码执行 | `src/main/modules/winMain/main.ts:105-109`；歌词窗同形态 `src/main/modules/winLyric/main.ts:181-190` |
+| QQ 登录凭证 | **明文 JSON 落盘**（`<userData>/LxDatas/qq_auth.json`；Linux 下是 `~/.config/chiverve-music/`，开发版为 `-dev` 后缀），不引 `safeStorage`/keytar：**任何能读该文件的本地进程都能冒充账号**。前提是「单用户本地机器」。2026-09-24 起落盘权限收紧为 `0600`（同机其他账号读不到，但同 uid 的进程仍可读） | `src/main/utils/store.ts`（写入）、`src/main/modules/qqAuth/` |
+| 同步凭证 | 同为明文（`<userData>/LxDatas/sync/client/syncAuthKey.json`），与上一条同一套 Store | 同上 |
+| 主窗口 / 歌词窗渲染进程 | `nodeIntegration: true` + `contextIsolation: false` + `sandbox: false` + `webSecurity: false`（上游既有形态）：**渲染层的代码等价于本地 Node 权限**，一旦发生注入即任意代码执行 | `src/main/modules/winMain/main.ts:103-113`；歌词窗同形态 `src/main/modules/winLyric/main.ts:181-190` |
 | 自定义音源脚本 | 第三方脚本在独立窗口里跑：`contextIsolation: true`、`nodeIntegration: false`、CSP `default-src 'none'`（`src/main/modules/userApi/main.ts:83-99`）——沙箱是有的，但**它的代码仍是你主动导入并运行的第三方代码**，来源不可信就等于把环境交给作者 | `src/main/modules/userApi/main.ts:83-99` |
 | 本地 OpenAPI 服务 | 默认绑 `127.0.0.1`；勾选「允许来自局域网的访问」后绑 `0.0.0.0` 且**没有鉴权**——同一网段内任何设备都能控制播放器 | `src/main/modules/openApi/index.ts:279-281`；设置项文案见 `src/lang/zh-cn.json` 的 `setting__open_api_bind_lan_tip` |
 | 本地同步服务端 | 默认关闭（`sync.enable: false`），端口默认 `23332`，连接需 `authCode`：面向局域网多设备同步，开启即等于在该网络里开了一个带口令的数据端点 | `src/common/defaultSetting.ts:187-188`；实现 `src/main/modules/sync/server/` |
@@ -37,6 +37,6 @@
 
 ## 已知的设计取舍（不是漏洞，但请别当漏洞报）
 
-- **明文存凭证**：单用户本地机器的前提下有意沿用上游惯例，不是疏忽；要改成加密存储，得先改 `docs/adr/0005-plaintext-credential-storage.md`。
+- **明文存凭证**：单用户本地机器的前提下有意沿用上游惯例，不是疏忽（现状是**明文 + `0600` 文件权限**）；要改成加密存储是一次需要重新评估的决定，不是顺手能改的。
 - **渲染进程的宽权限**：同样沿用上游形态，改动会牵到取流与请求层的整体设计（属大改，不在当前范围）。
 - **没有自动更新检查**：本项目不发布安装包，所以也不存在「安全更新推送」；唯一的更新途径是拉源码重新构建，见 README「自行构建」。

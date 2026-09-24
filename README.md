@@ -7,19 +7,20 @@
 >
 > > 由于官方 qq 音乐官方 Linux 版年久失修 不得以我们发布本研究仓库 我们十分尊重版权 所以我们的仓库仅供研究 所以我们不对外发布任何打包版 请自行学习建构
 >
-> 本仓库是 [LX Music 桌面版](https://github.com/lyswhut/lx-music-desktop)（作者 [lyswhut](https://github.com/lyswhut)，中文署名「落雪无痕」）的**独立衍生产品**，基于上游 `v2.12.6`（commit `ad95d509`）整树建立，改造目标是在桌面端内置完整的 QQ 音乐能力（登录、我的音乐、推荐、多音质取流等，详见 `docs/agents/qq-music-native.md`）。**本仓库仅供技术研究与学习交流，不对外发布任何打包版。** 定位的决策记录见 `docs/adr/0008-research-only-no-packaged-releases.md`。
+> 本仓库是 [LX Music 桌面版](https://github.com/lyswhut/lx-music-desktop)（作者 [lyswhut](https://github.com/lyswhut)，中文署名「落雪无痕」）的**独立衍生产品**，基于上游 `v2.12.6`（commit `ad95d509`）整树建立，改造目标是在桌面端内置完整的 QQ 音乐能力（登录、我的音乐、发现与推荐、专辑 / 歌手 / MV、评论读写、多音质取流）。**本仓库仅供技术研究与学习交流，不对外发布任何打包版。**
 >
 > - **不提供任何打包版**：不发安装包、不发 Release，**也不对外提供任何构建产物**（CI 只跑测试与 lint）。想用就自行学习建构，方式见下方「自行构建」——这是本仓库的定位，不是待补的缺口。
 > - **与腾讯无关联**：本项目与腾讯及其关联公司**没有任何关系，也未获其授权、认可或支持**；内置能力仅为技术可行性研究。请支持正版，并在 **24 小时内清除**使用过程中产生的版权数据（沿用上游补充条款 §2.1）。
 > - **不做对抗性设计**：不规避风控、不伪造设备指纹；用自己账号、低频、节流。**使用本仓库代码的合规责任由使用者自负。**
-> - **与上游的关系**：本仓库**不跟随上游 rebase**；已配置 `upstream` remote，上游的接口修复按需 `git cherry-pick`（见 `docs/agents/upstream.md`）。
+> - **与上游的关系**：本仓库**不跟随上游 rebase**；已配置 `upstream` remote，上游的接口修复按需 `git cherry-pick`（只取接口修复，不合并上游的整体演进）。
 > - **版权**：代码沿用上游 Apache-2.0 许可证。**上游署名与协议全文完整保留**（`LICENSE` 与 `licenses/`；后者含上游补充条款：禁止违法使用、非商业性质、版权数据 24 小时内清除）。
-> - **第三方内容与署名**：随本仓库入库的第三方内容（Agent Skills、better-sqlite3 预编译二进制、上游打过补丁的 fork 依赖、上游本体）的出处、许可类型与落点，汇总在 [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md)。
-> - **协作口径**：**欢迎报 Issues，也欢迎提 PR**——bug、构建失败、文档错漏、改进都收（[Issues](https://github.com/climashscape/chiverve-music/issues)）。但本仓库是单人业余维护的研究项目，**不承诺响应时限**；提 PR 前请先扫一眼 `AGENTS.md`（代码风格、验证阶梯与红线都在那里），并在 PR 里写清**你是怎么验证的**。安全问题请走 `SECURITY.md`。
+> - **第三方内容与署名**：随本仓库入库的第三方内容（better-sqlite3 预编译二进制、上游打过补丁的 fork 依赖、上游本体）的出处与许可，汇总在 [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md)。
+> - **关于源码里的注释**：注释里会引用 `AGENTS.md`、`docs/...` 或工单编号——那是维护者的**内部设计笔记**（记录「为什么这么改」与真机实测结论），**不随本仓库公开**。代码本身是自洽的；跟着注释读到不存在的文件时按这条理解即可。
+> - **协作口径**：**欢迎报 Issues，也欢迎提 PR**——bug、构建失败、文档错漏、改进都收（[Issues](https://github.com/climashscape/chiverve-music/issues)）。但本仓库是单人业余维护的研究项目，**不承诺响应时限**；提 PR 请在描述里写清**你是怎么验证的**（下方「构建与自测」是这里通行的验证阶梯）。安全问题请走 [`SECURITY.md`](./SECURITY.md)。
 
 ## 自行构建
 
-本项目**只提供源码**，不提供任何构建产物。下面是从源码把项目跑起来的最小步骤；更细的构建链与全部已知坑见 `docs/agents/pitfalls.md`（§7 常用命令 + 已知坑）与 `docs/agents/build-and-pack.md`。
+本项目**只提供源码**，不提供任何构建产物。下面是从源码把项目跑起来的最小步骤，需要的东西全在这一节里。
 
 ### 环境要求
 
@@ -54,6 +55,9 @@ npm i
    cd ../..
    ```
 
+> 若你的网络需要代理才能访问 `github.com`，而 git 又走 `ssh://git@github.com` 拉那 5 个 fork 依赖，可以一次性改成 https（**未在本仓库实跑，仅作兜底**）：
+> `git config --global url."https://github.com/".insteadOf ssh://git@github.com/`
+
 ### 跑开发版
 
 ```bash
@@ -80,127 +84,26 @@ npm run lint     # eslint（TS 文件在 build 期不跑 lint，改了 TS 要单
 npm run build && npm run pack:linux:deb:amd64   # → build/chiverve-music_<版本>_amd64.deb
 ```
 
-平台约束（macOS 的 dmg 只能在 macOS 上构建、Windows 目标在 Linux 上还要 wine 与 winCodeSign）与装机步骤见 `docs/agents/build-and-pack.md`（§7.2 打包与装包、§7.3 平台约束）。
+**平台约束**：macOS 的 dmg 只能在 macOS 上构建（且需要 `icon.icns` 与签名相关工具）；Windows 目标在 Linux 上构建还要 wine 与 winCodeSign；deb / rpm / pacman / AppImage 可在 Linux 本机构建。`pack:linux:*` 这类脚本**不含** `npm run build`，必须先构建再打包。
 
-## 以下为上游 README 原文（非本项目承诺）
+装机与卸载（Debian / Ubuntu / Mint）：
 
-> 这一节整段是 [LX Music 桌面版](https://github.com/lyswhut/lx-music-desktop) 的 README 原文，用来描述本仓库继承的代码与能力。其中的**软件下载指引、贡献 / PR 流程、上游文档站链接**都属于上游项目，**不适用于本仓库**——本仓库的定位、自建方式与协作口径见上文。
+```bash
+sudo dpkg -i build/chiverve-music_<版本>_amd64.deb   # 缺依赖时 sudo apt-get -f install
+sudo dpkg -r chiverve-music
+```
 
-<hr>
+装好后数据目录是 `~/.config/chiverve-music/`（与开发版 `chiverve-music-dev` 分开）。⚠️ **不要在开发树里直接跑安装版的产物**：`userData` 的 dev/正式之分由 `NODE_ENV` 决定，误跑会污染安装版的凭证库。
 
-<h1 align="center">LX Music 桌面版（上游原文）</h1>
+## 许可与上游署名
 
-<p align="center">
-  <a href="https://github.com/lyswhut/lx-music-desktop/releases"><img src="https://img.shields.io/github/release/lyswhut/lx-music-desktop" alt="Release version"></a>
-  <a href="https://github.com/lyswhut/lx-music-desktop/actions/workflows/release.yml"><img src="https://github.com/lyswhut/lx-music-desktop/workflows/Build/badge.svg" alt="Build status"></a>
-  <a href="https://github.com/lyswhut/lx-music-desktop/actions/workflows/beta-pack.yml"><img src="https://github.com/lyswhut/lx-music-desktop/workflows/Build%20Beta/badge.svg" alt="Build status"></a>
-  <a href="https://electronjs.org/releases/stable"><img src="https://img.shields.io/github/package-json/dependency-version/lyswhut/lx-music-desktop/dev/electron/master" alt="Electron version"></a>
-  <!-- <a href="https://github.com/lyswhut/lx-music-desktop/releases"><img src="https://img.shields.io/github/downloads/lyswhut/lx-music-desktop/latest/total" alt="Downloads"></a> -->
-  <a href="https://github.com/lyswhut/lx-music-desktop/tree/dev"><img src="https://img.shields.io/github/package-json/v/lyswhut/lx-music-desktop/dev" alt="Dev branch version"></a>
-  <!-- <a href="https://github.com/lyswhut/lx-music-desktop/blob/master/LICENSE"><img src="https://img.shields.io/github/license/lyswhut/lx-music-desktop" alt="License"></a> -->
-</p>
+本仓库代码沿用上游 **Apache-2.0** 许可证，全文见 [`LICENSE`](./LICENSE)。
 
-<!-- [![GitHub release][1]][2]
-[![Build status][3]][4]
-[![GitHub Releases Download][5]][6]
-[![dev branch][7]][8]
-[![GitHub license][9]][10] -->
+上游（LX Music 桌面版）对本项目另有一份**补充协议**（禁止违法使用、非商业性质、版权数据 24 小时内清除等），**完整保留**在 `licenses/`（`license_zh.txt` / `license_en.txt` / `license.rtf`，同时用作安装器协议文本），并逐字附在下方。
 
-<!-- [1]: https://img.shields.io/github/release/lyswhut/lx-music-desktop
-[2]: https://github.com/lyswhut/lx-music-desktop/releases
-[3]: https://ci.appveyor.com/api/projects/status/flrsqd5ymp8fnte5?svg=true
-[4]: https://ci.appveyor.com/project/lyswhut/lx-music-desktop
-[5]: https://img.shields.io/github/downloads/lyswhut/lx-music-desktop/latest/total
-[5]: https://img.shields.io/github/downloads/lyswhut/lx-music-desktop/total
-[6]: https://github.com/lyswhut/lx-music-desktop/releases
-[7]: https://img.shields.io/github/package-json/v/lyswhut/lx-music-desktop/dev
-[8]: https://github.com/lyswhut/lx-music-desktop/tree/dev
-[9]: https://img.shields.io/github/license/lyswhut/lx-music-desktop
-[10]: https://github.com/lyswhut/lx-music-desktop/blob/master/LICENSE -->
+随本仓库入库的第三方内容的出处与许可汇总在 [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md)；上游变更记录保留在 [`CHANGELOG.md`](./CHANGELOG.md)。
 
-<p align="center">一个基于 Electron & Vue 开发的音乐软件</p>
-
-## 说明
-
-所用技术栈：
-
-- Electron 30+
-- Vue 3
-
-已支持的平台：
-
-- Linux
-- macOS
-- Windows 7 及以上
-
-*移动版项目地址：https://github.com/lyswhut/lx-music-mobile*
-
-> [!NOTE]
-> 目前新项目 [Any Listen](https://github.com/any-listen/any-listen) 的桌面版、Web 版已实现 LX Music 的大部分功能，并额外支持 WebDAV 歌曲播放、WebDAV 数据同步、独立播放列表等功能。
-> 我们以后的开发精力将主要集中在新项目上，之前大家在 LX Music 提的功能我们也会考虑在新项目中添加。
-> 对于日常使用 LX Music 的人可以试试迁移到 Any Listen，若遇到任何问题可以发 issue 反馈。
->
-> 关于我们开发新项目的原因，可以参考：[LX Music 项目发展调整与新项目计划](https://github.com/lyswhut/lx-music-desktop/issues/1912)。
-
-软件变化请查看[更新日志](https://github.com/lyswhut/lx-music-desktop/blob/master/CHANGELOG.md)。
-
-软件下载请查看 [GitHub Releases](https://github.com/lyswhut/lx-music-desktop/releases)。
-
-使用常见问题请参阅[桌面版常见问题](https://lyswhut.github.io/lx-music-doc/desktop/faq)。
-
-目前本项目的原始发布地址只有 [**GitHub**](https://github.com/lyswhut/lx-music-desktop/releases)，其他渠道均为第三方转载发布，与本项目无关！
-
-为了提高使用门槛，本软件内的默认设置、UI 操作不以新手友好为目标，所以使用前建议先根据你的喜好浏览调整一遍软件设置，阅读一遍[音乐播放列表机制](https://lyswhut.github.io/lx-music-doc/desktop/faq/playlist)及[可用的鼠标、键盘快捷操作](https://lyswhut.github.io/lx-music-doc/desktop/faq/hotkey)。
-
-### Scheme URL 支持
-
-从 v1.17.0 起支持 Scheme URL，可以使用此功能在浏览器等场景下调用 LX Music，我们开发了一个[油猴脚本](https://github.com/lyswhut/lx-music-script#readme)配套使用。
-
-脚本安装地址：[LX Music 辅助脚本](https://greasyfork.org/zh-CN/scripts/438148)。
-
-若你想自己调用 LX Music，可以参考文档「[Scheme URL 支持](https://lyswhut.github.io/lx-music-doc/desktop/scheme-url)」部分。
-
-### 数据同步服务
-
-从 v2.2.0 起，我们发布了一个独立的[数据同步服务](https://github.com/lyswhut/lx-music-sync-server#readme)。如果你有服务器，可以将其部署到服务器上作为私人多端同步服务使用，详情看该项目说明。
-
-### 开放 API 支持
-
-从 v2.7.0 起支持开放 API 服务。启用该功能后，将会在本地启动一个 HTTP 服务，提供播放器相关的接口供第三方软件调用，详情看文档「[开放 API 服务](https://lyswhut.github.io/lx-music-doc/desktop/open-api)」部分。
-
-### 数据存储目录
-
-默认情况下，软件的数据存储在：
-
-- Linux：`$XDG_CONFIG_HOME/chiverve-music` 或 `~/.config/chiverve-music`
-- macOS：`~/Library/Application Support/chiverve-music`
-- Windows：`%APPDATA%/chiverve-music`
-
-在 Windows 平台上，若程序文件夹中存在 `portable` 文件夹，则自动使用此文件夹作为数据存储文件夹（适用于 v1.17.0 及以上版本）。
-
-## 用户界面
-
-## 贡献代码
-
-本项目欢迎 PR，但为了 PR 能顺利合并，需要注意以下几点：
-
-- 对于添加新功能的 PR，建议在提交 PR 前先创建 Issue 进行说明，以确认该功能是否确实需要。
-- 对于修复 bug 的 PR，请提供修复前后的说明及重现方式。
-- 对于其他类型的 PR，则适当附上说明。
-
-贡献代码步骤：
-
-1. 参照[源码使用方法](https://lyswhut.github.io/lx-music-doc/desktop/use-source-code)设置开发环境；
-2. 克隆本仓库代码并切换至 `dev` 分支进行开发；
-3. 提交 PR 至 `dev` 分支。
-
-## 源码使用方法
-
-请参阅：<https://lyswhut.github.io/lx-music-doc/desktop/use-source-code>
-
-## 项目协议
-
-本项目基于 [Apache License 2.0](https://github.com/lyswhut/lx-music-desktop/blob/master/LICENSE) 许可证发行，以下协议是对于 Apache License 2.0 的补充，如有冲突，以以下协议为准。
+> 本 README **不再复刻上游 README 全文**——上游 README 讲的是它自己的软件下载渠道、开发分支与文档站，与本仓库无关，照抄只会误导。上游署名与许可文本则一个字都没有省。
 
 ---
 
