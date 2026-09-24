@@ -41,7 +41,15 @@ const options = {
     smartUnpack: false,
   },
   extraResources: [
+    // 随安装包分发的许可与声明。⚠️ 根 LICENSE（Apache-2.0 全文）必须在这里显式列出：
+    // 上面的 `files` 是**显式白名单**（只有 dist/** 与几个 node_modules 条目），electron-builder
+    // 在 files 已指定时只会额外强制加 `package.json`，**不会自动带 LICENSE**——而
+    // `licenses/` 里那三份是**上游补充协议**，不含 Apache-2.0 全文，而补充协议本身又写着
+    // 「基于 Apache License 2.0 发行」，缺了全文就是自相矛盾（2026-09-24 审计发现，见
+    // `.scratch/release-prep/issues/03-license-into-package.md`）。
     './licenses',
+    './LICENSE',
+    './THIRD_PARTY_NOTICES.md',
   ],
   // 本项目不发布任何打包版（ADR-0008）：原 publish 段（provider: github / owner: climashscape /
   // repo: chiverve-music，指向自有 Releases）已于 2026-09-24 用户裁定删除。
