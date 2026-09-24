@@ -634,7 +634,13 @@ export default {
   // clamp 的下限 180px 保证再矮也不会缩没。
   --cover: clamp(180px, calc(100vh - 380px), 300px);
   height: calc(var(--cover) + 24px);
-  overflow: hidden;
+  // 两翼超出部分裁掉。但**不能用 `overflow: hidden`**：卡片阴影是 `0 6px 22px`
+  // （向下伸到 28px、向上 16px），而这里上下各只留 12px，hidden 会把阴影切出一条硬边
+  // （2026-09-24 用户报「图片下的阴影好像被切断」；实测底边下方灰度 253 → 255 直接跳白）。
+  // `overflow: clip` + `overflow-clip-margin: 30px` 把**裁剪框**外扩 30px、布局尺寸一分不变；
+  // 拖动时两翼位移远大于 30px，照旧裁得住（clip 也不像 hidden 那样创建滚动容器）
+  overflow: clip;
+  overflow-clip-margin: 30px;
   cursor: grab;
   &:active {
     cursor: grabbing;

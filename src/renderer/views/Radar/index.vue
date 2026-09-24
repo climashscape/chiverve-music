@@ -2,7 +2,8 @@
   <div :class="$style.container">
     <div :class="$style.header">
       <!-- 两个来源并列成 tab（票 04）：每日30首 与 雷达推荐，下面共用同一个轮播形态 -->
-      <base-tab v-model="tab" :class="$style.tabs" :list="tabs" item-key="tab" @change="handleTabChange" />
+      <!-- 居中（2026-09-24 用户「这个居中放置」）：主视觉本来就是居中轮播，页头跟着居中 -->
+      <base-tab v-model="tab" :class="$style.tabs" align="center" :list="tabs" item-key="tab" @change="handleTabChange" />
       <p :class="$style.tip">{{ tip }}</p>
     </div>
 
@@ -119,14 +120,24 @@ export default {
 .header {
   flex: none;
   padding-bottom: 4px;
+  // 这一组整体居中（tab 靠 base-tab 的 align="center"，说明文案靠这条）
+  text-align: center;
+  // 字号跟着**根字号**（= 设置里的「界面字体大小」，默认 16px）走，而不是写死 px：
+  // base-tab 自己写死 12px、本页原先的说明也是 12px，在这页 300px 的主视觉下显得过小
+  // （2026-09-24 用户：「这个字都太小了」）。只在本页覆盖——base-tab 是收藏页/发现页/
+  // 歌单页共用的组件，那几页是密集列表，别去动它本身
+  .tabs {
+    font-size: 1em;
+  }
 }
-// base-tab 自带 15px 内边距，这里抵消掉，让 tab 与内容左对齐（与发现页/收藏页同写法）
+// 居中形态下**不要**再抵消 base-tab 的 15px 内边距：那条 `margin-left: -15px` 是给左对齐用的
+// （让 tab 文字与下方内容左边缘齐平，写法见收藏页/发现页），在居中版里会让整组偏左 15px
 .tabs {
-  margin-left: -15px;
+  margin-left: 0;
 }
 .tip {
   margin-top: 2px;
-  font-size: 12px;
+  font-size: .875em;
   color: var(--color-font-label);
 }
 </style>
