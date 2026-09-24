@@ -51,12 +51,10 @@ const readSectionSources = (sectionId: string): string[] => {
 }
 
 /**
- * 内容区里**还没有锚点**的分组：它们的项要么只在浮层里（音量 / 倍速 / 音效），要么是票 06/08/09
- * 才补的新设置。
+ * 内容区里**还没有锚点**的分组：`play_stability` 是票 06 才建 key 的新设置（元数据里 `items: []` 的位子）。
  * 目录只列有锚点的分组（见 useSettingToc.ts），所以这份名单就是「目录里暂时少的那些」。
  */
 const PENDING_ANCHOR_GROUPS = [
-  'play_defaults',
   'play_stability',
 ]
 

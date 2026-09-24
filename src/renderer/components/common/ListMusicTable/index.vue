@@ -46,7 +46,7 @@
           </div>
           <div class="list-item-cell auto name" :aria-label="item.name">
             <span class="select name">{{ item.name }}</span>
-            <span v-if="isShowSource" class="no-select label-source">{{ item.source }}</span>
+            <span v-if="isShowSource" class="no-select label-source">{{ getSourceName(item.source) }}</span>
           </div>
           <div class="list-item-cell" style="flex: 0 0 22%;">
             <span
@@ -90,7 +90,7 @@
           </div>
           <div class="list-item-cell auto name">
             <span class="select name" :aria-label="item.name">{{ item.name }}</span>
-            <span v-if="isShowSource" class="no-select label-source">{{ item.source }}</span>
+            <span v-if="isShowSource" class="no-select label-source">{{ getSourceName(item.source) }}</span>
           </div>
           <div class="list-item-cell" style="flex: 0 0 25%;">
             <span
@@ -133,6 +133,7 @@
 <script>
 import { clipboardWriteText } from '@common/utils/electron'
 import { assertApiSupport } from '@renderer/store/utils'
+import { getSourceName } from '@renderer/store'
 import SearchList from './components/SearchList.vue'
 import MusicSortModal from './components/MusicSortModal.vue'
 import useListInfo from './useListInfo'
@@ -355,6 +356,8 @@ export default {
 
       handleListRightClick,
       assertApiSupport,
+      // 来源列写的是显示名（别名/原名），不是 `tx` 这种内部值——见 store/index.ts:104 的注释
+      getSourceName,
 
       isShowListAdd,
       isMove,

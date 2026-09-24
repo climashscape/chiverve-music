@@ -31,20 +31,32 @@ dd
     //- 允许拖拽歌词 seek（误拖会跳歌位，关掉可防手滑）
     .gap-top(data-setting-key="playDetail.isShowLyricProgressSetting")
       base-checkbox(id="setting_play_detail_lyric_progress_enable" :model-value="appSetting['playDetail.isShowLyricProgressSetting']" :label="$t('setting__play_detail_lyric_progress')" @update:model-value="updateSetting({'playDetail.isShowLyricProgressSetting': $event})")
-    //- `playDetail.style.fontSize`（主窗歌词字号，只在歌词右键菜单里能改）按元数据属本组第 10 项，
-    //- 浮层入口由票 05 补，本票不放占位控件（会多出一个点不动的死项）
+    //- 主窗歌词字号 70–200：歌词右键菜单里改的是同一个值（夹取也在 LyricMenu.vue:117,121），设置页入口由票 05 补
+    div.gap-top(data-setting-key="playDetail.style.fontSize")
+      .p.small {{ $t('setting__play_detail_font_size') }} {{ appSetting['playDetail.style.fontSize'] }}
+      div
+        base-input(type="number" :model-value="appSetting['playDetail.style.fontSize']" :placeholder="$t('setting__play_detail_font_size')" @update:model-value="setFontSize")
 </template>
 
 <script>
+import { debounce } from '@common/utils'
 import { appSetting, updateSetting } from '@renderer/store/setting'
 
 /** 播放 → 歌词显示（主窗）（`play_lyric_main`）：SettingPlay.vue 的 5 个歌词开关 + SettingPlayDetail.vue 全部。 */
 export default {
   name: 'PlayLyricMain',
   setup() {
+    // 量程照歌词右键菜单的夹取（`LyricMenu.vue:117,121` 的 70–200），落盘防抖 500ms（同 SettingOpenAPI 的端口输入）
+    const setFontSize = debounce(value => {
+      const num = Number(value)
+      if (!Number.isFinite(num)) return
+      updateSetting({ 'playDetail.style.fontSize': Math.min(Math.max(Math.trunc(num), 70), 200) })
+    }, 500)
+
     return {
       appSetting,
       updateSetting,
+      setFontSize,
     }
   },
 }

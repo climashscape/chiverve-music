@@ -34,17 +34,25 @@ dd
       base-checkbox.gap-left(id="setting_setting__desktop_lyric_font_weight_font" :model-value="appSetting['desktopLyric.style.isFontWeightFont']" :label="$t('setting__desktop_lyric_font_weight_font')" data-setting-key="desktopLyric.style.isFontWeightFont" @update:model-value="updateSetting({ 'desktopLyric.style.isFontWeightFont': $event })")
       base-checkbox.gap-left(id="setting_setting__desktop_lyric_font_weight_line" :model-value="appSetting['desktopLyric.style.isFontWeightLine']" :label="$t('setting__desktop_lyric_font_weight_line')" data-setting-key="desktopLyric.style.isFontWeightLine" @update:model-value="updateSetting({ 'desktopLyric.style.isFontWeightLine': $event })")
       base-checkbox.gap-left(id="setting_setting__desktop_lyric_font_weight_extended" :model-value="appSetting['desktopLyric.style.isFontWeightExtended']" :label="$t('setting__desktop_lyric_font_weight_extended')" data-setting-key="desktopLyric.style.isFontWeightExtended" @update:model-value="updateSetting({ 'desktopLyric.style.isFontWeightExtended': $event })")
-    //- `desktopLyric.style.fontSize`（字号 10–80）与 `style.opacity`（透明度 6–100）按元数据也属本组，
-    //- 两者现只有歌词窗控制条能改，入口由票 05 补；本票不放占位控件（没有文案 key，会渲染出裸 key）
+    //- 字号 10–80 / 不透明度 6–100：歌词窗控制条上能改同一个值（夹取也在 ControlBar.vue:86-102），设置页入口由票 05 补
+    div.gap-top(data-setting-key="desktopLyric.style.fontSize")
+      .p.small {{ $t('setting__desktop_lyric_font_size') }} {{ appSetting['desktopLyric.style.fontSize'] }}
+      div
+        base-input(type="number" :model-value="appSetting['desktopLyric.style.fontSize']" :placeholder="$t('setting__desktop_lyric_font_size')" @update:model-value="setFontSize")
+    div.gap-top(data-setting-key="desktopLyric.style.opacity")
+      .p.small {{ $t('setting__desktop_lyric_opacity') }} {{ appSetting['desktopLyric.style.opacity'] }}
+      div
+        base-input(type="number" :model-value="appSetting['desktopLyric.style.opacity']" :placeholder="$t('setting__desktop_lyric_opacity')" @update:model-value="setOpacity")
 </template>
 
 <script>
 import { ref, computed } from '@common/utils/vueTools'
+import { debounce } from '@common/utils'
 import { getSystemFonts } from '@renderer/utils/ipc'
 import { appSetting, updateSetting } from '@renderer/store/setting'
 import { useI18n } from '@renderer/plugins/i18n'
 
-/** 桌面歌词 → 排版与字体（`desktop_lyric_font`）：对齐 / 字体 / 行距 / 截断 / 放大 + 三个「加粗对象」开关。 */
+/** 桌面歌词 → 排版与字体（`desktop_lyric_font`）：对齐 / 字体 / 字号 / 行距 / 不透明度 / 截断 / 放大 + 三个「加粗对象」开关。 */
 export default {
   name: 'DesktopLyricFont',
   setup() {
@@ -54,6 +62,15 @@ export default {
       let gap = appSetting['desktopLyric.style.lineGap'] + step
       updateSetting({ 'desktopLyric.style.lineGap': Math.min(Math.max(gap, 0), 25) })
     }
+
+    // 量程照歌词窗控制条的夹取（`ControlBar.vue:86-102`：字号 10–80、不透明度 6–100），落盘防抖 500ms
+    const clampSetting = (key, value, min, max) => {
+      const num = Number(value)
+      if (!Number.isFinite(num)) return
+      updateSetting({ [key]: Math.min(Math.max(Math.trunc(num), min), max) })
+    }
+    const setFontSize = debounce(value => { clampSetting('desktopLyric.style.fontSize', value, 10, 80) }, 500)
+    const setOpacity = debounce(value => { clampSetting('desktopLyric.style.opacity', value, 6, 100) }, 500)
 
     const systemFontList = ref([])
     const fontList = computed(() => {
@@ -68,6 +85,8 @@ export default {
       updateSetting,
       changeLineGap,
       fontList,
+      setFontSize,
+      setOpacity,
     }
   },
 }
