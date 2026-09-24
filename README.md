@@ -27,6 +27,30 @@
 > - **关于源码里的注释**：注释里会引用 `AGENTS.md`、`docs/...` 或工单编号——那是维护者的**内部设计笔记**（记录「为什么这么改」与真机实测结论），**不随本仓库公开**。代码本身是自洽的；跟着注释读到不存在的文件时按这条理解即可。
 > - **协作口径**：**欢迎报 Issues，也欢迎提 PR**——bug、构建失败、文档错漏、改进都收（[Issues](https://github.com/climashscape/chiverve-music/issues)）。但本仓库是单人业余维护的研究项目，**不承诺响应时限**；提 PR 请在描述里写清**你是怎么验证的**（下方「构建与自测」是这里通行的验证阶梯）。安全问题请走 [`SECURITY.md`](./SECURITY.md)。
 
+## 界面预览 / Screenshots
+
+> 都是**真实运行状态**的截图（用你自己的 QQ 账号登录；「每日 30 首」「雷达推荐」等数据来自 QQ 侧接口）。
+> Real screenshots of the app running with a real QQ account. 点图可看原尺寸 / click to enlarge.
+
+<table>
+  <tr>
+    <td width="50%" align="center"><img src="./screenshots/01-song-detail.png" alt="歌曲详情 / song detail" width="100%"><br><b>歌曲详情</b><br><sub>唱片公司 / 流派 / 发行时间 + 相似歌曲<br>Song detail: metadata &amp; similar tracks</sub></td>
+    <td width="50%" align="center"><img src="./screenshots/02-radar.png" alt="雷达 / radar" width="100%"><br><b>雷达推荐</b><br><sub>每日 30 首 / 雷达推荐两个 tab，居中轮播挑选<br>Radar: two tabs, carousel pick</sub></td>
+  </tr>
+  <tr>
+    <td width="50%" align="center"><img src="./screenshots/03-artist.png" alt="歌手页 / artist" width="100%"><br><b>歌手页</b><br><sub>歌曲 / 专辑 / MV / 相似歌手 四个 tab<br>Artist: songs / albums / MVs / similar</sub></td>
+    <td width="50%" align="center"><img src="./screenshots/04-music-gene.png" alt="听歌基因 / music gene" width="100%"><br><b>听歌基因</b><br><sub>音乐人格 / 乐状态 / 偏好曲风与歌手<br>Listening profile from your account</sub></td>
+  </tr>
+  <tr>
+    <td width="50%" align="center"><img src="./screenshots/05-favorites.png" alt="我的收藏 / favorites" width="100%"><br><b>我的收藏</b><br><sub>歌曲 / 歌单 / 专辑 / 歌手 四个 tab（写操作直通 QQ）<br>Favorites: four tabs, writes go to QQ</sub></td>
+    <td width="50%" align="center"><img src="./screenshots/06-downloads.png" alt="下载 / downloads" width="100%"><br><b>下载管理</b><br><sub>任务列表 + 多档音质（FLAC / 320k / 128k）<br>Downloads: tasks &amp; quality tiers</sub></td>
+  </tr>
+  <tr>
+    <td width="50%" align="center"><img src="./screenshots/07-album.png" alt="专辑页 / album" width="100%"><br><b>专辑页</b><br><sub>专辑简介 + 曲目表 + 收藏 / 分享 / 在 QQ 音乐打开<br>Album: intro, tracks, collect &amp; share</sub></td>
+    <td width="50%" align="center"><img src="./screenshots/08-my-playlists.png" alt="我的歌单 / my playlists" width="100%"><br><b>我的歌单</b><br><sub>QQ 云端自建歌单 / 本地歌单，可加歌与刷新<br>My playlists: cloud (QQ) &amp; local lists</sub></td>
+  </tr>
+</table>
+
 ## 自行构建
 
 本项目**只提供源码**，不提供任何构建产物。下面是从源码把项目跑起来的最小步骤，需要的东西全在这一节里。
