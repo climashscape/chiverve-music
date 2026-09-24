@@ -84,6 +84,27 @@ describe('Store.set', () => {
     const reopened = new Store(storePathOf('persist'))
     expect(reopened.get('list')).toEqual([1, 2, 3])
   })
+
+  it('落盘文件是 0600：里面是明文凭证，不能让同机其他账号读到', () => {
+    getStore('mode').set('credential', { musickey: 'x' })
+
+    // Windows 没有 POSIX 权限位（stat 的 mode 是模拟值），那里只钉「文件确实写出来了」
+    if (process.platform === 'win32') {
+      expect(fs.existsSync(storePathOf('mode'))).toBe(true)
+      return
+    }
+    expect(fs.statSync(storePathOf('mode')).mode & 0o777).toBe(0o600)
+  })
+
+  it('已有文件的宽松权限会在下一次写入时被收紧（老用户手上那份 664 的凭证文件）', () => {
+    const filePath = storePathOf('mode-legacy')
+    fs.writeFileSync(filePath, '{}', { encoding: 'utf8', mode: 0o644 })
+
+    new Store(filePath).set('credential', { musickey: 'x' })
+
+    if (process.platform === 'win32') return
+    expect(fs.statSync(filePath).mode & 0o777).toBe(0o600)
+  })
 })
 
 describe('getStore', () => {

@@ -16,12 +16,15 @@ class Store {
 
   private writeFile() {
     const tempPath = this.filePath + '.' + Math.random().toString().substring(2, 10) + '.temp'
+    // mode 只在「新建」时生效——tempPath 每次都是新名字，所以这两处都会走到。
+    // 里面是明文凭证（如 qq_auth.json 的 musickey/refreshKey），0600 是不让同机其他账号读到它的唯一一道闸。
+    const writeOptions = { encoding: 'utf8' as const, mode: 0o600 }
     try {
-      fs.writeFileSync(tempPath, JSON.stringify(this.store, null, '\t'), 'utf8')
+      fs.writeFileSync(tempPath, JSON.stringify(this.store, null, '\t'), writeOptions)
     } catch (err: any) {
       if (err.code === 'ENOENT') {
         fs.mkdirSync(this.dirPath, { recursive: true })
-        fs.writeFileSync(tempPath, JSON.stringify(this.store, null, '\t'), 'utf8')
+        fs.writeFileSync(tempPath, JSON.stringify(this.store, null, '\t'), writeOptions)
       } else throw err
     }
     fs.renameSync(tempPath, this.filePath)
