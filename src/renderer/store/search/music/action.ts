@@ -1,6 +1,8 @@
 import { markRaw } from '@common/utils/vueTools'
+import { getPageSize } from '@common/settings/pageSize'
 import music from '@renderer/utils/musicSdk'
 import { deduplicationList, toNewMusicInfo } from '@renderer/utils'
+import { appSetting } from '@renderer/store/setting'
 
 import { listInfos, normalizeSource } from './state'
 
@@ -43,6 +45,9 @@ export const search = async(text: string, page: number, sourceId?: string): Prom
   if (!text) return resetListInfo(id)
   const key = `${page}__${text}`
   if (listInfo.key == key && listInfo.list.length) return listInfo.list
+  // 每页条数现读设置（`list.pageSize`）：改完设置下次搜索 / 翻页生效，不必重启。
+  // 请求用多少条就写回 listInfo.limit，分页器的页数与这里的口径保持一致
+  listInfo.limit = getPageSize(appSetting)
   listInfo.noItemLabel = window.i18n.t('list__loading')
   listInfo.key = key
   return music[id].musicSearch.search(text, page, listInfo.limit).then((data: SearchResult) => {

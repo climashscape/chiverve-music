@@ -4,7 +4,9 @@ dd
   div
     //- 主窗口固定宽度（7 档；主窗口 resizable:false，这是唯一改窗口大小的途径）；全屏时禁用
     div.gap-top(data-setting-key="common.windowSizeId")
-      .p.small {{ $t('setting__basic_window_size') }}
+      .p.small
+        | {{ $t('setting__basic_window_size') }}
+        svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__basic_window_size_tip')" :title="$t('setting__basic_window_size_tip')")
       div
         base-checkbox.gap-left(
           v-for="item in windowSizeList" :id="`setting_window_size_${item.id}`" :key="item.id"
@@ -13,6 +15,7 @@ dd
     //- 全屏启动会连带禁用上面的「窗口尺寸」与外观节的「字体大小」两项
     .gap-top(data-setting-key="common.startInFullscreen")
       base-checkbox(id="setting_start_in_fullscreen" :model-value="appSetting['common.startInFullscreen']" :label="$t('setting__basic_start_in_fullscreen')" @update:model-value="updateSetting({'common.startInFullscreen': $event})")
+      svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__basic_start_in_fullscreen_tip')" :title="$t('setting__basic_start_in_fullscreen_tip')")
     //- 改后要重启才生效；mac 默认 false（原生窗口），Linux/Win 默认 true
     .gap-top(data-setting-key="common.transparentWindow")
       base-checkbox(id="setting_transparent_window" :model-value="appSetting['common.transparentWindow']" :label="$t('setting__other_transparent_window')" @update:model-value="updateSetting({'common.transparentWindow': $event})")

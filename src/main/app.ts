@@ -2,7 +2,7 @@ import path from 'node:path'
 import { renameSync } from 'fs'
 import { app, shell, screen, nativeTheme, dialog } from 'electron'
 import { URL_SCHEME_RXP } from '@common/constants'
-import { getProxy, getTheme, initHotKey, initSetting, parseEnvParams } from './utils'
+import { getProxy, getTheme, initHotKey, initSetting, parseEnvParams, recycleMusicUrlCache } from './utils'
 import { navigationUrlWhiteList } from '@common/config'
 import defaultSetting from '@common/defaultSetting'
 import { isExistWindow as isExistMainWindow, showWindow as showMainWindow } from './modules/winMain'
@@ -305,6 +305,10 @@ export const initAppSetting = async() => {
     }
     global.lx.appSetting = (await initSetting()).setting
     if (!dbFileExists) await migrateDBData().catch(err => { log.error(err) })
+    // URL 缓存回收（设置页重构票 08）：设置与库都就绪之后回收一次。
+    // await 是有意的——本函数跑在 `registerModules()`（建窗口）之前，窗口还没出现就收完，
+    // 不可能删到「正在播的那条 URL」；两个阈值默认都是 0 时 worker 直接返回、不读库。
+    await recycleMusicUrlCache()
     initTheme()
     if (envParams.cmdParams.dt == null) envParams.cmdParams.dt = !global.lx.appSetting['common.transparentWindow']
   }

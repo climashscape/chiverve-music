@@ -64,7 +64,7 @@ export default ({ props, list, selectedList, removeAllSelect }) => {
 
   const handleCopyName = index => {
     const minfo = list.value[index]
-    clipboardWriteText(formatMusicName(appSetting['download.fileName'], minfo.name, minfo.singer))
+    clipboardWriteText(formatMusicName(appSetting['download.fileNameTemplate'], minfo.name, minfo.singer))
   }
 
   const handleDislikeMusic = async(index) => {

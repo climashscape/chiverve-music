@@ -1,9 +1,11 @@
 import { markRawList } from '@common/utils/vueTools'
+import { getPageSize } from '@common/settings/pageSize'
 import { deduplicationList, toNewMusicInfo } from '@renderer/utils'
 import music from '@renderer/utils/musicSdk'
+import { appSetting } from '@renderer/store/setting'
 import {
   cloudListSongs, createdLists, favAlbumIds, favAlbums, favLists, favPlaylistIds, favSongIds, favSongIdsLoaded, favSongs, followSingers, isInited, isLoading, labels,
-  musicGene, pagers, CLOUD_LIST_PAGE_SIZE, PAGE_SIZE, profile, vip, type PlaylistCard,
+  musicGene, pagers, profile, vip, type PlaylistCard,
 } from './state'
 
 /**
@@ -74,6 +76,8 @@ export const initUserCenter = async(force = false): Promise<void> => {
       Object.assign(musicGene, await user().getMusicGene())
     }),
     load('favSongs', async() => {
+      // 每页条数现读设置（`list.pageSize`）：改完设置下次进页 / 翻页生效，不必重启
+      favSongs.limit = getPageSize(appSetting)
       const res = await user().getFavSong(1, favSongs.limit)
       setSongs(favSongs.list, res.list)
       favSongs.total = res.total
@@ -84,17 +88,17 @@ export const initUserCenter = async(force = false): Promise<void> => {
       setList(createdLists, res.list as any)
     }),
     load('favLists', async() => {
-      const res = await user().getFavSonglist(1, PAGE_SIZE)
+      const res = await user().getFavSonglist(1, getPageSize(appSetting))
       setList(favLists, res.list as any)
       pagers.favLists = { page: 1, hasMore: res.hasMore === true }
     }),
     load('favAlbums', async() => {
-      const res = await user().getFavAlbum(1, PAGE_SIZE)
+      const res = await user().getFavAlbum(1, getPageSize(appSetting))
       setList(favAlbums, res.list as any)
       pagers.favAlbums = { page: 1, hasMore: res.hasMore === true }
     }),
     load('followSingers', async() => {
-      const res = await user().getFollowSingers(1, PAGE_SIZE)
+      const res = await user().getFollowSingers(1, getPageSize(appSetting))
       setList(followSingers, res.list as any)
       pagers.followSingers = { page: 1, hasMore: res.hasMore === true }
     }),
@@ -136,6 +140,8 @@ export const loadMoreFavSongs = async(): Promise<void> => {
 export const loadFavSongs = async(): Promise<void> => {
   labels.favSongs = t('list__loading')
   try {
+    // 与 initUserCenter 那份同款：页长现读设置，改完设置下次进「我的收藏」生效
+    favSongs.limit = getPageSize(appSetting)
     const res = await user().getFavSong(1, favSongs.limit)
     setSongs(favSongs.list, res.list)
     favSongs.total = res.total
@@ -214,7 +220,7 @@ export const favErrorText = (err: any): string =>
 export const loadMoreFavLists = async(): Promise<void> => {
   if (!pagers.favLists.hasMore) return
   const next = pagers.favLists.page + 1
-  const res = await user().getFavSonglist(next, PAGE_SIZE)
+  const res = await user().getFavSonglist(next, getPageSize(appSetting))
   appendList(favLists, res.list as any)
   pagers.favLists = { page: next, hasMore: res.hasMore === true }
 }
@@ -222,7 +228,7 @@ export const loadMoreFavLists = async(): Promise<void> => {
 export const loadMoreFavAlbums = async(): Promise<void> => {
   if (!pagers.favAlbums.hasMore) return
   const next = pagers.favAlbums.page + 1
-  const res = await user().getFavAlbum(next, PAGE_SIZE)
+  const res = await user().getFavAlbum(next, getPageSize(appSetting))
   appendList(favAlbums, res.list as any)
   pagers.favAlbums = { page: next, hasMore: res.hasMore === true }
 }
@@ -230,7 +236,7 @@ export const loadMoreFavAlbums = async(): Promise<void> => {
 export const loadMoreFollowSingers = async(): Promise<void> => {
   if (!pagers.followSingers.hasMore) return
   const next = pagers.followSingers.page + 1
-  const res = await user().getFollowSingers(next, PAGE_SIZE)
+  const res = await user().getFollowSingers(next, getPageSize(appSetting))
   appendList(followSingers, res.list as any)
   pagers.followSingers = { page: next, hasMore: res.hasMore === true }
 }
@@ -255,7 +261,9 @@ export const loadCloudListSongs = async(id: string, page = 1, more = false): Pro
   cloudListSongs.noItemLabel = more ? cloudListSongs.noItemLabel : t('list__loading')
   if (!more) cloudListSongs.listTid = id
   try {
-    const res = await music.tx.songList.getListDetailByCgi(id, page, CLOUD_LIST_PAGE_SIZE)
+    // 每页条数现读设置（`list.pageSize`）：改完设置下次翻页 / 重进歌单生效
+    cloudListSongs.limit = getPageSize(appSetting)
+    const res = await music.tx.songList.getListDetailByCgi(id, page, cloudListSongs.limit)
     // 迟到的响应丢掉：期间用户可能已经切到别的歌单
     if (cloudListSongs.listTid !== id) return
     const list = toOnlineList(res.list ?? [])
@@ -370,7 +378,7 @@ export const setPlaylistFav = async(tid: string, fav: boolean): Promise<void> =>
 /** 重新拉收藏专辑列表第一页（写操作后让「我的收藏」页跟着变）。 */
 const reloadFavAlbums = async(): Promise<void> => {
   try {
-    const res = await user().getFavAlbum(1, PAGE_SIZE)
+    const res = await user().getFavAlbum(1, getPageSize(appSetting))
     setList(favAlbums, res.list as any)
     pagers.favAlbums = { page: 1, hasMore: res.hasMore === true }
   } catch (err) {
@@ -381,7 +389,7 @@ const reloadFavAlbums = async(): Promise<void> => {
 /** 重新拉收藏歌单列表第一页。 */
 const reloadFavLists = async(): Promise<void> => {
   try {
-    const res = await user().getFavSonglist(1, PAGE_SIZE)
+    const res = await user().getFavSonglist(1, getPageSize(appSetting))
     setList(favLists, res.list as any)
     pagers.favLists = { page: 1, hasMore: res.hasMore === true }
   } catch (err) {

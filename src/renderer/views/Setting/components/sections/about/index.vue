@@ -26,12 +26,12 @@ dd
   div
     .p.small {{ $t('setting__about_product') }}
     .p.small {{ $t('setting__about_based_on') }}
-    //- 许可原文不可改（AGENTS §8）：这行「你已签署本软件的 许可协议」既是协议签署状态展示
-    //- （`common.isAgreePact` 是内部机制键，不给开关），也是打开协议原文的入口。
+    //- 许可原文不可改（AGENTS §8）：这句既是协议签署状态展示（`common.isAgreePact` 是内部机制键，
+    //- 不给开关），也是打开协议原文的入口。票 11 按附 A13 把「半截句 + 按钮」拼成完整的两段：
+    //- 上面一句是状态（已完整成句），下面一行只放按钮，避免「你已……的 查看协议。」这种断句。
+    .p.small {{ $t('setting__about_pact_tip') }}
     .p.small
-      | {{ $t('setting__about_pact_tip') }}
       base-btn(min @click="handleShowPact") {{ $t('setting__about_pact_btn') }}
-      | 。
 </template>
 
 <script>

@@ -268,6 +268,9 @@ export const SETTING_SECTIONS: readonly Section[] = [
         id: 'play_lyric_main',
         i18nKey: 'setting__play_lyric_main_title', // 新增（新组）
         items: [
+          // 本地歌的歌词来源优先级（票 09 新增 key）。放在本组第一项：它决定「歌词从哪来」，
+          // 后面几项才是「拿到之后怎么显示」。只影响本地歌，一侧失败会回落（见 core/music/local.ts）
+          { key: 'lyric.sourcePriority', i18nKey: 'setting__lyric_source_priority', control: 'checkboxGroup', helpI18nKey: 'setting__lyric_source_priority_tip' },
           // 主窗口与桌面歌词窗共用同一个值（歌词窗下发白名单）
           { key: 'player.isShowLyricTranslation', i18nKey: 'setting__play_lyric_transition', control: 'checkbox', helpI18nKey: 'setting__help_shared_with_lyric_window' },
           { key: 'player.isShowLyricRoma', i18nKey: 'setting__play_lyric_roma', control: 'checkbox', helpI18nKey: 'setting__help_shared_with_lyric_window' },
@@ -323,22 +326,23 @@ export const SETTING_SECTIONS: readonly Section[] = [
           // 三档：retry（默认 = 老行为，同源刷新 URL）/ degrade（沿档位阶梯降一档重取）/ error（不重试）
           { key: 'player.onUrlFailStrategy', i18nKey: 'setting__play_on_url_fail_strategy', control: 'checkboxGroup', helpI18nKey: 'setting__play_on_url_fail_strategy_tip' },
           // 老行为是写死的 2 次（usePlayEvent.ts 的 `retryNum < 2`）；degrade 档下它同时是「最多降几档」
-          { key: 'player.retryUrlMaxNum', i18nKey: 'setting__play_retry_url_max_num', control: 'numberInput' },
+          { key: 'player.retryUrlMaxNum', i18nKey: 'setting__play_retry_url_max_num', control: 'numberInput', helpI18nKey: 'setting__play_retry_url_max_num_tip' },
           // 老行为 25 秒：加载超时先刷新一次 URL，第二次超时直接切歌
-          { key: 'player.retryUrlDelay', i18nKey: 'setting__play_retry_url_delay', control: 'numberInput' },
+          { key: 'player.retryUrlDelay', i18nKey: 'setting__play_retry_url_delay', control: 'numberInput', helpI18nKey: 'setting__play_retry_url_delay_tip' },
           // 老行为 100 秒：一次取流（含降档重取）的总等待上限，超时按失败处理
-          { key: 'player.getUrlTimeout', i18nKey: 'setting__play_get_url_timeout', control: 'numberInput' },
+          { key: 'player.getUrlTimeout', i18nKey: 'setting__play_get_url_timeout', control: 'numberInput', helpI18nKey: 'setting__play_get_url_timeout_tip' },
           // 老行为 5 秒：报错后等这么久再自动下一首（窗口不可见时立即跳，不等）
-          { key: 'player.errorSkipDelay', i18nKey: 'setting__play_error_skip_delay', control: 'numberInput' },
+          { key: 'player.errorSkipDelay', i18nKey: 'setting__play_error_skip_delay', control: 'numberInput', helpI18nKey: 'setting__play_error_skip_delay_tip' },
           // 老行为 3 秒：缓冲卡住这么久才开始往前跳
-          { key: 'player.stallSkipThreshold', i18nKey: 'setting__play_stall_skip_threshold', control: 'numberInput' },
-          // 老行为 3–6 秒的随机区间；两值顺序写反时消费点按大小取（不额外报错）
-          { key: 'player.stallSkipMin', i18nKey: 'setting__play_stall_skip_min', control: 'numberInput' },
-          { key: 'player.stallSkipMax', i18nKey: 'setting__play_stall_skip_max', control: 'numberInput' },
+          { key: 'player.stallSkipThreshold', i18nKey: 'setting__play_stall_skip_threshold', control: 'numberInput', helpI18nKey: 'setting__play_stall_skip_threshold_tip' },
+          // 老行为 3–6 秒的随机区间；两值顺序写反时消费点按大小取（不额外报错）。
+          // 两条讲的是同一段区间，故共用一个 helpI18nKey（与 theme_selector_modal__title_tip 同例）
+          { key: 'player.stallSkipMin', i18nKey: 'setting__play_stall_skip_min', control: 'numberInput', helpI18nKey: 'setting__play_stall_skip_range_tip' },
+          { key: 'player.stallSkipMax', i18nKey: 'setting__play_stall_skip_max', control: 'numberInput', helpI18nKey: 'setting__play_stall_skip_range_tip' },
           // 老行为 5 秒：快进/快退快捷键（与系统媒体键的兜底步长）一次走多远
-          { key: 'player.skipStepSeconds', i18nKey: 'setting__play_skip_step_seconds', control: 'numberInput' },
+          { key: 'player.skipStepSeconds', i18nKey: 'setting__play_skip_step_seconds', control: 'numberInput', helpI18nKey: 'setting__play_skip_step_seconds_tip' },
           // 老行为 4%（0.04）：音量加减快捷键一次调多少
-          { key: 'player.volumeStep', i18nKey: 'setting__play_volume_step', control: 'numberInput' },
+          { key: 'player.volumeStep', i18nKey: 'setting__play_volume_step', control: 'numberInput', helpI18nKey: 'setting__play_volume_step_tip' },
         ],
       },
       {
@@ -456,7 +460,8 @@ export const SETTING_SECTIONS: readonly Section[] = [
         items: [
           // 默认 false：关掉后左栏「下载」入口与各处下载按钮消失（已存在的任务仍会跑完）
           { key: 'download.enable', i18nKey: 'setting__download_enable', control: 'checkbox' },
-          { key: 'download.savePath', i18nKey: 'setting__download_path', control: 'pathPicker' },
+          // 目录不存在 / 没有写权限时下载会失败（错误写进下载列表）；改路径不会移动已下载的文件
+          { key: 'download.savePath', i18nKey: 'setting__download_path', control: 'pathPicker', helpI18nKey: 'setting__download_path_tip' },
           // 开 = 在 savePath 下再套一层「所属列表名」子目录
           { key: 'download.isSavePathGroupByListName', i18nKey: 'setting_download_save_group_list_name', control: 'checkbox' },
         ],
@@ -470,8 +475,11 @@ export const SETTING_SECTIONS: readonly Section[] = [
           { key: 'download.maxDownloadNum', i18nKey: 'setting__download_max_num', control: 'numberInput', helpI18nKey: 'setting__download_max_num_tooltip' },
           // 关掉后同目录同名文件会被覆盖/改名
           { key: 'download.skipExistFile', i18nKey: 'setting__download_skip_exist_file', control: 'checkbox' },
-          // 模板串；同一个值还兼作「复制歌名」的格式（附 B6 要拆语义，票 07 做）
-          { key: 'download.fileName', i18nKey: 'setting__download_name', control: 'checkboxGroup', helpI18nKey: 'setting__download_file_name_tip' },
+          // 自由模板串（`歌名` / `歌手` 两个占位词）；同一个值还兼作「复制歌名」的格式
+          // （附 B6：本轮只把两处语义与文案讲清，拆成第二个 key 留待有真实需求时再做）
+          { key: 'download.fileNameTemplate', i18nKey: 'setting__download_name', control: 'input', helpI18nKey: 'setting__download_file_name_tip' },
+          // 关掉后请求档位不可用的歌不建任务，由下载入队处弹提示（附 C 的 §5-C）
+          { key: 'download.degradeWhenUnsupported', i18nKey: 'setting__download_degrade_when_unsupported', control: 'checkbox', helpI18nKey: 'setting__download_degrade_when_unsupported_tip' },
         ],
       },
       {
@@ -532,6 +540,10 @@ export const SETTING_SECTIONS: readonly Section[] = [
         id: 'my_music_list',
         i18nKey: 'setting__list', // 复用「列表设置」；值由票 11 改成「列表与收藏行为」
         items: [
+          // 列表每页条数（票 09 新增 key）：放本组第一项，它管的是「列表怎么翻页」，后面的都是「列表里显示什么」。
+          // 全仓（renderer 侧）唯一取值口是 common/settings/pageSize.ts 的 getPageSize()；
+          // 发现页「推荐歌单」固定 9 条（3×3 配平）是这条帮助文案里点名的例外
+          { key: 'list.pageSize', i18nKey: 'setting__list_page_size', control: 'selection', helpI18nKey: 'setting__list_page_size_tip' },
           { key: 'list.actionButtonsVisible', i18nKey: 'setting__list_action_btn', control: 'checkbox' },
           // 附 A3 改名（单源后只有一种来源，且列表标签不再渲染内部值 tx）
           { key: 'list.isShowSource', i18nKey: 'setting__list_source', control: 'checkbox' },
@@ -554,6 +566,9 @@ export const SETTING_SECTIONS: readonly Section[] = [
           { key: 'search.isShowHotSearch', i18nKey: 'setting__search_hot', control: 'checkbox' },
           // 附 A2 改名：它同时是「是否记录」的开关（关掉后 addHistoryWord 直接 return）
           { key: 'search.isShowHistorySearch', i18nKey: 'setting__search_history', control: 'checkbox' },
+          // 搜索历史条数上限（票 09 新增 key）：紧挨着上面那项——先决定「记不记」，再决定「最多记几条」。
+          // 0 = 不记历史；量程与裁剪规则见 common/settings/searchHistory.ts
+          { key: 'search.historyMaxNum', i18nKey: 'setting__search_history_max_num', control: 'numberInput', helpI18nKey: 'setting__search_history_max_num_tip' },
           // 只在「进入搜索页」时生效，不是全局快捷键
           { key: 'search.isFocusSearchBox', i18nKey: 'setting__search_focus_search_box', control: 'checkbox' },
           // 只在「离开 Search 且不是去歌单详情」时触发
@@ -569,7 +584,8 @@ export const SETTING_SECTIONS: readonly Section[] = [
   // （排在「快捷键」之前：一级分组的既定顺序是 … 我的音乐 / 数据 / 系统 / …，而快捷键与
   // 网络 / 更新与关于同属「系统」；照 spec §2 的编号排在快捷键之后会让「系统」被「数据」劈开。
   // 见文件头「与 spec 的两处偏差」第 1 条。）
-  // 本节 **0 个 key**：全是「动作」与数据库内容（music_url / lyric_raw / lyric_edited /
+  // 本节只有 `data_cache_policy` 一组带 key（票 08 的 `cache.musicUrlKeepDays` / `cache.maxSizeMB`），
+  // 其余全是「动作」与数据库内容（music_url / lyric_raw / lyric_edited /
   // dislike / 列表数据），消费点在 renderer/utils/ipc.ts 与 worker/dbService。
   // 清理按钮、备份按钮、规则编辑器、歌词偏移都是非 key 控件，items 为空（票 03 落 UI 时另行登记）。
   // ===================================================================================
@@ -609,10 +625,16 @@ export const SETTING_SECTIONS: readonly Section[] = [
         items: [],
       },
       {
-        // §7.6 缓存回收策略（新组）：cache.musicUrlKeepDays / cache.maxSizeMB 由票 08 新增 key 后填进来
+        // §7.6 缓存回收策略（票 08）：只回收 `music_url` 表里过期 / 超限的 URL 缓存行，
+        // 不碰列表 / 我喜欢 / 歌单 / 备份 / 已下载的音频文件。两个 key 的 0 都是「不回收」。
         id: 'data_cache_policy',
         i18nKey: 'setting__data_cache_policy_title', // 新增
-        items: [],
+        items: [
+          // 天。回收时机：每次启动（main/app.ts 的 initAppSetting 内 await 一次）+ 设置页「立即回收」按钮
+          { key: 'cache.musicUrlKeepDays', i18nKey: 'setting__data_cache_music_url_keep_days', control: 'numberInput', helpI18nKey: 'setting__data_cache_music_url_keep_days_tip' },
+          // MB。占用用 `LENGTH(id)+LENGTH(url)` 近似（乐观估计，不含 SQLite 页 / 索引开销）
+          { key: 'cache.maxSizeMB', i18nKey: 'setting__data_cache_max_size', control: 'numberInput', helpI18nKey: 'setting__data_cache_max_size_tip' },
+        ],
       },
     ],
   },
@@ -736,7 +758,8 @@ export const SETTING_SECTIONS: readonly Section[] = [
         items: [
           // 开启期间模式与端口/host 都被禁用（要先关掉才能改）
           { key: 'sync.enable', i18nKey: 'setting__sync_enable', control: 'checkbox' },
-          { key: 'sync.mode', i18nKey: 'setting__sync_mode', control: 'checkboxGroup' },
+          // 服务端 / 客户端二选一：帮助里讲清两者的角色与「开着时不能改」
+          { key: 'sync.mode', i18nKey: 'setting__sync_mode', control: 'checkboxGroup', helpI18nKey: 'setting__sync_mode_tip' },
           { key: 'sync.server.port', i18nKey: 'setting__sync_server_port', control: 'input', helpI18nKey: 'setting__sync_server_port_tip' },
           // 客户端模式下唯一必填项（为空时开 enable 不生效）
           { key: 'sync.client.host', i18nKey: 'setting__sync_client_host', control: 'input', helpI18nKey: 'setting__sync_client_host_tip' },

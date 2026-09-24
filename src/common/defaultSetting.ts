@@ -12,7 +12,9 @@ const isWin = process.platform == 'win32'
  * 这里的改动会同时改「设置页显示的默认值」与「歌词窗首帧样式」；用户已存的配置文件不受影响。
  */
 const defaultSetting: LX.AppSetting = {
-  version: '2.1.1',
+  // 2.2.0 = 下载命名由三选一枚举改成模板串（`download.fileName` → `download.fileNameTemplate`），
+  // 迁移在 migrateSetting.ts 末尾；老配置加载时按这个版本号判断要不要搬
+  version: '2.2.0',
 
   'common.windowSizeId': 3,
   'common.fontSize': 16,
@@ -91,6 +93,9 @@ const defaultSetting: LX.AppSetting = {
   'playDetail.style.fontSize': 140,
   'playDetail.style.align': 'center',
   'playDetail.isDelayScroll': true,
+  // 本地歌取歌词的来源优先级（票 09）：localFirst = 改造前的行为（先「歌词缓存 + 同目录 .lrc」，
+  // 都没有才请求在线歌词）。一侧拿不到一律回落到另一侧，见 core/music/local.ts 的文件头
+  'lyric.sourcePriority': 'localFirst',
 
   'desktopLyric.enable': false,
   'desktopLyric.isLock': false,
@@ -126,13 +131,21 @@ const defaultSetting: LX.AppSetting = {
   'list.isSaveScrollLocation': true,
   'list.addMusicLocationType': 'top',
   'list.actionButtonsVisible': false,
+  // 列表每页条数（票 09）：renderer 侧唯一取值口是 common/settings/pageSize.ts 的 getPageSize()，
+  // 默认 30 = 改造前大多数列表的值。发现页「推荐歌单」固定 9 条（3×3 网格配平），不跟它走
+  'list.pageSize': 30,
 
   'download.enable': false,
   'download.isSavePathGroupByListName': false,
   'download.savePath': path.join(os.homedir(), 'Desktop'),
-  'download.fileName': '歌名 - 歌手',
+  // 下载文件名模板：只有 `歌名` / `歌手` 两个占位词，其余文本原样（渲染见 `formatMusicName`）。
+  // 默认值就是改造前的第一个预设，所以不动它时落盘文件名逐字符不变；同一个值还兼作「复制歌名」的格式
+  'download.fileNameTemplate': '歌名 - 歌手',
   'download.maxDownloadNum': 3,
   'download.skipExistFile': true,
+  // 请求的档位在当前音源不支持、或这首歌没有该档资源时：true = 按现有逻辑静默降档，
+  // false = 不创建任务并提示用户。默认 true = 改造前行为（消费点 `worker/download/utils.ts` 的 getMusicType）
+  'download.degradeWhenUnsupported': true,
   'download.isDownloadLrc': false,
   'download.isDownloadLxLrc': true,
   'download.isDownloadTLrc': false,
@@ -146,9 +159,21 @@ const defaultSetting: LX.AppSetting = {
   // 单源下无实现，多源恢复时启用（不给入口，登记在 settingMetadata 的 INTERNAL_ONLY_KEYS）
   'download.isUseOtherSource': false,
 
+  // URL 缓存（`music_url` 表：在线取流时写的一行「歌曲id_音质 → URL」）的回收策略，
+  // 设置页入口在「数据与存储 → 缓存回收策略」（票 08）。
+  // 消费点两处：①启动时主进程 `main/utils/index.ts` 的 `recycleMusicUrlCache` 回收一次；
+  // ②设置页「立即回收」按钮随时回收一次（见 ipc 的 `recycle_music_url`）。
+  // **0 = 不自动清 / 不限**：两个都是 0（默认）时回收直接返回、连库都不读——缓存只增不减，
+  // 行为与加这两个 key 之前完全一致。
+  'cache.musicUrlKeepDays': 0, // 保留天数（0 = 不按时间回收）
+  'cache.maxSizeMB': 0, // 容量上限 MB（0 = 不按容量回收）
+
   'search.isShowHotSearch': false,
   'search.isShowHistorySearch': false,
   'search.isFocusSearchBox': false,
+  // 搜索历史最多留几条（票 09）：0 = 不记历史（已有的历史不动）。总闸是上面的 isShowHistorySearch，
+  // 这里是条数闸；裁剪语义与量程见 common/settings/searchHistory.ts
+  'search.historyMaxNum': 15,
 
   'network.proxy.enable': false,
   'network.proxy.host': '',

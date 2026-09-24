@@ -49,11 +49,21 @@ export default () => {
   mainHandle<LX.Music.MusicUrlInfo>(WIN_MAIN_RENDERER_EVENT_NAME.save_music_url, async({ params: { id, url } }) => {
     await global.lx.worker.dbService.musicUrlSave([{ id, url }])
   })
+  // 按 id 精确删（票 08）：渲染侧判定缓存里那条 URL 已失效（刷新取流前）时删掉它，别留着被下次命中。
+  // 回收时的批量删不走这里（worker 内部直接调 dbHelper）。
+  mainHandle<string[]>(WIN_MAIN_RENDERER_EVENT_NAME.remove_music_url, async({ params: ids }) => {
+    await global.lx.worker.dbService.musicUrlRemove(ids)
+  })
   mainHandle(WIN_MAIN_RENDERER_EVENT_NAME.clear_music_url, async() => {
     await global.lx.worker.dbService.musicUrlClear()
   })
   mainHandle(WIN_MAIN_RENDERER_EVENT_NAME.get_music_url_count, async() => {
     return global.lx.worker.dbService.musicUrlCount()
+  })
+  // 按保留天数 / 容量上限回收（票 08）。这个通道会在**播放中**被设置页调用（「立即回收」），
+  // 所以 `keepIdPrefix`（正在播放那首歌的缓存 key 前缀）由渲染侧给，worker 侧保证命中的行一条都不删。
+  mainHandle<LX.Music.MusicUrlRecycleOptions, LX.Music.MusicUrlRecycleResult>(WIN_MAIN_RENDERER_EVENT_NAME.recycle_music_url, async({ params }) => {
+    return global.lx.worker.dbService.musicUrlRecycle(params)
   })
 
   // =========================换源歌曲=========================

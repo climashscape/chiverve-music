@@ -6,7 +6,10 @@ dd
     .p.small {{ $t('setting__sync_server_address', { address: sync.server.status.address.join(', ') || '' }) }}
     .p.small {{ $t('setting__sync_server_device', { devices: syncDevices }) }}
     .p.gap-top
-      .p.small {{ $t('setting__sync_server_port') }}
+      //- 帮助图标（票 11）：端口输入框有默认值时 placeholder 永远不可见，帮助只能靠 `?` 提供
+      .p.small
+        | {{ $t('setting__sync_server_port') }}
+        svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__sync_server_port_tip')" :title="$t('setting__sync_server_port_tip')")
       div
         base-input.gap-left(:class="$style.portInput" :model-value="appSetting['sync.server.port']" :disabled="sync.enable" type="number" :placeholder="$t('setting__sync_server_port_tip')" @update:model-value="setSyncServerPort")
 

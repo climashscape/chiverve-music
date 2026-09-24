@@ -1,0 +1,390 @@
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import Database from 'better-sqlite3'
+import type BetterSqlite3 from 'better-sqlite3'
+import tables, { DB_VERSION } from './tables'
+import { getDB, init } from './db'
+import verifyDB from './verifyDB'
+import { musicUrlCount, musicUrlRecycle, musicUrlRemove, musicUrlSave } from './modules/music_url'
+
+/**
+ * 旧库迁移实测（`dbService.init` 的硬要求，AGENTS §2.4 / 票 08 验收第一条）。
+ *
+ * **为什么必须有这个文件**：`tables.ts` 的建表 SQL 与 `verifyDB` 是**逐字符**比对的（正常化空白 /
+ * 分号 / 注释后整串相等）。校验不过时 `db.ts` 的 `init` 返回 `null`，`main/app.ts` 会弹窗、把用户库
+ * 改名备份后**重建空库** —— 数据丢了。所以「改表结构」这件事只有两种状态：在一份真旧库上实测
+ * `init` 返回 `true`，或者没验证过。这里就是把那次实测变成可复跑的用例。
+ *
+ * 四组用例：
+ * 1. `v2 → v3`：库的 `music_url` 是票 08 之前的定义（两列、无 `created_at`），版本号 `'2'`；
+ * 2. `v1 → v3`：再老一版（缺 `dislike_list`，版本号 `'1'`），要连做两版迁移；
+ * 3. 半迁移状态：`created_at` 已在但定义带 `DEFAULT`（手写 `ALTER TABLE` 会留下的样子）、版本号还是 `'2'`
+ *    —— 重建要把它归一化回 `tables` 的原文，且已写入的时间戳不能被抹掉；
+ * 4. 空目录（没有库文件）：新建的库自带 `created_at` 且直接通过校验。
+ * 外加一组「迁移后的库上回收 / 精确删真的能跑通」（验语句绑定的列名对不对，光看结构比不出来）。
+ *
+ * **真旧库怎么测**（可选，不设环境变量就跳过；需要的是**旧库的副本**，不能拿原件）：
+ * ```bash
+ * cp ~/.config/chiverve-music/LxDatas/lx.data.db /tmp/lx-legacy.db   # 应用在跑时这样拷只拿到主文件，够用
+ * CHIVERVE_LEGACY_DB=/tmp/lx-legacy.db npx vitest run src/main/worker/dbService/migrate.test.ts
+ * ```
+ * 这条走的是真实用户库的结构与数据量（合成库只能证明「我按我以为的旧结构写对了」）。
+ */
+
+/**
+ * 桩掉 `db.ts` 里 `new Database(path, { nativeBinding })` 的 `nativeBinding` 路径提示。
+ *
+ * 那个路径（`<__dirname>/../node_modules/better-sqlite3/build/Release/better_sqlite3.node`）是给
+ * **打包后**用的：那时 `__dirname` 是 `dist`，路径指到 asar 里那份绑定的拷贝。在 vitest 里
+ * `__dirname` 是源码目录 `src/main/worker/dbService`，`../node_modules/...` 不存在 → 不桩就会在
+ * `new Database` 处抛错（`init` 的 catch 分支会再抛一次，测试根本进不到迁移逻辑）。
+ * 桩只丢这一个路径提示，其余原样交给真的 better-sqlite3：加载的是同一个原生 addon、同一个 SQLite。
+ */
+vi.mock('better-sqlite3', async(importOriginal) => {
+  const actual = await importOriginal<{ default: typeof Database }>()
+  const RealDatabase = actual.default
+  const DatabaseWithoutNativeBinding = new Proxy(RealDatabase, {
+    construct: (target, args) => {
+      const [filename, options] = args as [string, Record<string, unknown> | undefined]
+      const nextOptions: Record<string, unknown> = { ...options }
+      delete nextOptions.nativeBinding
+      return Reflect.construct(target, [filename, nextOptions])
+    },
+  })
+  return { ...actual, default: DatabaseWithoutNativeBinding }
+})
+
+/** 票 08 之前的 `music_url` 定义（`git show HEAD:src/main/worker/dbService/tables.ts` 的原文） */
+const LEGACY_MUSIC_URL_SQL = `
+  CREATE TABLE "music_url" (
+    "id" TEXT NOT NULL,
+    "url" TEXT NOT NULL
+  );
+`
+
+/** 旧库里的缓存行（合成的，刻意不含任何真实 URL）：id 形如 `${歌曲id}_${音质}` */
+const LEGACY_ROWS: Array<[string, string]> = [
+  ['1001_128k', 'https://example.invalid/1001?sign=aaa'],
+  ['1002_320k', 'https://example.invalid/1002?sign=bbb'],
+  ['1003_flac', 'https://example.invalid/1003?sign=ccc'],
+]
+
+const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'chiverve-db-migrate-'))
+let caseSeq = 0
+/** 每个用例一个独立目录（`init` 在 `db.ts` 里维护模块级连接，用例之间不能共用库文件） */
+const newCaseDir = () => {
+  const dir = path.join(tmpRoot, `case-${++caseSeq}`)
+  fs.mkdirSync(dir, { recursive: true })
+  return dir
+}
+const dbFileOf = (dir: string) => path.join(dir, 'lx.data.db')
+
+/**
+ * 造一份旧库：表结构与当前 `tables` 一致，只有 `music_url` 用旧定义、版本号写旧值。
+ * 另外塞一行 `lyric`，用来证明迁移只动 `music_url`、别的表一行没碰。
+ */
+const createLegacyDb = (dir: string, version: '1' | '2') => {
+  const file = dbFileOf(dir)
+  const db = new Database(file)
+  const sqls = Array.from(tables.entries())
+    // v1 的库缺 `dislike_list`（上游 v2.4.0 版本号遗留，`migrateV1` 就是补它）
+    .filter(([name]) => !(version == '1' && name == 'dislike_list'))
+    .map(([name, sql]) => name == 'music_url' ? LEGACY_MUSIC_URL_SQL : sql)
+  db.exec(sqls.join('\n'))
+  db.exec(`INSERT INTO "main"."db_info" ("field_name", "field_value") VALUES ('version', '${version}');`)
+  const insertUrl = db.prepare('INSERT INTO "main"."music_url" ("id", "url") VALUES (?, ?)')
+  for (const [id, url] of LEGACY_ROWS) insertUrl.run(id, url)
+  db.prepare('INSERT INTO "main"."lyric" ("id", "source", "type", "text") VALUES (?, ?, ?, ?)')
+    .run('2001', 'tx', 'lrc', '[00:00.00]旧库里的歌词')
+  db.close()
+  return file
+}
+
+/** 开一条独立连接读库（断言别用 `getDB()`——那是 `init` 自己的连接，读出来的是缓存过的状态） */
+const inspect = <T>(file: string, fn: (db: BetterSqlite3.Database) => T): T => {
+  const db = new Database(file)
+  try {
+    return fn(db)
+  } finally {
+    db.close()
+  }
+}
+
+const readColumns = (file: string) => inspect(file, db => (db.pragma('table_info("music_url")') as Array<{ name: string }>).map(column => column.name))
+const readRows = (file: string) => inspect(file, db => db
+  .prepare('SELECT "id", "url", "created_at" AS "createdAt" FROM "main"."music_url" ORDER BY "rowid"')
+  .all() as Array<{ id: string, url: string, createdAt: number }>)
+const readVersion = (file: string) => inspect(file, db => (db
+  .prepare('SELECT "field_value" AS "value" FROM "main"."db_info" WHERE "field_name" = ?')
+  .get('version') as { value: string }).value)
+const readTableNames = (file: string) => inspect(file, db => (db
+  .prepare('SELECT "name" FROM "main".sqlite_master WHERE "type" = \'table\' ORDER BY "name"')
+  .all() as Array<{ name: string }>).map(row => row.name))
+const readLyricCount = (file: string) => inspect(file, db => (db.prepare('SELECT COUNT(*) AS "count" FROM "main"."lyric"').get() as { count: number }).count)
+
+afterAll(() => {
+  try {
+    getDB()?.close()
+  } catch {}
+  fs.rmSync(tmpRoot, { recursive: true, force: true })
+})
+
+describe('v2 → v3：`music_url` 加 `created_at`', () => {
+  let dir: string
+  let file: string
+
+  beforeAll(() => {
+    dir = newCaseDir()
+    file = createLegacyDb(dir, '2')
+    expect(readColumns(file)).toEqual(['id', 'url']) // 前提：这份库确实是旧结构
+    expect(readVersion(file)).toBe('2')
+  })
+
+  it('dbService.init 返回 true（不是 null：不会走到「改名备份 + 重建空库」那条路）', () => {
+    expect(init(dir)).toBe(true)
+    // `init` 只在 verifyDB 通过时才返回 dbFileExists，这里再断言一次，把判据钉在同一处
+    expect(verifyDB(getDB())).toBe(true)
+  })
+
+  it('表多出 created_at 列，老行一行不少、url 逐字符没动，且 created_at 都是 0', () => {
+    expect(readColumns(file)).toEqual(['id', 'url', 'created_at'])
+    const rows = readRows(file)
+    expect(rows.map(row => [row.id, row.url])).toEqual(LEGACY_ROWS)
+    expect(rows.every(row => row.createdAt === 0)).toBe(true)
+  })
+
+  it('版本号升到 DB_VERSION；别的表一行没动；没留下迁移用的临时表', () => {
+    expect(DB_VERSION).toBe('3')
+    expect(readVersion(file)).toBe(DB_VERSION)
+    expect(readLyricCount(file)).toBe(1)
+    // 迁移中途改名出来的表必须收干净。`sqlite_stat*` 是 `init` 里 `PRAGMA optimize` 建的，不算数
+    const tableNames = readTableNames(file).filter(name => !name.startsWith('sqlite_stat'))
+    expect(tableNames).toEqual([
+      'db_info',
+      'dislike_list',
+      'download_list',
+      'lyric',
+      'music_info_other_source',
+      'music_url',
+      'my_list',
+      'my_list_music_info',
+      'my_list_music_info_order',
+      'sqlite_sequence',
+    ])
+  })
+
+  it('幂等：再跑一次 init 仍返回 true，行数与时间戳都不变（不会重复搬数据）', () => {
+    expect(init(dir)).toBe(true)
+    expect(verifyDB(getDB())).toBe(true)
+    expect(readVersion(file)).toBe(DB_VERSION)
+    expect(readRows(file).map(row => [row.id, row.url, row.createdAt])).toEqual(LEGACY_ROWS.map(([id, url]) => [id, url, 0]))
+  })
+})
+
+describe('v1 → v3：连做两版迁移（`dislike_list` 与 `created_at` 一起补）', () => {
+  let dir: string
+  let file: string
+
+  beforeAll(() => {
+    dir = newCaseDir()
+    file = createLegacyDb(dir, '1')
+    expect(readTableNames(file)).not.toContain('dislike_list')
+    expect(readColumns(file)).toEqual(['id', 'url'])
+  })
+
+  it('dbService.init 返回 true，且两版迁移都落了地', () => {
+    expect(init(dir)).toBe(true)
+    expect(verifyDB(getDB())).toBe(true)
+    expect(readVersion(file)).toBe(DB_VERSION)
+    expect(readColumns(file)).toEqual(['id', 'url', 'created_at'])
+    expect(readTableNames(file)).toContain('dislike_list')
+    expect(readRows(file).map(row => [row.id, row.url, row.createdAt])).toEqual(LEGACY_ROWS.map(([id, url]) => [id, url, 0]))
+  })
+})
+
+describe('半迁移状态（列已在、定义与 `tables` 不同、版本号还是 2）：重建归一化，时间戳不丢', () => {
+  let dir: string
+  let file: string
+  /** 手写 `ALTER TABLE ... ADD COLUMN` 会留下的定义（带 DEFAULT，与 `tables` 的原文不同） */
+  const ALTERED_TIMESTAMP = 1_600_000_000_000
+
+  beforeAll(() => {
+    dir = newCaseDir()
+    file = createLegacyDb(dir, '2')
+    inspect(file, db => {
+      db.exec('ALTER TABLE "music_url" ADD COLUMN "created_at" INTEGER NOT NULL DEFAULT 0;')
+      db.prepare('UPDATE "main"."music_url" SET "created_at" = ? WHERE "id" = ?').run(ALTERED_TIMESTAMP, LEGACY_ROWS[0][0])
+    })
+    expect(readColumns(file)).toEqual(['id', 'url', 'created_at'])
+  })
+
+  it('init 返回 true（重建把定义归一化回 `tables`，而不是因为定义不同就卡在校验上）', () => {
+    expect(init(dir)).toBe(true)
+    expect(verifyDB(getDB())).toBe(true)
+    const definition = inspect(file, db => (db
+      .prepare('SELECT "sql" FROM "main".sqlite_master WHERE "name" = \'music_url\'')
+      .get() as { sql: string }).sql)
+    // 归一化的判据：库里这串 SQL 与 `tables` 的原文等价（`verifyDB` 用同一套正常化规则）
+    expect(definition.replace(/\n|\s|;|--.+/g, '')).toBe(tables.get('music_url')!.replace(/\n|\s|;|--.+/g, ''))
+  })
+
+  it('已经写入的真实时间戳被保留（不是统统抹成 0）', () => {
+    expect(readRows(file).find(row => row.id == LEGACY_ROWS[0][0])!.createdAt).toBe(ALTERED_TIMESTAMP)
+    expect(readRows(file).filter(row => row.id != LEGACY_ROWS[0][0]).every(row => row.createdAt === 0)).toBe(true)
+  })
+})
+
+describe('空目录（没有库文件）：新建的库直接是 v3 结构', () => {
+  let dir: string
+  let file: string
+
+  beforeAll(() => {
+    dir = newCaseDir()
+    file = dbFileOf(dir)
+  })
+
+  it('init 返回 false（= 新建库，不是 null）且校验通过、带 created_at', () => {
+    expect(init(dir)).toBe(false)
+    expect(verifyDB(getDB())).toBe(true)
+    expect(readVersion(file)).toBe(DB_VERSION)
+    expect(readColumns(file)).toEqual(['id', 'url', 'created_at'])
+  })
+})
+
+describe('迁移后的库上：写入 / 回收 / 精确删真的能跑通（验语句绑定的列名）', () => {
+  let dir: string
+  let file: string
+
+  beforeAll(() => {
+    dir = newCaseDir()
+    file = createLegacyDb(dir, '2')
+    expect(init(dir)).toBe(true)
+  })
+
+  it('新写入的行带真实时间戳（`insertMusicUrl` 写的是 Date.now()，不是 0）', () => {
+    const before = Date.now()
+    musicUrlSave([{ id: '3001_128k', url: 'https://example.invalid/3001?sign=ddd' }])
+    const row = readRows(file).find(item => item.id == '3001_128k')!
+    expect(row.createdAt).toBeGreaterThanOrEqual(before)
+    expect(row.createdAt).toBeLessThanOrEqual(Date.now())
+  })
+
+  it('keepDays=1：老库那批 `created_at = 0` 的行按「最旧」被回收，新行留着', () => {
+    const result = musicUrlRecycle({ keepDays: 1, maxSizeMB: 0 })
+    expect(result.skipped).toBe(false)
+    expect(result.deleted).toBe(LEGACY_ROWS.length)
+    expect(readRows(file).map(row => row.id)).toEqual(['3001_128k'])
+  })
+
+  it('两个阈值都是 0（默认）= 不回收：连库都不读，行数不变', () => {
+    const countBefore = musicUrlCount()
+    const result = musicUrlRecycle({ keepDays: 0, maxSizeMB: 0 })
+    expect(result.skipped).toBe(true)
+    expect(result.bytesBefore).toBe(null)
+    expect(result.bytesAfter).toBe(null)
+    expect(musicUrlCount()).toBe(countBefore)
+  })
+
+  it('`musicUrlRemove` 按 id 精确删（`deleteMusicUrl` 的真实调用路径）', () => {
+    musicUrlRemove(['3001_128k'])
+    expect(musicUrlCount()).toBe(0)
+    expect(readRows(file)).toEqual([])
+  })
+})
+
+/**
+ * 真旧库副本（可选）。不设环境变量时整组跳过 —— 别把某台机器的路径写死进用例。
+ * 只断言「结构升级成功 + 老数据还在」，行数如实打印出来当证据（不打印 id / url）。
+ */
+const legacyDbPath = process.env.CHIVERVE_LEGACY_DB
+
+describe('真旧库副本：dbService.init 返回 true 且老数据一行不少', () => {
+  it.runIf(legacyDbPath)('实测一份真库副本（结构 + 行数）', () => {
+    const dir = newCaseDir()
+    const file = dbFileOf(dir)
+    fs.copyFileSync(legacyDbPath!, file)
+
+    const versionBefore = readVersion(file)
+    const columnsBefore = readColumns(file)
+    // 迁移前只能用只查 id 的读法（旧表还没有 created_at 列）
+    const idsBefore = inspect(file, db => (db
+      .prepare('SELECT "id" FROM "main"."music_url" ORDER BY "rowid"')
+      .all() as Array<{ id: string }>).map(row => row.id))
+    const bytesBefore = inspect(file, db => (db.prepare('SELECT COALESCE(SUM(LENGTH("id") + LENGTH("url")), 0) AS "bytes" FROM "main"."music_url"').get() as { bytes: number }).bytes)
+    console.log('[migrate.test] 旧库副本：version=%s, music_url 行数=%d, 近似占用=%d 字节, 列=%s', versionBefore, idsBefore.length, bytesBefore, columnsBefore.join('/'))
+    expect(versionBefore).toBe('2')
+    expect(columnsBefore).toEqual(['id', 'url'])
+
+    expect(init(dir)).toBe(true)
+    expect(verifyDB(getDB())).toBe(true)
+
+    const columnsAfter = readColumns(file)
+    const rowsAfter = readRows(file)
+    console.log('[migrate.test] 迁移后：version=%s, music_url 行数=%d, created_at 全为 0=%s',
+      readVersion(file), rowsAfter.length, rowsAfter.every(row => row.createdAt === 0))
+    expect(readVersion(file)).toBe(DB_VERSION)
+    expect(columnsAfter).toEqual(['id', 'url', 'created_at'])
+    expect(rowsAfter.map(row => row.id)).toEqual(idsBefore)
+    expect(rowsAfter.every(row => row.createdAt === 0)).toBe(true)
+    expect(readLyricCount(file)).toBeGreaterThan(0)
+  })
+})
+
+/**
+ * 同一份真库副本上把两个阈值**真跑一遍**（票 08 验收 2 / 3 的数据层等价物）。
+ *
+ * 验收原文是「重启应用后看到行数变化」——「重启」那半截是 `main/app.ts` 的 `initAppSetting` →
+ * `recycleMusicUrlCache`（读代码 + 看主进程日志），这半截（挑行 / 删行 / 计量）在这里用真数据量跑。
+ * 为了让场景与「升级后的稳态」一致，先把所有行的 `created_at` 刷成现在（迁移上来的老行都是 0），
+ * 再把一行改成两天前当「过期样本」。
+ */
+describe('真旧库副本：保留天数 / 容量上限真跑一遍', () => {
+  const DAY = 24 * 60 * 60 * 1000
+
+  it.runIf(legacyDbPath)('keepDays=1 只删掉两天前那一条；maxSizeMB=1 把占用压到 1 MB 内', () => {
+    const dir = newCaseDir()
+    const file = dbFileOf(dir)
+    fs.copyFileSync(legacyDbPath!, file)
+    expect(init(dir)).toBe(true)
+
+    const now = Date.now()
+    // 稳态：所有行都是「刚写进来的」
+    getDB().prepare('UPDATE "main"."music_url" SET "created_at" = ?').run(now)
+    const idsBefore = readRows(file).map(row => row.id)
+    expect(idsBefore.length).toBeGreaterThan(1)
+
+    // 过期样本：把第一行改成两天前
+    const expiredId = idsBefore[0]
+    getDB().prepare('UPDATE "main"."music_url" SET "created_at" = ? WHERE "id" = ?').run(now - 2 * DAY, expiredId)
+    const byKeepDays = musicUrlRecycle({ keepDays: 1, maxSizeMB: 0 })
+    const idsAfterKeepDays = readRows(file).map(row => row.id)
+    console.log('[migrate.test] keepDays=1：回收前 %d 行 → 删了 %d 行 → 剩 %d 行（过期样本已删=%s）',
+      idsBefore.length, byKeepDays.deleted, idsAfterKeepDays.length, !idsAfterKeepDays.includes(expiredId))
+    expect(byKeepDays.deleted).toBe(1)
+    expect(idsAfterKeepDays).toEqual(idsBefore.slice(1)) // 只少了第一行（顺序也照旧）
+
+    // 容量：塞到远超 1 MB（约 200 字节 / 行），再用 maxSizeMB=1 压回上限内
+    const bulk: LX.Music.MusicUrlInfo[] = []
+    for (let index = 0; index < 6000; index++) {
+      bulk.push({ id: `bulk_${index}_128k`, url: `https://example.invalid/bulk/${index}?sign=${'x'.repeat(160)}` })
+    }
+    for (let index = 0; index < bulk.length; index += 500) musicUrlSave(bulk.slice(index, index + 500))
+
+    const bytesBeforeMaxSize = inspect(file, db => (db.prepare('SELECT COALESCE(SUM(LENGTH("id") + LENGTH("url")), 0) AS "bytes" FROM "main"."music_url"').get() as { bytes: number }).bytes)
+    const rowsBeforeMaxSize = readRows(file).length
+    const byMaxSize = musicUrlRecycle({ keepDays: 0, maxSizeMB: 1 })
+    const bytesAfterMaxSize = inspect(file, db => (db.prepare('SELECT COALESCE(SUM(LENGTH("id") + LENGTH("url")), 0) AS "bytes" FROM "main"."music_url"').get() as { bytes: number }).bytes)
+    const idsAfterMaxSize = readRows(file).map(row => row.id)
+    console.log('[migrate.test] maxSizeMB=1：回收前 %d 行 / %d 字节 → 删了 %d 行 → 剩 %d 行 / %d 字节（上限 %d）',
+      rowsBeforeMaxSize, bytesBeforeMaxSize, byMaxSize.deleted, idsAfterMaxSize.length, bytesAfterMaxSize, 1024 * 1024)
+    expect(bytesBeforeMaxSize).toBeGreaterThan(1024 * 1024)
+    expect(byMaxSize.deleted).toBeGreaterThan(0)
+    expect(bytesAfterMaxSize).toBeLessThanOrEqual(1024 * 1024)
+    // 从最旧的一端删：最后写进来的那条一定还在（它是最新的）
+    expect(idsAfterMaxSize).toContain('bulk_5999_128k')
+    // 而迁移上来的老行时间戳最早 → 先被删（口径：旧的先走）
+    expect(idsAfterMaxSize.length).toBeLessThan(rowsBeforeMaxSize)
+  })
+})

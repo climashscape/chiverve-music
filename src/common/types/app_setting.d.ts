@@ -365,6 +365,14 @@ declare global {
        */
       'playDetail.isDelayScroll': boolean
 
+      /**
+       * 本地歌（`source == 'local'`）取歌词的来源优先级：
+       * localFirst = 先「歌词缓存 + 同目录 .lrc 文件」，都没有才请求在线歌词（默认，改造前行为）；
+       * onlineFirst = 反过来。任一侧拿不到都会回落到另一侧（断网 / 未登录时本地 `.lrc` 照样出词）。
+       * 在线歌曲没有本地歌词可查，不看这个值。取值与默认值见 `common/settings/lyricSource.ts`
+       */
+      'lyric.sourcePriority': 'localFirst' | 'onlineFirst'
+
 
       /**
        * 是否启用桌面歌词
@@ -527,6 +535,14 @@ declare global {
       'list.actionButtonsVisible': boolean
 
       /**
+       * 列表每页条数（设置页给 10 / 20 / 30 / 50 / 100 五档，默认 30）。
+       * renderer 侧唯一取值口是 `common/settings/pageSize.ts` 的 `getPageSize()`。
+       * 改完不强制刷新已加载的列表，下次进页 / 翻页 / 加载更多时生效。
+       * ⚠️ 发现页「推荐歌单」固定 9 条（卡片 3×3 与面板固定高度配平），不受它影响
+       */
+      'list.pageSize': number
+
+      /**
        * 是否启用下载功能
        */
       'download.enable': boolean
@@ -542,9 +558,10 @@ declare global {
       'download.savePath': string
 
       /**
-       * 文件命名方式
+       * 下载文件名模板：只有 `歌名` / `歌手` 两个占位词，其余文本原样（`formatMusicName`）。
+       * 同一个值还兼作「复制歌名」的格式
        */
-      'download.fileName': '歌名 - 歌手' | '歌手 - 歌名' | '歌名'
+      'download.fileNameTemplate': string
 
       /**
        * 最大并发下载数
@@ -555,6 +572,11 @@ declare global {
        * 存在同名文件时跳过下载
        */
       'download.skipExistFile': boolean
+
+      /**
+       * 请求的档位在当前音源不支持时是否静默降档（false = 跳过该歌并提示）
+       */
+      'download.degradeWhenUnsupported': boolean
 
       /**
        * 是否下载lrc文件
@@ -615,6 +637,24 @@ declare global {
       'download.isUseOtherSource': boolean
 
       /**
+       * URL 缓存（`music_url` 表，保存在线取流拿到的「歌曲id_音质 → URL」）的保留天数，
+       * 单位：天。`0` = 不按时间回收（默认）。
+       *
+       * 消费点：`main/utils/index.ts` 的 `recycleMusicUrlCache`（每次启动回收一次）与设置页的
+       * 「立即回收」按钮。判过期按行的**写入时间**（每次取流成功会重写这行、刷新时间）。
+       * 老库迁移上来的行 `created_at` 是 0，按「最旧」处理（先被回收）。
+       */
+      'cache.musicUrlKeepDays': number
+
+      /**
+       * URL 缓存的容量上限，单位：MB。`0` = 不按容量回收（默认）。
+       *
+       * 占用判定用 `LENGTH(id) + LENGTH(url)` 近似（乐观估计，不含 SQLite 的页 / 索引开销），
+       * 超出时从最旧的行开始删到上限内。
+       */
+      'cache.maxSizeMB': number
+
+      /**
        * 主题id
        */
       'theme.id': string
@@ -638,6 +678,13 @@ declare global {
        * 是否显示搜索历史
        */
       'search.isShowHistorySearch': boolean
+
+      /**
+       * 搜索历史最多保留几条（默认 15，设置页量程 0–100）：**0 = 不记历史**（已有的历史不动，只是
+       * 不再往进记）。上面的 `isShowHistorySearch` 是总闸，这里是条数闸；裁剪与取值见
+       * `common/settings/searchHistory.ts`
+       */
+      'search.historyMaxNum': number
 
       /**
        * 软件启动时是否自动聚焦搜索框
@@ -693,7 +740,6 @@ declare global {
        * 最大备份快照数
        */
       'sync.server.maxSsnapshotNum': number
-
       /**
        * 同步服务地址
        */

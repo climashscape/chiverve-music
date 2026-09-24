@@ -1,6 +1,8 @@
 import { markRawList, reactive, ref } from '@common/utils/vueTools'
+import { getPageSize } from '@common/settings/pageSize'
 import { deduplicationList, toNewMusicInfo } from '@renderer/utils'
 import music from '@renderer/utils/musicSdk'
+import { appSetting } from '@renderer/store/setting'
 import { player, openMv as openMvPlayer, closePlayer as closePlayerState, retryUrl as retryMvUrl, type MvInfo } from '@renderer/store/mv'
 
 /**
@@ -19,7 +21,7 @@ import { player, openMv as openMvPlayer, closePlayer as closePlayerState, retryU
  *
  *   3. **分页**：数据层的 `begin` 是**原始偏移量**，公式为 `begin = (page - 1) * limit`
  *      （见 `tx/singer.js` 的注释——那里曾写成 `page * limit`，会让 page ≥ 2 跳掉一页，
- *      已修）。这里按 `offset / CHUNK + 1` 换算页码即可。
+ *      已修）。这里按 `offset / chunk + 1` 换算页码即可（`chunk` = 本次列表会话的粒度，见 `Block.chunk`）。
  *      `GetSingerSongList` 的 `num` 服务端上限实测是 100。
  *
  *   4. **每个区块独立 try/catch**：五个接口互不依赖，一个挂掉不该让整页白屏（同发现页）。
@@ -34,15 +36,17 @@ import { player, openMv as openMvPlayer, closePlayer as closePlayerState, retryU
 
 const t = (key: string) => window.i18n.t(key as any)
 
-/** 每块条数（= 分页粒度）。取 50 让「加载更多」的粒度不至于太粗。 */
-const CHUNK = 50
-/** MV 每页条数（MV 接口的 start/count 是正常偏移语义，不需要绕行）。 */
-const MV_PAGE_SIZE = 20
 /** 相似歌手：服务端不接受分页，只接受条数。 */
 const SIMILAR_NUM = 12
 
-/** 把「想取的偏移」翻译成数据层的 page/limit（见文件头第 3 条）。 */
-const chunkParams = (offset: number) => ({ page: Math.floor(offset / CHUNK) + 1, limit: CHUNK })
+/**
+ * 把「想取的偏移」翻译成数据层的 page/limit（见文件头第 3 条）。
+ *
+ * `chunk` 由调用方从 Block 里取（不是在这里现读设置）：偏移制的取数要求粒度与累积的 `offset`
+ * 配套——中途改设置若就地换粒度，`floor(offset / chunk) + 1` 会把已加载的区间又取一遍。
+ * 粒度的取值与刷新时机见 `Block.chunk`。
+ */
+const chunkParams = (offset: number, chunk: number) => ({ page: Math.floor(offset / chunk) + 1, limit: chunk })
 
 export interface SingerInfo {
   id: string
@@ -81,8 +85,14 @@ interface Block<T> {
   list: T[]
   /** 服务端报的总数（歌手歌曲数可能上千，只用来判断还有没有下一页） */
   total: number
-  /** 下一个待取偏移。**不能用 `list.length` 推**：绕行方案要求它始终是 CHUNK 的整数倍 */
+  /** 下一个待取偏移。**不能用 `list.length` 推**：绕行方案要求它始终是本次粒度的整数倍 */
   offset: number
+  /**
+   * 本次列表会话的分页粒度（设置 `list.pageSize`）。**首屏（offset === 0）取一次，之后沿用**：
+   * 偏移制的取数要求粒度与 `offset` 配套，中途改设置若就地换粒度会把已加载区间又取一遍。
+   * 所以「改完设置下次进页生效」——重进歌手页走首屏分支，那时才跟着设置变。
+   */
+  chunk: number
   noItemLabel: string
   isLoading: boolean
   hasMore: boolean
@@ -94,6 +104,8 @@ const createBlock = <T>(): Block<T> => ({
   list: [],
   total: 0,
   offset: 0,
+  // 首帧占位；首屏取数时会按设置刷一次（见 loadSongs / loadAlbums）
+  chunk: getPageSize(appSetting),
   noItemLabel: '',
   isLoading: false,
   hasMore: false,
@@ -190,7 +202,9 @@ const loadSongs = async(mid: string, offset = 0) => {
   songs.isLoading = true
   songs.moreError = ''
   if (offset === 0) songs.noItemLabel = t('list__loading')
-  const { page, limit } = chunkParams(offset)
+  // 首屏才按设置取粒度，「加载更多」沿用同一个（理由见 Block.chunk）
+  if (offset === 0) songs.chunk = getPageSize(appSetting)
+  const { page, limit } = chunkParams(offset, songs.chunk)
   try {
     const res = await music.tx.singer.getSongList(mid, page, limit)
     if (songKey !== key) return
@@ -222,7 +236,7 @@ const loadSongs = async(mid: string, offset = 0) => {
 }
 
 /**
- * 专辑。分页绕行与歌曲同一套（`getAlbumList` 是同一个 bug），偏移粒度同样是 CHUNK。
+ * 专辑。分页绕行与歌曲同一套（`getAlbumList` 是同一个 bug），偏移粒度同样取自 `Block.chunk`。
  * `num` 在专辑这里服务端**没有** 100 的上限（实测 num=200 能收回 78 张），首屏取 100 是安全的。
  */
 const loadAlbums = async(mid: string, offset = 0) => {
@@ -231,7 +245,9 @@ const loadAlbums = async(mid: string, offset = 0) => {
   albums.isLoading = true
   albums.moreError = ''
   if (offset === 0) albums.noItemLabel = t('list__loading')
-  const { page, limit } = chunkParams(offset)
+  // 首屏才按设置取粒度，「加载更多」沿用同一个（理由见 Block.chunk）
+  if (offset === 0) albums.chunk = getPageSize(appSetting)
+  const { page, limit } = chunkParams(offset, albums.chunk)
   try {
     const res = await music.tx.singer.getAlbumList(mid, page, limit)
     if (albumKey !== key) return
@@ -270,8 +286,10 @@ const loadMvs = async(mid: string, page = 1, more = false) => {
   mvs.isLoading = true
   mvs.moreError = ''
   if (!more) mvs.noItemLabel = t('list__loading')
+  // MV 是页号制（不是偏移制），粒度现读设置即可：改完设置下次翻页生效
+  const pageSize = getPageSize(appSetting)
   try {
-    const res = await music.tx.singer.getMvList(mid, page, MV_PAGE_SIZE)
+    const res = await music.tx.singer.getMvList(mid, page, pageSize)
     if (mvKey !== key) return
     const list = markRawList((res?.list ?? []).map((item: any) => ({
       id: String(item.id ?? ''),
@@ -287,7 +305,7 @@ const loadMvs = async(mid: string, page = 1, more = false) => {
     mvs.page = page
     // ⚠️ 这里的 total 实测是个很大的数（周杰伦 10426，含翻唱/现场），不能拿来算页码；
     // 按「本页是否拿满」判断有没有下一页 —— 与 MV 页同样处理（views/Mv/useMv.ts 文件头第 2 条）
-    mvs.hasMore = list.length >= MV_PAGE_SIZE
+    mvs.hasMore = list.length >= pageSize
     finishLabel(mvs, mvs.list)
   } catch (err: any) {
     if (mvKey !== key) return

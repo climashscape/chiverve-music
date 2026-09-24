@@ -691,6 +691,15 @@ export const saveMusicUrl = async(musicInfo: LX.Music.MusicInfo, type: LX.Qualit
     url,
   })
 }
+
+/**
+ * 删除具体的歌曲URL缓存（按缓存 key 精确删，不碰别的行）
+ * @param ids 缓存 key（`${歌曲id}_${音质}`）
+ */
+export const removeMusicUrl = async(ids: string[]) => {
+  await rendererInvoke<string[]>(WIN_MAIN_RENDERER_EVENT_NAME.remove_music_url, ids)
+}
+
 /**
  * 清理所有缓存的歌曲URL
  */
@@ -700,6 +709,14 @@ export const clearMusicUrl = async() => {
 
 export const getMusicUrlCount = async() => {
   return rendererInvoke<number>(WIN_MAIN_RENDERER_EVENT_NAME.get_music_url_count)
+}
+
+/**
+ * 按保留天数 / 容量上限回收歌曲URL缓存（设置页「立即回收」按钮；启动时的回收在主进程内直接跑）
+ * @param options 回收策略；`keepIdPrefix` 见 `LX.Music.MusicUrlRecycleOptions`
+ */
+export const recycleMusicUrl = async(options: LX.Music.MusicUrlRecycleOptions) => {
+  return rendererInvoke<LX.Music.MusicUrlRecycleOptions, LX.Music.MusicUrlRecycleResult>(WIN_MAIN_RENDERER_EVENT_NAME.recycle_music_url, options)
 }
 
 /**

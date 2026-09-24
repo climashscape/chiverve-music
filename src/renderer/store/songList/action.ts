@@ -2,6 +2,8 @@
 import { deduplicationList, toNewMusicInfo } from '@renderer/utils'
 import musicSdk from '@renderer/utils/musicSdk'
 import { markRaw, markRawList } from '@common/utils/vueTools'
+import { getPageSize } from '@common/settings/pageSize'
+import { appSetting } from '@renderer/store/setting'
 import {
   tags,
   listInfo,
@@ -69,7 +71,8 @@ export const clearListDetail = () => {
   listDetailInfo.id = ''
   listDetailInfo.source = 'tx'
   listDetailInfo.total = 0
-  listDetailInfo.limit = 30
+  // 清空后回到「首帧占位」的页长（见 state.ts 的说明：真正的页长由服务端回的 limit 决定）
+  listDetailInfo.limit = getPageSize(appSetting)
   listDetailInfo.page = 1
   listDetailInfo.key = null
   listDetailInfo.info = {}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { toNewMusicInfo, toOldMusicInfo } from './tools'
+import { formatMusicName, toNewMusicInfo, toOldMusicInfo } from './tools'
 
 /**
  * 老式（musicSdk 内部平铺字段）与新式（UI/store，平台字段进 meta）两种歌曲模型的
@@ -96,5 +96,35 @@ describe('toNewMusicInfo / toOldMusicInfo（tx 在线歌曲）', () => {
     expect(roundTrip.albumId).toBe('')
     expect(roundTrip.types).toEqual([])
     expect(roundTrip._types).toEqual({})
+  })
+})
+
+/**
+ * `formatMusicName` 的语义契约（设置页重构票 07：下载命名从三选一枚举改成自由模板串，
+ * `download.fileNameTemplate` 就是喂给它的模板）。三个老预设的渲染结果必须与改造前逐字符一致，
+ * 其余边界按下面钉住 —— 它同时服务下载落盘与四处「复制歌名」。
+ */
+describe('formatMusicName（下载命名模板）', () => {
+  it('三个老预设的渲染结果与改造前一致', () => {
+    expect(formatMusicName('歌名 - 歌手', '富士山下', '陈奕迅')).toBe('富士山下 - 陈奕迅')
+    expect(formatMusicName('歌手 - 歌名', '富士山下', '陈奕迅')).toBe('陈奕迅 - 富士山下')
+    expect(formatMusicName('歌名', '富士山下', '陈奕迅')).toBe('富士山下')
+  })
+
+  it('不含占位词的模板原样输出（字面量模板）', () => {
+    expect(formatMusicName('my_music', '富士山下', '陈奕迅')).toBe('my_music')
+  })
+
+  it('重复的占位词全部替换', () => {
+    expect(formatMusicName('歌名_歌名_歌手_歌手', '富士山下', '陈奕迅')).toBe('富士山下_富士山下_陈奕迅_陈奕迅')
+  })
+
+  it('一趟替换：艺术家名里含「歌名」时不会被二次替换', () => {
+    // 分两趟 `replace('歌手',…).replace('歌名',…)` 的写法会把刚填进去的艺术家名又替掉一次
+    expect(formatMusicName('歌手 - 歌名', '富士山下', '歌名手')).toBe('歌名手 - 富士山下')
+  })
+
+  it('只认两个占位词，花括号写法按字面保留', () => {
+    expect(formatMusicName('{歌名} - {歌手}', '富士山下', '陈奕迅')).toBe('{富士山下} - {陈奕迅}')
   })
 })

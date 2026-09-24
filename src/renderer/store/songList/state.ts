@@ -1,5 +1,7 @@
 import { reactive, markRaw, shallowReactive } from '@common/utils/vueTools'
+import { getPageSize } from '@common/settings/pageSize'
 import music from '@renderer/utils/musicSdk'
+import { appSetting } from '@renderer/store/setting'
 
 export interface SortInfo {
   name: string
@@ -87,7 +89,8 @@ export const listInfo = reactive<ListInfo>({
   list: [],
   total: 0,
   page: 1,
-  limit: 30,
+  // 首帧占位（歌单列表的页长由数据层 `songList.js` 的 `limit_list` 决定，落库后会被它覆盖）
+  limit: getPageSize(appSetting),
   key: null,
   noItemLabel: '',
   source: 'tx',
@@ -101,7 +104,8 @@ export const listDetailInfo = reactive<ListDetailInfo>({
   desc: null,
   total: 0,
   page: 1,
-  limit: 30,
+  // 同上：首帧占位，落库后由服务端回的 limit 覆盖
+  limit: getPageSize(appSetting),
   key: null,
   source: 'tx',
   info: {},

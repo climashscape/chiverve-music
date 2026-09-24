@@ -101,7 +101,8 @@ export default (setting: any): Partial<LX.AppSetting> => {
 
     setting['download.enable'] = setting.download?.enable
     setting['download.savePath'] = setting.download?.savePath
-    setting['download.fileName'] = setting.download?.fileName
+    // 老式（v1.x/2.0 前）的「文件命名方式」是三个预设之一，本身就是合法模板，直接当模板串搬
+    setting['download.fileNameTemplate'] = setting.download?.fileName
     setting['download.maxDownloadNum'] = setting.download?.maxDownloadNum
     setting['download.isDownloadLrc'] = setting.download?.isDownloadLrc
     setting['download.lrcFormat'] = setting.download?.lrcFormat
@@ -147,6 +148,16 @@ export default (setting: any): Partial<LX.AppSetting> => {
       setting['common.apiSource'] = 'builtin'
     }
     setting.version = '2.1.1'
+  }
+
+  // 下载命名由三选一枚举改成自由模板串（设置页重构票 07）：`download.fileName`
+  // （`'歌名 - 歌手' | '歌手 - 歌名' | '歌名'`）→ `download.fileNameTemplate`，同一个值继续服务
+  // 下载落盘与「复制歌名」两处。三个预设本身只含 `歌名` / `歌手` 两个占位词、且都不重复，
+  // 搬过去后渲染结果逐字符不变（所以是纯改名，不需要其他转换）；搬完删旧 key。
+  if (compareVer(setting.version, '2.2.0') < 0) {
+    if (setting['download.fileName'] != null) setting['download.fileNameTemplate'] = setting['download.fileName']
+    delete setting['download.fileName']
+    setting.version = '2.2.0'
   }
 
 

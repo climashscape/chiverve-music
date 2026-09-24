@@ -197,7 +197,8 @@ tables.set('lyric', `
 tables.set('music_url', `
   CREATE TABLE "music_url" (
     "id" TEXT NOT NULL,
-    "url" TEXT NOT NULL
+    "url" TEXT NOT NULL,
+    "created_at" INTEGER NOT NULL
   );
 `)
 tables.set('download_list', `
@@ -228,4 +229,16 @@ tables.set('dislike_list', `
 
 export default tables
 
-export const DB_VERSION = '2'
+/**
+ * 数据库版本。改动**必须**同步三处，缺一即出事：
+ * 1. 上面 `tables` 里对应的建表 SQL（`verifyDB.ts` 拿它逐字符比对——正常化空白 / 分号 / 注释后整串相等）；
+ * 2. `migrate.ts` 里对应的版本分支（旧库要先升到同一结构才通过校验）；
+ * 3. 在一份**真旧库**上实测 `dbService.init` 返回 `true`（AGENTS §2.4）。
+ *
+ * ⚠️ 校验不过时 `db.init` 返回 `null`，`main/app.ts` 会把用户库改名备份后**重建空库**（数据丢失）。
+ *
+ * 版本历史：
+ * - `'1'`：补 `dislike_list` 表（上游 v2.4.0 的默认版本号出错遗留）；
+ * - `'2'`：`music_url` 加 `created_at`（设置页重构票 08：URL 缓存回收的时间依据，0 = 加列之前写的行）。
+ */
+export const DB_VERSION = '3'

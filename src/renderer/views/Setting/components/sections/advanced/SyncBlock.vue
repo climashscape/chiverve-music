@@ -7,7 +7,10 @@ div
       @update:model-value="updateSetting({ 'sync.enable': $event })"
     )
 
-  h3 {{ $t('setting__sync_mode') }}
+  //- 帮助图标挂在 `sync.mode` 的小标题上：两项的角色差异（服务端守 / 客户端连）与「开着时改不动」都在这里讲
+  h3
+    | {{ $t('setting__sync_mode') }}
+    svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__sync_mode_tip')" :title="$t('setting__sync_mode_tip')")
   //- 服务端 / 客户端是同一项（`sync.mode` 二选一），所以 `data-setting-key` 落在包住两个单选的这一行上
   .p(data-setting-key="sync.mode")
     base-checkbox(

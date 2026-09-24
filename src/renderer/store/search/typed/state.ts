@@ -1,5 +1,7 @@
 import { reactive, markRaw } from '@common/utils/vueTools'
+import { getPageSize } from '@common/settings/pageSize'
 import music from '@renderer/utils/musicSdk'
+import { appSetting } from '@renderer/store/setting'
 
 /**
  * 搜索页「歌手 / 专辑 / MV」三类结果的状态（工单 10）。
@@ -30,7 +32,8 @@ export declare interface ListInfo {
 const createListInfo = (): ListInfo => reactive<ListInfo>({
   page: 1,
   maxPage: 1,
-  limit: 30,
+  // 首帧占位；真正每页拉多少条在取数时现读设置 `list.pageSize`（见 action.ts）
+  limit: getPageSize(appSetting),
   total: 0,
   list: markRaw([]),
   key: null,
@@ -42,9 +45,6 @@ export const listInfos: Record<TypedSearchType, ListInfo> = {
   album: createListInfo(),
   mv: createListInfo(),
 }
-
-/** 每页条数：卡片网格一行 6 张（宽屏）到 3 张（窄屏），30 条足够铺几屏。 */
-export const PAGE_SIZE = 30
 
 /** 源只可能是 tx；这里与 `store/search/music` 同款，保证加源时这里也不用改。 */
 export const sources: LX.OnlineSource[] = markRaw(music.sources.map(s => s.id as LX.OnlineSource))

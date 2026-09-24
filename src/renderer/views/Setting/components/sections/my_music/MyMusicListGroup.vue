@@ -1,8 +1,16 @@
 <template lang="pug">
-//- §5.3 列表与收藏行为：六项（元数据顺序）
+//- §5.3 列表与收藏行为：七项（元数据顺序）
 //- 「来源显示」两项相邻：先决定挂不挂那一列（isShowSource），再决定列里写别名还是原名（sourceNameType，附 B7）
 //- 根元素是 div：内容区样式 `.setting dd > div` 会给它左右 padding
 div
+  //- 列表每页条数（票 09）：档位与默认值来自 common/settings/pageSize.ts 的单来源；
+  //- 改完不强制刷新已加载的列表，下次进页 / 翻页生效（帮助文案里对用户也是这么说的）
+  div(data-setting-key="list.pageSize")
+    .p.small
+      | {{ $t('setting__list_page_size') }}
+      svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__list_page_size_tip')" :title="$t('setting__list_page_size_tip')")
+    div
+      base-selection.gap-left(:model-value="appSetting['list.pageSize']" :list="pageSizeOptions" item-key="id" item-name="id" @update:model-value="updateSetting({'list.pageSize': $event})")
   .gap-top
     base-checkbox(id="setting_list_actionButtonsVisible_enable" data-setting-key="list.actionButtonsVisible" :model-value="appSetting['list.actionButtonsVisible']" :label="$t('setting__list_action_btn')" @update:model-value="updateSetting({'list.actionButtonsVisible': $event})")
   .gap-top
@@ -33,6 +41,7 @@ div
 
 <script>
 import { computed } from '@common/utils/vueTools'
+import { PAGE_SIZE_OPTIONS } from '@common/settings/pageSize'
 import { useI18n } from '@renderer/plugins/i18n'
 import { appSetting, updateSetting } from '@renderer/store/setting'
 
@@ -53,6 +62,10 @@ export default {
       appSetting,
       updateSetting,
       sourceNameTypeList,
+      // 档位来自单来源模块（10 / 20 / 30 / 50 / 100），别在模板里另抄一份数字。
+      // 用 `{ id }` 对象而不是纯数字数组：`base-selection` 显示当前值时要读 `item[itemName]`，
+      // 纯数字数组会渲染出一个空标签（同 DownloadConcurrentNamingGroup 的 maxNums）
+      pageSizeOptions: PAGE_SIZE_OPTIONS.map(id => ({ id })),
     }
   },
 }

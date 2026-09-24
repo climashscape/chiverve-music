@@ -1,6 +1,8 @@
 import { markRawList, reactive, ref } from '@common/utils/vueTools'
+import { getPageSize } from '@common/settings/pageSize'
 import { deduplicationList, toNewMusicInfo } from '@renderer/utils'
 import music from '@renderer/utils/musicSdk'
+import { appSetting } from '@renderer/store/setting'
 
 /**
  * 专辑页（M5）取数：详情 + 歌曲分页。
@@ -15,9 +17,6 @@ import music from '@renderer/utils/musicSdk'
  */
 
 const t = (key: string) => window.i18n.t(key as any)
-
-/** 专辑歌曲每页条数（专辑常见几十首，50 一页够用）。 */
-const PAGE_SIZE = 50
 
 export interface AlbumDetail {
   id: string
@@ -63,7 +62,8 @@ const songs = reactive<{
   list: [],
   total: 0,
   page: 1,
-  limit: PAGE_SIZE,
+  // 首帧占位；真正每页拉多少条在取数时现读设置 `list.pageSize`（见 loadSongs，改完下次进页生效）
+  limit: getPageSize(appSetting),
   noItemLabel: '',
 })
 
@@ -95,7 +95,7 @@ const clearSongs = () => {
   songs.list.splice(0, songs.list.length)
   songs.total = 0
   songs.page = 1
-  songs.limit = PAGE_SIZE
+  songs.limit = getPageSize(appSetting)
 }
 
 const loadDetail = async(id: string) => {
@@ -119,14 +119,16 @@ const loadSongs = async(id: string, page = 1) => {
   const key = `album_songs__${id}__${page}`
   songKey = key
   songs.noItemLabel = t('list__loading')
+  // 每页条数现读设置（`list.pageSize`）：改完设置下次进页 / 翻页生效，不必重启
+  const pageSize = getPageSize(appSetting)
   try {
-    const res = await music.tx.album.getAlbumSongs(id, page, PAGE_SIZE)
+    const res = await music.tx.album.getAlbumSongs(id, page, pageSize)
     if (songKey !== key) return
     const list = toOnlineSongs(res?.list ?? [])
     songs.list.splice(0, songs.list.length, ...list)
     songs.total = Number(res?.total ?? list.length)
     songs.page = page
-    songs.limit = PAGE_SIZE
+    songs.limit = pageSize
     songs.noItemLabel = list.length ? '' : t('no_item')
   } catch (err: any) {
     if (songKey !== key) return

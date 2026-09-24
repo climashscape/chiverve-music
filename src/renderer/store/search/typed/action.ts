@@ -1,6 +1,8 @@
 import { markRaw, markRawList } from '@common/utils/vueTools'
+import { getPageSize } from '@common/settings/pageSize'
 import music from '@renderer/utils/musicSdk'
-import { listInfos, normalizeSource, PAGE_SIZE, type TypedSearchType } from './state'
+import { appSetting } from '@renderer/store/setting'
+import { listInfos, normalizeSource, type TypedSearchType } from './state'
 
 /**
  * 搜索页「歌手 / 专辑 / MV」三类的取数（工单 10）。
@@ -32,7 +34,7 @@ export const resetListInfo = (type: TypedSearchType) => {
   info.total = 0
   info.page = 1
   info.maxPage = 1
-  info.limit = PAGE_SIZE
+  info.limit = getPageSize(appSetting)
   info.key = null
   info.noItemLabel = ''
 }
@@ -48,14 +50,16 @@ export const search = async(type: TypedSearchType, text: string, page = 1, sourc
     resetListInfo(type)
     return
   }
-  info.limit = PAGE_SIZE
+  // 每页条数现读设置（`list.pageSize`）：改完设置下次翻页 / 重新搜索生效，不必重启
+  const pageSize = getPageSize(appSetting)
+  info.limit = pageSize
   const key = `${id}__${type}__${text}__${page}`
   if (info.key === key && info.list.length) return
 
   info.noItemLabel = t('list__loading')
   info.key = key
   try {
-    const res = await api[METHOD_NAME[type]](text, page, PAGE_SIZE)
+    const res = await api[METHOD_NAME[type]](text, page, pageSize)
     if (info.key !== key) return
     setList(type, res.list)
     info.total = res.total

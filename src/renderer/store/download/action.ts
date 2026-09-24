@@ -17,6 +17,7 @@ import { arrPush, arrUnshift, joinPath } from '@renderer/utils'
 import { DOWNLOAD_STATUS } from '@common/constants'
 import { proxy } from '../index'
 import { buildSavePath } from './utils'
+import { dialog } from '@renderer/plugins/Dialog'
 
 const waitingUpdateTasks = new Map<string, LX.Download.ListItem>()
 let timer: NodeJS.Timeout | null = null
@@ -350,10 +351,17 @@ const filterTask = (list: LX.Download.ListItem[]) => {
  */
 export const createDownloadTasks = async(list: LX.Music.MusicInfoOnline[], quality: LX.Quality, listId?: string) => {
   if (!list.length) return
-  const tasks = filterTask(await window.lx.worker.download.createDownloadTasks(list, quality,
-    appSetting['download.fileName'],
-    toRaw(qualityList.value), listId),
+  // 档位守卫与文件名模板都在 worker 里算（`download.degradeWhenUnsupported` / `download.fileNameTemplate`
+  // 由这里读出来传进去：worker 是独立 realm，拿不到主窗的 appSetting）
+  const { tasks: newTasks, unsupported } = await window.lx.worker.download.createDownloadTasks(list, quality,
+    appSetting['download.fileNameTemplate'],
+    toRaw(qualityList.value),
+    appSetting['download.degradeWhenUnsupported'],
+    listId,
   )
+  // 关掉自动降档时，档位不可用的歌既不降档也不建任务 —— 必须明确告诉用户被跳过了几首，不能静默丢掉
+  if (unsupported) void dialog({ message: window.i18n.t('download__quality_unavailable_tip', { num: unsupported }) })
+  const tasks = filterTask(newTasks)
 
   if (tasks.length) await addTasks(tasks)
   void checkStartTask()

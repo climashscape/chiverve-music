@@ -11,7 +11,9 @@ dd
           name="setting_basic_control_btn_position" need :model-value="appSetting['common.controlBtnPosition']" :value="item.id" :label="item.name" @update:model-value="updateSetting({'common.controlBtnPosition': $event})")
     //- 切换播放栏**三套完整布局组件**（迷你/中等/全宽），不是「进度条粗细」
     div.gap-top(data-setting-key="common.playBarProgressStyle")
-      .p.small {{ $t('setting__basic_playbar_progress_style') }}
+      .p.small
+        | {{ $t('setting__basic_playbar_progress_style') }}
+        svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__basic_playbar_progress_style_tip')" :title="$t('setting__basic_playbar_progress_style_tip')")
       div
         base-checkbox.gap-left(
           id="setting_basic_playbar_progress_style_mini" name="setting_basic_playbar_progress_style"

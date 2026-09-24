@@ -1,4 +1,4 @@
-import { encodePath, isUrl, throttle, isMac } from '@common/utils'
+import { encodePath, isUrl, throttle, isMac, log } from '@common/utils'
 import migrateSetting from '@common/utils/migrateSetting'
 import getStore from '@main/utils/store'
 import { STORE_NAMES, URL_SCHEME_RXP } from '@common/constants'
@@ -327,4 +327,28 @@ export const getProxy = () => {
   }
 
   return null
+}
+
+/**
+ * 启动时按设置回收一次 URL 缓存（设置页重构票 08，在 `main/app.ts` 的 `initAppSetting` 里 await）。
+ *
+ * 为什么是主进程、且在这个时间点：
+ * - 两个阈值（`cache.musicUrlKeepDays` / `cache.maxSizeMB`）只有主进程手里的 `global.lx.appSetting`
+ *   是权威值，渲染侧要到设置下发之后才有；
+ * - `initAppSetting` 跑在 `registerModules()`（建窗口）**之前**，await 它等于「窗口还没出现就收完了」——
+ *   启动这一次不可能删到「正在播的那条 URL」，所以不需要传 `keepIdPrefix`（那时还没开始取流）；
+ * - 两个阈值都是 0（默认）时 worker 侧直接返回、不读库：默认配置下这段是零开销，行为与改造前一致。
+ *
+ * 失败只记日志不抛：回收是维护动作，最坏是下次播放多取一次流，不该挡住启动。
+ * 日志只记条数与字节数，**不记 URL**（缓存里的 URL 带签名参数，属不该落盘的凭证类信息）。
+ */
+export const recycleMusicUrlCache = async() => {
+  const { 'cache.musicUrlKeepDays': keepDays, 'cache.maxSizeMB': maxSizeMB } = global.lx.appSetting
+  try {
+    const result = await global.lx.worker.dbService.musicUrlRecycle({ keepDays, maxSizeMB })
+    if (result.skipped) return
+    log.info(`[cache] music url recycle: keepDays=${keepDays} maxSizeMB=${maxSizeMB} deleted=${result.deleted} bytes=${result.bytesBefore}->${result.bytesAfter}`)
+  } catch (err) {
+    log.error(err)
+  }
 }

@@ -121,7 +121,7 @@ export default {
 
     const title = computed(() => {
       return musicInfo.name
-        ? formatMusicName(appSetting['download.fileName'], musicInfo.name, musicInfo.singer)
+        ? formatMusicName(appSetting['download.fileNameTemplate'], musicInfo.name, musicInfo.singer)
         : ''
     })
 

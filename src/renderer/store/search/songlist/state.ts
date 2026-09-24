@@ -1,5 +1,7 @@
 import { reactive, markRaw } from '@common/utils/vueTools'
+import { getPageSize } from '@common/settings/pageSize'
 import music from '@renderer/utils/musicSdk'
+import { appSetting } from '@renderer/store/setting'
 
 import { type ListInfo } from '@renderer/store/songList/state'
 
@@ -20,7 +22,8 @@ for (const source of music.sources) {
   sources.push(source.id as LX.OnlineSource)
   listInfos[source.id as LX.OnlineSource] = reactive<SearchListInfo>({
     page: 1,
-    limit: 18,
+    // 搜索请求按它取每页条数（见 action.ts）；这里只是首帧占位，每次搜索会现读设置覆盖
+    limit: getPageSize(appSetting),
     total: 0,
     list: [],
     key: null,

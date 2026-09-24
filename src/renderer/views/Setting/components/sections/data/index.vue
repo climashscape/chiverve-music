@@ -3,7 +3,7 @@ dt#data {{ $t('setting__data_storage') }}
 dd
   h3#data_cache {{ $t('setting__data_cache_title') }}
   div
-    SettingDataCacheClear
+    SettingDataCacheClear(:refresh-key="cacheCountRefreshKey")
 dd
   h3#data_lyric_offset {{ $t('lyric_menu__offset', { offset: currentOffset }) }}
   div
@@ -28,6 +28,8 @@ dd
     SettingDataBackup
 dd
   h3#data_cache_policy {{ $t('setting__data_cache_policy_title') }}
+  div
+    SettingDataCachePolicy(@recycled="handleRecycled")
 </template>
 
 <script>
@@ -40,6 +42,7 @@ import { musicInfo } from '@renderer/store/player/state'
 
 import DislikeListModal from '../../DislikeListModal.vue'
 import SettingDataCacheClear from './CacheClearTable.vue'
+import SettingDataCachePolicy from './CachePolicyBlock.vue'
 import SettingDataBackup from './BackupBlock.vue'
 
 // 与歌词右键菜单（LyricMenu.vue）读的是同一个 `[offset:]` 标签——本组只**显示**当前值，
@@ -49,22 +52,29 @@ const offsetTagRxp = /(?:^|\n)\s*\[offset:\s*(\S+(?:\d+)*)\s*\]/
 /**
  * 数据与存储（`data`）节：6 组全部来自元数据表 `SETTING_SECTIONS` 的 data 节，顺序即元数据顺序。
  *
- * 本节 **0 个 `defaultSetting` key**（清理 / 备份 / 偏移都是动作），所以**没有 `data-setting-key`**：
- * 元数据里这 6 组的 `items` 都是空数组，`Item.key` 必填的约束装不下这 20 个非 key 控件
- * （4 组清理行 + 编辑规则 + 清空列表 + 8 个备份按钮 + 歌词偏移说明）。清单见票 03 的回报。
+ * 本节只有 `data_cache_policy` 一组有 `defaultSetting` key（票 08 的 `cache.musicUrlKeepDays` /
+ * `cache.maxSizeMB`，`data-setting-key` 在 `CachePolicyBlock.vue` 里）；其余 5 组是「动作」与
+ * 数据库内容（清理 / 备份 / 偏移 / 清空列表），`items` 都是空数组——`Item.key` 必填的约束装不下
+ * 这 20 个非 key 控件（4 组清理行 + 编辑规则 + 清空列表 + 8 个备份按钮 + 歌词偏移说明）。
  *
- * `data_cache_policy` 是**票 08 的新组**（`cache.musicUrlKeepDays` / `cache.maxSizeMB` 还没进
- * `defaultSetting`），此刻只渲染组标题保住锚点，票 08 补 key 后再填控件。
+ * 缓存清理的计数表与回收策略两块要联动：回收完让计数表重新取一次数（两块是兄弟，不互相 import，
+ * 用一个自增的 `cacheCountRefreshKey` 从本组件转发）。
  */
 export default {
   name: 'SettingSectionData',
   components: {
     DislikeListModal,
     SettingDataCacheClear,
+    SettingDataCachePolicy,
     SettingDataBackup,
   },
   setup() {
     const t = useI18n()
+
+    const cacheCountRefreshKey = ref(0)
+    const handleRecycled = () => {
+      cacheCountRefreshKey.value++
+    }
 
     const currentOffset = computed(() => {
       const matched = offsetTagRxp.exec(musicInfo.lrc ?? '')
@@ -93,6 +103,8 @@ export default {
       currentOffset,
       isShowDislikeList,
       handleClearListData,
+      cacheCountRefreshKey,
+      handleRecycled,
     }
   },
 }

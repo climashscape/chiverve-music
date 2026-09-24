@@ -1,4 +1,6 @@
 import { reactive, ref, shallowReactive } from '@common/utils/vueTools'
+import { getPageSize } from '@common/settings/pageSize'
+import { appSetting } from '@renderer/store/setting'
 
 /**
  * 账号中心（我的音乐，M4）的渲染侧状态。
@@ -168,7 +170,14 @@ export const musicGene = reactive<MusicGeneState>({
   aiTags: [],
 })
 
-/** 我喜欢：分页拉取（QQ 的 dirid=201 目录）。 */
+/**
+ * 我喜欢：分页拉取（QQ 的 dirid=201 目录）。
+ *
+ * ⚠️ 这个接口按 `song_begin = num * (page - 1)` 取（`tx/user.js` 的 `getFavSong`）：页长设得比
+ * 50 大时，万一服务端按更小的页长截断，翻页会**跳过中间没拿到的歌**（同一 caveat 见
+ * `tx/user.js` 的 `getFavSongIds` 注释，那里的全量拉取因此固定用 50）。实测 50 正常；
+ * 用户反馈「我喜欢漏歌」时先看「设置 → 我的音乐 → 列表分页条数」是不是调大了。
+ */
 export const favSongs = reactive<{
   list: LX.Music.MusicInfoOnline[]
   total: number
@@ -179,7 +188,8 @@ export const favSongs = reactive<{
   list: [],
   total: 0,
   page: 1,
-  limit: 50,
+  // 首帧占位；真正每页拉多少条在取数时现读设置 `list.pageSize`（见 action.ts）
+  limit: getPageSize(appSetting),
   noItemLabel: '',
 })
 
@@ -202,17 +212,11 @@ export const favPlaylistIds = shallowReactive<string[]>([])
  * 「我喜欢」的全量**歌曲 id 集合**（QQ 数字 songId 的字符串形态）——给「这一首喜欢了没」用。
  *
  * 同一套路（工单 08）：`getFavSong` 没有按 id 单查的形态，只能拉全量在本地比对。
- * `favSongs` 那份是**分页展示用**的（一页 50），不能拿它当收藏态判据。
+ * `favSongs` 那份是**分页展示用**的（页长见 `list.pageSize`），不能拿它当收藏态判据。
  * 加载成功才置 `favSongIdsLoaded`（未登录拉不动，下次用到还要再试）。
  */
 export const favSongIds = shallowReactive<string[]>([])
 export const favSongIdsLoaded = ref(false)
-
-/** 每页条数：QQ 这几个接口都按 offset/size 分页。 */
-export const PAGE_SIZE = 50
-
-/** 云端歌单取歌的每页条数（`CgiGetDiss` 的 `song_num`）。 */
-export const CLOUD_LIST_PAGE_SIZE = 30
 
 /**
  * 「我的歌单」页里选中的**云端自建歌单**的歌曲（工单 06）。
@@ -234,7 +238,8 @@ export const cloudListSongs = reactive<{
   list: [],
   total: 0,
   page: 1,
-  limit: CLOUD_LIST_PAGE_SIZE,
+  // 首帧占位；真正每页拉多少条在取数时现读设置 `list.pageSize`（见 action.ts）
+  limit: getPageSize(appSetting),
   noItemLabel: '',
   listTid: '',
 })

@@ -4,6 +4,7 @@ import {
   saveLyric,
   saveMusicUrl,
   getMusicUrl as getStoreMusicUrl,
+  removeMusicUrl,
 } from '@renderer/utils/ipc'
 import {
   buildLyricInfo,
@@ -52,6 +53,13 @@ export const getMusicUrl = async({ musicInfo, quality, isRefresh }: {
   const targetQuality = quality ?? getPlayQuality(appSetting['player.playQuality'], musicInfo)
   const cachedUrl = await getStoreMusicUrl(musicInfo, targetQuality)
   if (cachedUrl && !isRefresh) return cachedUrl
+
+  // 走到这里说明调用方要求**重新取流**（`isRefresh`），而它的由来都是「这条 URL 没播成」：
+  // 播放出错重试、加载超时刷新、预加载时 `checkMusicUrl` 判定打不开（usePlayEvent / usePreloadNextMusic）。
+  // 那就把缓存里这条已知打不开的行删掉再取新流——否则取流失败时它仍留在表里，下次播放又先失败一次
+  // 才刷新。删的只有刚查到的那一条（key = `${id}_${档位}`，即取流要用的 key），不动别的行、更不动列表数据。
+  // 必须 await：先删后取，新行写回时不会被这次删除误删（反过来会有「新行刚写就被删」的竞态）。
+  if (cachedUrl) await removeMusicUrl([`${musicInfo.id}_${targetQuality}`])
 
   return handleGetOnlineMusicUrl({ musicInfo, quality, isRefresh }).then(({ url, quality: targetQuality }) => {
     void saveMusicUrl(musicInfo, targetQuality, url)

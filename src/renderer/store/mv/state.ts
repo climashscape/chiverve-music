@@ -1,4 +1,6 @@
 import { reactive } from '@common/utils/vueTools'
+import { getPageSize } from '@common/settings/pageSize'
+import { appSetting } from '@renderer/store/setting'
 
 /**
  * MV（列表 + 播放弹窗）的状态。
@@ -17,8 +19,6 @@ import { reactive } from '@common/utils/vueTools'
  *      （24h）。所以弹窗要能「重新获取」：过期/失败时重新取一次即可，不用重开页面。
  */
 
-/** 列表每页条数（与服务端无关，页面自己定）。 */
-export const PAGE_SIZE = 20
 /** 排序：只有它真的生效。0=最新 1=最热。 */
 export const ORDER_LATEST = 0
 
@@ -60,7 +60,8 @@ export const list = reactive<{
 }>({
   list: [],
   page: 1,
-  limit: PAGE_SIZE,
+  // 首帧占位；真正每页拉多少条在取数时现读设置 `list.pageSize`（见 action.ts，改完下次进页生效）
+  limit: getPageSize(appSetting),
   noItemLabel: '',
   moreError: '',
   hasMore: false,

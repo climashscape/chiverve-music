@@ -9,7 +9,7 @@ div(:class="$style.table")
 </template>
 
 <script>
-import { ref, computed } from '@common/utils/vueTools'
+import { ref, computed, watch } from '@common/utils/vueTools'
 import {
   clearCache, getCacheSize,
   getMusicUrlCount, clearMusicUrl,
@@ -32,7 +32,17 @@ import { useI18n } from '@renderer/plugins/i18n'
  */
 export default {
   name: 'SettingDataCacheClear',
-  setup() {
+  props: {
+    /**
+     * 外部要求重新取数的信号（票 08）：同节的「缓存回收策略」跑完回收会把它 +1，
+     * 这里跟着重取歌曲 URL 缓存的计数（回收删的行就在那张表里，不刷新会显示旧数字）。
+     */
+    refreshKey: {
+      type: Number,
+      default: 0,
+    },
+  },
+  setup(props) {
     const t = useI18n()
 
     const cacheSize = ref('0 B')
@@ -71,6 +81,9 @@ export default {
       })
     }
     refreshMusicUrlCount()
+
+    // 回收（票 08）删的就是 `music_url` 表的行：同节的回收块跑完会把信号 +1，这里跟着重取计数
+    watch(() => props.refreshKey, refreshMusicUrlCount)
 
     const lyricRawCount = ref(0)
     const isDisabledLyricRawCacheClear = ref(false)

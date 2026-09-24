@@ -1,4 +1,6 @@
 import { encodePath } from '@common/utils/common'
+import { getLyricSourcePriority } from '@common/settings/lyricSource'
+import { appSetting } from '@renderer/store/setting'
 import { updateListMusics } from '@renderer/store/list/action'
 import { saveLyric, saveMusicUrl } from '@renderer/utils/ipc'
 import { getLocalFilePath } from '@renderer/utils/music'
@@ -135,7 +137,12 @@ export const getLyricInfo = async({ musicInfo, isRefresh, onToggleSource = () =>
   isRefresh: boolean
   onToggleSource?: (musicInfo?: LX.Music.MusicInfoOnline) => void
 }): Promise<LX.Player.LyricInfo> => {
-  if (!isRefresh) {
+  /**
+   * 本地一侧：歌词缓存（含在软件里编辑过的）+ 同目录的 `.lrc` 文件，都没有则返回 `null`。
+   * `isRefresh` 时直接跳过——「重新取一份」的语义不该被本地缓存挡住（与改造前 `if (!isRefresh)` 等价）。
+   */
+  const getLyricInfoByLocal = async(): Promise<LX.Player.LyricInfo | null> => {
+    if (isRefresh) return null
     const [lyricInfo, fileLyricInfo] = await Promise.all([getCachedLyricInfo(musicInfo), window.lx.worker.main.getMusicFileLyric(musicInfo.meta.filePath)])
     // console.log(lyricInfo, fileLyricInfo)
     if (lyricInfo?.lyric && lyricInfo.lyric != fileLyricInfo?.lyric) {
@@ -145,15 +152,34 @@ export const getLyricInfo = async({ musicInfo, isRefresh, onToggleSource = () =>
 
     if (fileLyricInfo) return buildLyricInfo(fileLyricInfo)
     if (lyricInfo?.lyric) return buildLyricInfo(lyricInfo)
+    return null
   }
 
-  try {
-    // eslint-disable-next-line @typescript-eslint/promise-function-async
-    return await getOnlineOtherSourceLyricByLocal(musicInfo, isRefresh).then(({ lyricInfo, isFromCache }) => {
-      if (!isFromCache) void saveLyric(musicInfo, lyricInfo)
-      return buildLyricInfo(lyricInfo)
-    })
-  } catch {}
+  /** 在线一侧：先命中歌词缓存，没有再请求在线歌词（失败抛错，由调用方回落到另一侧）。 */
+  const getLyricInfoByOnline = async(): Promise<LX.Player.LyricInfo> => {
+    const { lyricInfo, isFromCache } = await getOnlineOtherSourceLyricByLocal(musicInfo, isRefresh)
+    if (!isFromCache) void saveLyric(musicInfo, lyricInfo)
+    return buildLyricInfo(lyricInfo)
+  }
+
+  /**
+   * 先走哪一侧由 `lyric.sourcePriority` 决定，默认 `localFirst` = 改造前的行为。
+   * 🔴 一侧没结果 / 抛错**都要**回落到另一侧：选了「在线优先」不等于「永远不用本地歌词」，
+   * 断网或未登录时同目录的 `.lrc` 仍要能出词（工单 09 的验收里点了这条）。
+   */
+  if (getLyricSourcePriority(appSetting) == 'onlineFirst') {
+    try {
+      return await getLyricInfoByOnline()
+    } catch {}
+    const localLyricInfo = await getLyricInfoByLocal()
+    if (localLyricInfo) return localLyricInfo
+  } else {
+    const localLyricInfo = await getLyricInfoByLocal()
+    if (localLyricInfo) return localLyricInfo
+    try {
+      return await getLyricInfoByOnline()
+    } catch {}
+  }
 
   onToggleSource()
   return getOtherSourceByLocal(musicInfo, async(otherSource) => {

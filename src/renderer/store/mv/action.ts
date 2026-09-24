@@ -1,6 +1,8 @@
 import { markRawList } from '@common/utils/vueTools'
+import { getPageSize } from '@common/settings/pageSize'
 import music from '@renderer/utils/musicSdk'
-import { list, player, PAGE_SIZE, type MvInfo, type MvDetail } from './state'
+import { appSetting } from '@renderer/store/setting'
+import { list, player, type MvInfo, type MvDetail } from './state'
 
 /** MV 取数（列表 / 详情 / 播放地址）。约束见 state.ts 文件头。 */
 
@@ -28,14 +30,16 @@ export const loadMvs = async(page = 1, more = false) => {
   list.isLoading = true
   list.moreError = ''
   if (!more) list.noItemLabel = t('list__loading')
+  // 每页条数现读设置（`list.pageSize`）：改完设置下次进页 / 翻页就生效，不必重启
+  const pageSize = getPageSize(appSetting)
   try {
-    const res = await music.tx.mv.getMvList({ order: list.order, page, num: PAGE_SIZE })
+    const res = await music.tx.mv.getMvList({ order: list.order, page, num: pageSize })
     if (listKey !== key) return
     const items = (res?.list ?? []) as MvInfo[]
     if (more) list.list.push(...markRawList(items))
     else setList(markRawList(items))
     list.page = page
-    list.limit = PAGE_SIZE
+    list.limit = pageSize
     list.hasMore = res?.hasMore === true
     list.noItemLabel = list.list.length ? '' : t('no_item')
   } catch (err: any) {

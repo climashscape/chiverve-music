@@ -8,10 +8,15 @@ import type { ListInfo, ListInfoItem } from '@renderer/store/songList/state'
  * 每页条数的理由：歌单卡片组件是 `width: 32%` 的方形卡（每行 3 张），9 条正好 3 行，
  * 与面板里给它的固定高度配平——那个组件内部是绝对定位 + 自滚动，父级必须给确定高度，
  * 条数一多就会变成「盒子内滚动条」。
+ *
+ * ⚠️ 因此这 9 条是**唯一不跟 `list.pageSize` 走**的分页（设置页那项的帮助文案里点了名）：
+ * 其余列表都从 `common/settings/pageSize.ts` 的 `getPageSize()` 取。别顺手把它「统一」掉——
+ * 9 → 别的值会让这块面板当场破版（要么内滚动条、要么底部留白）。
  */
 
 const t = (key: string) => window.i18n.t(key as any)
 
+/** 固定 9 条：3×3 网格配平（理由见文件头），不受「列表分页条数」设置影响。 */
 const RECOMMEND_PAGE_SIZE = 9
 
 const recommend = reactive<{ listInfo: ListInfo, isLoading: boolean }>({

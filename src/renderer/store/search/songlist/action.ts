@@ -1,5 +1,7 @@
 import { markRawList } from '@common/utils/vueTools'
+import { getPageSize } from '@common/settings/pageSize'
 import music from '@renderer/utils/musicSdk'
+import { appSetting } from '@renderer/store/setting'
 
 import type { ListInfoItem } from './state'
 import { listInfos, normalizeSource } from './state'
@@ -29,7 +31,8 @@ export const resetListInfo = (sourceId?: string): [] => {
   let listInfo = listInfos[normalizeSource(sourceId)]
   if (!listInfo) return []
   listInfo.page = 1
-  listInfo.limit = 20
+  // 每页条数现读设置（`list.pageSize`）；改前这里是写死的 20（而 state.ts 的初值是 18，两处并不一致）
+  listInfo.limit = getPageSize(appSetting)
   listInfo.total = 0
   listInfo.list = []
   listInfo.key = null
@@ -46,6 +49,8 @@ export const search = async(text: string, page: number, sourceId?: string): Prom
   if (!text) return resetListInfo(id)
   const key = `${page}__${id}__${text}`
   if (listInfo.key == key && listInfo.list.length) return listInfo.list
+  // 请求用多少条就写回 listInfo.limit，分页器的页数与这里的口径保持一致
+  listInfo.limit = getPageSize(appSetting)
   listInfo.noItemLabel = window.i18n.t('list__loading')
   listInfo.key = key
   return (music[id]?.songList.search(text, page, listInfo.limit).then((data: SearchResult) => {

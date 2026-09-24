@@ -85,6 +85,36 @@ declare namespace LX {
       url: string
     }
 
+    /**
+     * URL 缓存回收参数（设置页重构票 08）。两个阈值都是 0 = 不回收，这是默认值（行为零变化）。
+     * 消费点：worker 的 `modules/music_url/recycle.ts`（纯判断）与 `index.ts`（取行 / 删行）。
+     */
+    interface MusicUrlRecycleOptions {
+      /** 保留天数（`cache.musicUrlKeepDays`），0 = 不按时间回收 */
+      keepDays: number
+      /** 容量上限 MB（`cache.maxSizeMB`），0 = 不按容量回收 */
+      maxSizeMB: number
+      /**
+       * 正在播放那首歌的缓存 key 前缀（`${musicInfo.id}_`，含各档位）：命中的行一条都不删。
+       * 启动时的回收不传（那时还没开始播），设置页的「立即回收」必须传。
+       */
+      keepIdPrefix?: string | null
+    }
+
+    /** URL 缓存回收结果（设置页据此给反馈文案） */
+    interface MusicUrlRecycleResult {
+      /** 实际删除的行数 */
+      deleted: number
+      /**
+       * 回收前 / 后的近似总占用（字符数，id + url）。
+       * `skipped` 时为 `null`——那时为了零开销**没有读库**，算不出占用。
+       */
+      bytesBefore: number | null
+      bytesAfter: number | null
+      /** 两个阈值都是 0（不回收）时为 true：调用方据此提示「不回收」而不是「已回收 0 条」 */
+      skipped: boolean
+    }
+
     interface MusicInfoOtherSourceSave {
       id: string
       list: MusicInfoOnline[]

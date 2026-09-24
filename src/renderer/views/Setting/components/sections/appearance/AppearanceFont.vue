@@ -12,7 +12,9 @@ dd
           :label="item.label" :disabled="isFullscreen" @update:model-value="updateSetting({'common.fontSize': $event})")
     //- 两个下拉拼成 "主字体, 备用字体" 串；只作用于主窗口，桌面歌词另有一份 `desktopLyric.style.font`
     div.gap-top(data-setting-key="common.font")
-      .p.small {{ $t('setting__basic_font') }}
+      .p.small
+        | {{ $t('setting__basic_font') }}
+        svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__basic_font_tip')" :title="$t('setting__basic_font_tip')")
       div(style="--selection-width: 12rem;")
         base-selection.gap-left(:list="fontList" :model-value="fonts[0]" item-key="id" item-name="label" @update:model-value="updateFonts($event, fonts[1])")
         base-selection.gap-left(v-if="fonts[0]" :list="fontList" :model-value="fonts[1]" item-key="id" item-name="label" @update:model-value="updateFonts(fonts[0], $event)")

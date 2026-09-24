@@ -17,7 +17,9 @@ dd
           @update:model-value="updateSetting({'player.onUrlFailStrategy': $event})")
     //- 下面 8 项都是数值输入：落盘防抖 500ms（同 SettingOpenAPI 的端口输入），越界在 setNumber 里夹取
     .gap-top(v-for="item in numberItems" :key="item.key" :data-setting-key="item.key")
-      .p.small {{ $t(item.i18nKey) }}
+      .p.small
+        | {{ $t(item.i18nKey) }}
+        svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t(item.helpI18nKey)" :title="$t(item.helpI18nKey)")
       div
         base-input(:class="$style.numInput" type="number" :model-value="appSetting[item.key]" :placeholder="$t(item.i18nKey)" @update:model-value="setNumber(item.key, $event)")
 </template>
@@ -43,16 +45,17 @@ export default {
   setup() {
     const failStrategyList = ['retry', 'degrade', 'error']
     const numberItems = [
-      // 顺序 = settingMetadata 的 play_stability.items 顺序（搜索结果与页面顺序都照它）
-      { key: 'player.retryUrlMaxNum', i18nKey: 'setting__play_retry_url_max_num', min: 0, max: 10 },
-      { key: 'player.retryUrlDelay', i18nKey: 'setting__play_retry_url_delay', min: 1, max: 600 },
-      { key: 'player.getUrlTimeout', i18nKey: 'setting__play_get_url_timeout', min: 1, max: 600 },
-      { key: 'player.errorSkipDelay', i18nKey: 'setting__play_error_skip_delay', min: 1, max: 600 },
-      { key: 'player.stallSkipThreshold', i18nKey: 'setting__play_stall_skip_threshold', min: 1, max: 600 },
-      { key: 'player.stallSkipMin', i18nKey: 'setting__play_stall_skip_min', min: 1, max: 600 },
-      { key: 'player.stallSkipMax', i18nKey: 'setting__play_stall_skip_max', min: 1, max: 600 },
-      { key: 'player.skipStepSeconds', i18nKey: 'setting__play_skip_step_seconds', min: 1, max: 600 },
-      { key: 'player.volumeStep', i18nKey: 'setting__play_volume_step', min: 1, max: 20 },
+      // 顺序 = settingMetadata 的 play_stability.items 顺序（搜索结果与页面顺序都照它）；
+      // helpI18nKey 与元数据逐条对应（卡顿跳转的上下限共用一条，讲的是同一段区间）
+      { key: 'player.retryUrlMaxNum', i18nKey: 'setting__play_retry_url_max_num', helpI18nKey: 'setting__play_retry_url_max_num_tip', min: 0, max: 10 },
+      { key: 'player.retryUrlDelay', i18nKey: 'setting__play_retry_url_delay', helpI18nKey: 'setting__play_retry_url_delay_tip', min: 1, max: 600 },
+      { key: 'player.getUrlTimeout', i18nKey: 'setting__play_get_url_timeout', helpI18nKey: 'setting__play_get_url_timeout_tip', min: 1, max: 600 },
+      { key: 'player.errorSkipDelay', i18nKey: 'setting__play_error_skip_delay', helpI18nKey: 'setting__play_error_skip_delay_tip', min: 1, max: 600 },
+      { key: 'player.stallSkipThreshold', i18nKey: 'setting__play_stall_skip_threshold', helpI18nKey: 'setting__play_stall_skip_threshold_tip', min: 1, max: 600 },
+      { key: 'player.stallSkipMin', i18nKey: 'setting__play_stall_skip_min', helpI18nKey: 'setting__play_stall_skip_range_tip', min: 1, max: 600 },
+      { key: 'player.stallSkipMax', i18nKey: 'setting__play_stall_skip_max', helpI18nKey: 'setting__play_stall_skip_range_tip', min: 1, max: 600 },
+      { key: 'player.skipStepSeconds', i18nKey: 'setting__play_skip_step_seconds', helpI18nKey: 'setting__play_skip_step_seconds_tip', min: 1, max: 600 },
+      { key: 'player.volumeStep', i18nKey: 'setting__play_volume_step', helpI18nKey: 'setting__play_volume_step_tip', min: 1, max: 20 },
     ]
     const ranges = new Map(numberItems.map(item => [item.key, item]))
 

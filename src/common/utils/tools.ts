@@ -126,7 +126,16 @@ export const clipFileNameLength = (name: string) => {
   return name.length > MAX_FILE_NAME_LENGTH ? name.substring(0, MAX_FILE_NAME_LENGTH) : name
 }
 
+/**
+ * 按模板串渲染歌名：下载文件名（`download.fileNameTemplate`）与四处「复制歌名」共用这一个实现。
+ *
+ * 模板串现在是用户可编辑的自由文本，下面几条就是它的语义契约：
+ * - 只有两个占位词：`歌手`（艺术家）与 `歌名`（歌曲名）；其余文本原样保留（不认 `{歌名}` 这类花括号写法）
+ * - **所有出现都替换**（`歌名_歌名` → 替换两次），且**一趟走完**：分两趟 `replace('歌手',…).replace('歌名',…)`
+ *   的写法会在艺术家名里含「歌名」时把刚填进去的艺术家名又替掉一次
+ * - 这里**不做**文件名安全处理（`\ / : * ? # " < > |` 由下载侧的 `filterFileName` 去掉），也不改签名
+ *   ——它同时服务播放栏三处与列表右键菜单的「复制歌名」，改签名会波及那些调用点
+ */
 export const formatMusicName = (format: string, name: string, singer: string) => {
-  // return format.replace(/歌名|歌手/g, match => match === '歌名' ? name : singer)
-  return format.replace('歌手', singer).replace('歌名', name)
+  return format.replace(/歌名|歌手/g, match => match === '歌名' ? name : singer)
 }
