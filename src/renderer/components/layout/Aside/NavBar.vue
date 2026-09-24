@@ -21,7 +21,11 @@
           :aria-selected="$route.meta.name == item.name" :to="item.to"
           :aria-label="item.tips" :title="item.tips"
         >
-          <svg version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" :viewBox="item.iconSize" :height="item.size" :width="item.size" space="preserve">
+          <!-- viewBox 写死 24×24：左栏这一排的图标**统一**是 Material 的 24 网格实心 glyph
+               （2026-09-24 用户要求）。以前每个条目自带 `iconSize`（448 / 425.2 / 493.23… 各不相同），
+               同一个渲染 size 出来的墨迹相差 ±8%——那正是「不统一」的来源。
+               写死而不是保留逐项配置：这套图标同网格，谁将来塞一个非 24 网格的进来就会一眼看出来 -->
+          <svg version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" viewBox="0 0 24 24" :height="item.size" :width="item.size" space="preserve">
             <use :xlink:href="item.icon" />
           </svg>
         </router-link>
@@ -52,7 +56,6 @@ export default {
               to: '/radar',
               tips: t('radar'),
               icon: '#icon-radar',
-              iconSize: '0 0 448 448',
               size,
               name: 'Radar',
               enable: true,
@@ -61,7 +64,6 @@ export default {
               to: '/discover',
               tips: t('discover'),
               icon: '#icon-discover',
-              iconSize: '0 0 448 448',
               size,
               name: 'Discover',
               enable: true,
@@ -70,7 +72,6 @@ export default {
               to: '/musicHall',
               tips: t('music_hall'),
               icon: '#icon-leaderboard',
-              iconSize: '0 0 425.22 425.2',
               size,
               name: 'MusicHall',
               enable: true,
@@ -82,8 +83,7 @@ export default {
             {
               to: '/user',
               tips: t('user_center'),
-              icon: '#icon-user',
-              iconSize: '0 0 448 456',
+              icon: '#icon-nav-user',
               size,
               name: 'UserCenter',
               enable: true,
@@ -91,14 +91,13 @@ export default {
             {
               to: '/favorites',
               tips: t('favorites'),
-              // 心形**保持空心**：这是「去我喜欢页」的导航图标，不是状态开关，没有两态语义
-              // （工单 10 的遗留结论）——所以它不走页内那五处收藏键的 `favIconOf`。
-              // 尺寸也不再单独改（2026-09-24 复核）：左栏每个图标都是同一个方盒（`size` = 0.32×
-              // 左栏宽，实测 23×23），心形的 viewBox 贴着墨迹裁，在该盒里墨迹 23.00×20.23；
-              // 同栏其余七项是 19.71／18.89／22.99／17.75／23.00／23.00／23.19（宽）×…，
-              // 中位 23.04 → 与同排齐平，单独缩小反而会与它下面的「我的歌单」「下载」不一致。
-              icon: '#icon-love',
-              iconSize: '0 0 444.87 391.18',
+              // 图标口径（2026-09-24 用户：「这几个图标都统一一下吧」）：左栏这一排整体换成
+              // Material 的 24 网格实心 glyph（来源与理由见 Icons.vue 的 #icon-radar 说明），
+              // 本项因此由**空心**心换成实心 `favorite`。
+              // 此前那条「保持空心、尺寸已复核」的结论（工单 10 的遗留 + 2026-09-24 复核）说的是
+              // 「不要**单独**缩这一颗」——整排统一换套是另一回事，那条随之作废：现在八项同网格、
+              // 同 `size`，不再需要任何单独调尺寸的说明。
+              icon: '#icon-nav-love',
               size,
               name: 'Favorites',
               enable: true,
@@ -106,8 +105,7 @@ export default {
             {
               to: '/playlists',
               tips: t('playlists'),
-              icon: '#icon-album',
-              iconSize: '0 0 425.2 425.2',
+              icon: '#icon-nav-playlist',
               size,
               name: 'Playlists',
               enable: true,
@@ -115,8 +113,7 @@ export default {
             {
               to: '/download',
               tips: t('download'),
-              icon: '#icon-download-2',
-              iconSize: '0 0 425.2 425.2',
+              icon: '#icon-nav-download',
               size,
               enable: appSetting['download.enable'],
               name: 'Download',
@@ -130,7 +127,6 @@ export default {
               to: '/setting',
               tips: t('setting'),
               icon: '#icon-setting',
-              iconSize: '0 0 493.23 436.47',
               size,
               enable: true,
               name: 'Setting',

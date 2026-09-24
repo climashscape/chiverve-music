@@ -57,5 +57,6 @@
 ## 5. 其他
 
 - **图标**：应用图标与托盘图标为**本仓库自绘的占位版本**——三个 SVG 源（`resources/icons/app-icon.svg`、`app-icon-compact.svg`、`tray-glyph.svg`）配重建脚本 `resources/icons/make-icons.sh`，产物是 `resources/icons/*.png|.ico|.icns` 与 `src/static/images/tray/*`（16 个）。不来自第三方；怎么换见 `resources/icons/README.md`。
+- **界面内的图标 sprite**（`src/renderer/components/layout/Icons.vue`）：其中一部分来自 [Material Symbols / Material Icons](https://github.com/google/material-design-icons)（**Apache-2.0**，与本仓库协议一致）；**左栏那一排**（雷达 / 发现 / 乐馆 / 我的音乐 / 我的收藏 / 我的歌单 / 下载 / 设置）于 2026-09-24 按用户要求统一改用该套 glyph（此前是混用的多套坐标系），其余图标来自上游 LX 或本仓库自绘。
 - **字体 / 图片 / 音效**等运行期资源：沿用上游（上游补充条款 §4.1 已声明「部分资源来源于互联网，如出现侵权可联系移除」）。
 - 若发现本清单遗漏了某项入库的第三方内容，**欢迎开 Issue 指出**（见 `README.md` 的协作口径）。
