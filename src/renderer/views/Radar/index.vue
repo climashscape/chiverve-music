@@ -40,7 +40,20 @@ import RadarCarousel from './components/RadarCarousel.vue'
 const TABS = ['daily30', 'radar'] as const
 type TabId = typeof TABS[number]
 
-const normalizeTab = (tab: unknown): TabId => TABS.includes(tab as TabId) ? tab as TabId : TABS[0]
+/** URL 里明确写了的那个 tab（没有 / 不是合法值 → undefined）。判据只有「URL 说了算」时才认得 */
+const tabFromQuery = (query: unknown): TabId | undefined => TABS.find(item => item === query)
+
+/**
+ * 上次停留的 tab。**放模块级**：路由页没有 keep-alive，切走再回来组件会重建，记忆必须留在模块里
+ * 才能还原（与雷达/发现页把取数状态放模块级同一个理由）。
+ *
+ * 为什么需要它（2026-09-24 用户：「切到其他页面再切回雷达页面要保留我之前是停留在每日30还是雷达推荐」）：
+ * 进入本页的三条路里，只有「分享链接 / 从详情页 back」会带 `?tab=`；**左栏入口与启动默认都是
+ * `push('/radar')`（不带 query）**，于是每次从别的页面回来都掉回第一个 tab。
+ * 优先级：**URL 里明确的 tab > 这块记忆 > 默认第一个**。
+ * 模块级 = 只在本次会话里有效，重启应用回到默认——这正是「上次停留」该有的语义。
+ */
+const lastTab = ref<TabId>(TABS[0])
 
 const t = (key: string) => window.i18n.t(key as any)
 
@@ -55,7 +68,7 @@ export default {
     const { radar, initRadar, loadRadar } = useRadar()
     const { daily, initDaily30, loadDaily30 } = useDaily30()
 
-    const tab = ref<TabId>(normalizeTab(route.query.tab))
+    const tab = ref<TabId>(tabFromQuery(route.query.tab) ?? lastTab.value)
 
     const tabs = [
       { tab: 'daily30', label: t('radar__tab_daily30') },
@@ -69,12 +82,17 @@ export default {
       void router.replace({ path: route.path, query: { tab: id } })
     }
 
+    // URL → tab：只在 URL **明确**给了合法 tab 时才改（分享链接、从详情页 back 回来）。
+    // query 被清掉时（从左栏又点回本页这种）**不动**当前 tab——它就是「上次停留」的那个
     watch(() => route.query.tab, (next) => {
-      tab.value = normalizeTab(next)
+      const fromQuery = tabFromQuery(next)
+      if (fromQuery) tab.value = fromQuery
     })
 
-    // 懒加载：只有切到「每日30首」才打它那个请求；雷达沿用 isInited 守卫（一个会话一次）
+    // 懒加载：只有切到「每日30首」才打它那个请求；雷达沿用 isInited 守卫（一个会话一次）。
+    // 顺带把「这次停在哪个 tab」记进模块级记忆（切走再回来要还原它，见 lastTab 的说明）
     watch(tab, (id) => {
+      lastTab.value = id
       if (id === 'daily30') void initDaily30()
     }, { immediate: true })
     void initRadar()
