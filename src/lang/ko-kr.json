@@ -485,7 +485,7 @@
   "setting__desktop_lyric_always_on_top_loop": "\"항상 위 유지\"가 활성화된 경우 가사창을 반복적으로 새로고침",
   "setting__desktop_lyric_always_on_top_loop_tip": "다른 프로그램에 가사창이 계속 가려질 경우 이 옵션을 활성화해 보세요.",
   "setting__desktop_lyric_audio_visualization": "오디오 시각화 활성화 (실험적 기능)",
-  "setting__desktop_lyric_color_theme_tip": "가사 색상은 테마를 따릅니다. 「일반 → 테마」에서 변경할 수 있습니다.",
+  "setting__desktop_lyric_color_theme_tip": "가사 색상은 테마를 따릅니다. 「모양 → 테마」에서 변경할 수 있습니다.",
   "setting__desktop_lyric_delay_scroll": "가사 스크롤 지연",
   "setting__desktop_lyric_direction": "가사 표시 방향",
   "setting__desktop_lyric_direction_horizontal": "가로",

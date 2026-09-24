@@ -43,6 +43,8 @@ dd
       .p.small {{ $t('setting__desktop_lyric_opacity') }} {{ appSetting['desktopLyric.style.opacity'] }}
       div
         base-input(type="number" :model-value="appSetting['desktopLyric.style.opacity']" :placeholder="$t('setting__desktop_lyric_opacity')" @update:model-value="setOpacity")
+    //- 颜色不再有取色器（ADR-0007 的有意能力回收），留一句说明免得用户到处找（票 10 落点）
+    .p.small.gap-top {{ $t('setting__desktop_lyric_color_theme_tip') }}
 </template>
 
 <script>

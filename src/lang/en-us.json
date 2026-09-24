@@ -485,7 +485,7 @@
   "setting__desktop_lyric_always_on_top_loop": "Refresh lyric window repeatedly when \"Stay always-on-top\" is enabled",
   "setting__desktop_lyric_always_on_top_loop_tip": "Try to enable this option when the window are still covered by some programs.",
   "setting__desktop_lyric_audio_visualization": "Enable audio visualization (EXPERIMENTAL)",
-  "setting__desktop_lyric_color_theme_tip": "Lyric colors follow the theme. Change them in \"General → Theme\".",
+  "setting__desktop_lyric_color_theme_tip": "Lyric colors follow the theme. Change them in \"Appearance → Theme\".",
   "setting__desktop_lyric_delay_scroll": "Delay scrolling lyrics",
   "setting__desktop_lyric_direction": "Lyric Display Direction",
   "setting__desktop_lyric_direction_horizontal": "Horizontal",

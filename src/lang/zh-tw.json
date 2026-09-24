@@ -485,7 +485,7 @@
   "setting__desktop_lyric_always_on_top_loop": "自動重新整理歌詞視窗置頂",
   "setting__desktop_lyric_always_on_top_loop_tip": "當歌詞視窗置頂後仍被某些程式遮擋時可嘗試啟用此選項",
   "setting__desktop_lyric_audio_visualization": "音訊視覺化（實驗性）",
-  "setting__desktop_lyric_color_theme_tip": "歌詞顏色跟隨主題，可在「基本設定 → 主題顏色」中調整",
+  "setting__desktop_lyric_color_theme_tip": "歌詞顏色跟隨主題，可在「外觀 → 主題」中調整",
   "setting__desktop_lyric_delay_scroll": "延遲歌詞滾動",
   "setting__desktop_lyric_direction": "歌詞顯示方向",
   "setting__desktop_lyric_direction_horizontal": "水平方向",

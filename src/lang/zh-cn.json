@@ -485,7 +485,7 @@
   "setting__desktop_lyric_always_on_top_loop": "自动刷新歌词置顶",
   "setting__desktop_lyric_always_on_top_loop_tip": "当歌词置顶后仍被某些程序遮挡时可尝试启用此选项",
   "setting__desktop_lyric_audio_visualization": "音频可视化（实验性）",
-  "setting__desktop_lyric_color_theme_tip": "歌词颜色跟随主题，可在「基本设置 → 主题颜色」中调整",
+  "setting__desktop_lyric_color_theme_tip": "歌词颜色跟随主题，可在「外观 → 主题」中调整",
   "setting__desktop_lyric_delay_scroll": "延迟歌词滚动",
   "setting__desktop_lyric_direction": "歌词显示方向",
   "setting__desktop_lyric_direction_horizontal": "水平方向",

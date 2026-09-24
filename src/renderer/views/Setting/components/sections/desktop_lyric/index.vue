@@ -17,10 +17,9 @@ import DesktopLyricReset from './DesktopLyricReset.vue'
  * 桌面歌词节（设置页重构票 03）：元数据里本节 4 个分组——`desktop_lyric_show` / `_interact` /
  * `_font` / `_reset`（13 个裸开关按语义拆进前两组，「加粗对象」三项并进排版与字体）。
  *
- * 颜色组（`desktop_lyric_color`）按 ADR-0007 **整组不存在**（元数据里也没有这个 Group），
- * 所以旧 `SettingDesktopLyric.vue` 那句 `setting__desktop_lyric_color_theme_tip` 没有搬过来——
- * 它是死内容（文案还指着「基本设置 → 主题颜色」这条已不存在的路径），票 04 删了旧组件后
- * 四份语言里这个 key 成了无引用条目，是否补一句「颜色跟随主题」的说明留给票 10 定。
+ * 颜色组（`desktop_lyric_color`）按 ADR-0007 **整组不存在**（元数据里也没有这个 Group）：三个取色器与
+ * 渲染侧的覆盖判定都已下架，颜色只由主题派生。那句「歌词颜色跟随主题、可在『外观 → 主题』中调整」的说明
+ * 由票 10 补回，渲染在 `DesktopLyricFont.vue` 末尾（用户找不到颜色设置时的指路牌）。
  *
  * 契约（票 02 立、本票接着守）：
  * - 分组的 DOM 锚点 id = `settingMetadata` 的 `group.id`，写在分组自己的 `h3` 上；
