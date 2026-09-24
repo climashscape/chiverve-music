@@ -260,6 +260,7 @@
   "music_sort__title": "將「{name}」的位置調整到：",
   "music_sort__title_multiple": "將已選取的 {num} 首歌曲的位置調整到：",
   "music_time": "長度",
+  "mv__codec_unsupported": "視訊編碼不受支援，本機無法解碼——可點「用系統播放器開啟」",
   "mv__load_more": "載入更多",
   "mv__open_external": "用系統播放器開啟",
   "mv__order_hot": "最熱",

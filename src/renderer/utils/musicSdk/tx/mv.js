@@ -19,10 +19,11 @@ import { txCgi, buildComm } from './utils/request'
  *   4. 详情的响应是**以 vid 为键的字典**（`data[vid]`），列表项的 `mvid` 与详情的 `sid`
  *      实测同值（都是数字 id），vid 才是跨接口的键。详情里没有 `title`/`subtitle`，
  *      只有 `name`；不存在的 vid 返回 `data` 为**空对象**（不是 null），判空要判 `data[vid]`。
- *   5. 播放地址只走 **mp4**：实测可用档是 filetype 10/20/30/40（code=0，fileSize 递增，
- *      format=265），0/50/60/70/80/90 都是 code=2000（无权限/不存在）；**hls 全部 code=2050**
+ *   5. 播放地址只走 **mp4**：实测可用档是 filetype 10/20/30/40（code=0，fileSize 递增）；
+ *      0/50/60/70/80/90 都是 code=2000（无权限/不存在）；**hls 全部 code=2050**
  *      （这个账号下拿不到），所以别去挑 hls。直链在 `url[0]`（数组两项，vkey 已内嵌），
- *      `m3u8` 为空、`expire` 86400 秒。
+ *      `m3u8` 为空、`expire` 86400 秒。**同一档位会同时回 264/265 两条记录**，挑档必须认
+ *      `format`（见下方 `MV_REQUEST_FORMAT` 与 `pickPlayable`）。
  *   6. `GetMvUrls` 一次可传多个 vid（返回值按 vid 分键，实测两个都回），详情同理 ——
  *      所以批量接口是顺手实现的，不额外花请求。
  */
@@ -34,6 +35,27 @@ const MV_GUID = '10000'
 const MV_AREA_ALL = 15
 const MV_VERSION_ALL = 7
 const MV_ORDER_LATEST = 0
+
+/** 编码：264 = H.264/AVC。265 是 H.265/HEVC，本机解不开（理由见 `MV_REQUEST_FORMAT`）。 */
+const CODEC_H264 = 264
+
+/**
+ * 请求里的 `format` 只点 **264（H.264）**。
+ *
+ * 🔴 为什么不能点 265（这里原来是 265）：那是在主动要 H.265 档，而本机根本解不开它——
+ *   1. Electron 自带的 `node_modules/electron/dist/libffmpeg.so` **没有 HEVC 解码器**
+ *      （`nm -D --defined-only libffmpeg.so | grep _decoder` 只有 17 个：h264/aac/mp3/
+ *      flac/vorbis/opus/pcm…，没有 `ff_hevc_decoder`），软解这条路不存在；
+ *   2. 硬解也没有：本机缺 VAAPI 驱动（`/usr/lib/x86_64-linux-gnu/dri/nvidia_drv_video.so`
+ *      不存在，`vainfo` 报 `va_openDriver() returns -1`）。
+ * 于是 `<video>` 拿到流就是 `MEDIA_ERR_SRC_NOT_SUPPORTED(4)`，界面只剩黑框——这正是
+ * 2026-09-24 真机报的「MV 无法播放」。两个参考实现（Rain120/qq-music-api、
+ * copws/qq-music-api）请求的也都是 `format: 264`。
+ *
+ * ⚠️ 264 请求是否**只**回 264 档位，本轮没有真机复验（票面 §需真机确认）；所以 `pickPlayable`
+ * 还按 `format` 兜了一层——响应里混着 265 时也不会挑到解不开的那条。
+ */
+const MV_REQUEST_FORMAT = CODEC_H264
 
 /**
  * `get_video_info_batch` 的 `required` 字段清单 —— **必须原样带**（见文件头第 3 条），
@@ -164,13 +186,38 @@ const requestMvDetails = async(credential, vidList) => {
 }
 
 /**
+ * 从**已过滤的可用档**里挑一条：先按编码挑 H.264，再在同编码里挑最高档。
+ *
+ * 为什么不能只挑 `list[list.length - 1]`（原来的做法）：`list` 只按 filetype 升序排，
+ * 而同档位的 264/265 是两条独立记录（`sort` 稳定 → 谁落在后面完全取决于服务端返回顺序），
+ * 于是「选到 265 = 选到解不开的流」是个随机事件。这里对顺序不做任何假设：
+ * 同档位有 264 就先取 264；整份响应一条 264 都没有时，才回落到 265 ——
+ * 别的平台（Windows 的 Media Foundation / macOS 的 VideoToolbox）能解，不该在这里硬拦。
+ *
+ * @param {Array<{filetype: number, format: number, url: string}>} list 可用档，filetype 升序
+ * @param {number|null} filetype 指定档位；取不到（或传 null）时回落到「最高可用档」
+ */
+const pickPlayable = (list, filetype = null) => {
+  const wanted = filetype == null ? null : Number(filetype)
+  if (wanted != null) {
+    const exact = list.filter(item => item.filetype === wanted)
+    if (exact.length) return exact.find(item => item.format === CODEC_H264) ?? exact[exact.length - 1]
+  }
+  const h264 = list.filter(item => item.format === CODEC_H264)
+  const pool = h264.length ? h264 : list
+  return pool.length ? pool[pool.length - 1] : null
+}
+
+/**
  * 取播地址请求体 → `{ duration, interval, svpFlag, list, best }`。
  *
  * 只保留**真的能播**的档：`code === 0` 且 `url` 非空。不可用档（实测 filetype
  * 0/50/60/70/80/90 是 code=2000、hls 全是 code=2050）在这里被过滤掉，而不是透出
  * 让调用方自己判 —— 否则很容易挑到一个空 url 的档位。
  *
- * `list` 按 filetype 升序（实测档位越高 fileSize 越大，同一视频里 265 档是 filetype 10/20/30/40）。
+ * `list` 按 filetype 升序（实测档位越高 fileSize 越大，同一视频里 265 档是 filetype 10/20/30/40），
+ * 264/265 两条都在里面（`format` 区分）；`best` 是**按编码偏好挑出来的那条**（同 `getMvUrl`），
+ * 不是简单的最高档——否则调用方拿 `best` 直接播就会踩到 HEVC。
  */
 const requestMvUrls = async(credential, mvId) => {
   const node = await txCgi({
@@ -181,8 +228,8 @@ const requestMvUrls = async(credential, mvId) => {
       request_type: 10003,
       guid: MV_GUID,
       videoformat: 1,
-      // format=265 会同时带回 264/265 两套档位（实测）；照参考实现原样传
-      format: 265,
+      // 只点 H.264，理由见 MV_REQUEST_FORMAT
+      format: MV_REQUEST_FORMAT,
       dolby: 1,
       use_new_domain: 1,
       use_ipv6: 1,
@@ -211,7 +258,7 @@ const requestMvUrls = async(credential, mvId) => {
     interval: set.duration ? formatPlayTime(set.duration) : null,
     svpFlag: Number(set.svp_flag ?? 0),
     list,
-    best: list.length ? list[list.length - 1] : null,
+    best: pickPlayable(list),
   }
 }
 
@@ -275,8 +322,9 @@ export default {
   },
 
   /**
-   * MV 播放地址全集。`list` 升序排列、只含可用档，`best` 是其中最高档
-   * （fileSize 最大）；UI 想给用户选档位就直接拿 `list`。
+   * MV 播放地址全集。`list` 升序排列、只含可用档（264/265 都在，`format` 区分），
+   * `best` 是按编码偏好挑出来的那条（优先 H.264，见 `pickPlayable`）；UI 想给用户选档位
+   * 就直接拿 `list`，但**自己播时必须认 `format`**。
    */
   async getMvUrls(vid) {
     const credential = await requireCredential()
@@ -286,16 +334,19 @@ export default {
   },
 
   /**
-   * 取单个可播地址。`filetype` 传了就精确取那一档，取不到（或没传）时回落到最高可用档；
-   * 一档都没有则抛错（实测无权限的 MV 会遇到，别静默返回空字符串）。
+   * 取单个可播地址。`filetype` 传了就精确取那一档（同档位有 H.264 时优先它），
+   * 取不到（或没传）时回落到最高可用档；一档都没有则抛错（实测无权限的 MV 会遇到，
+   * 别静默返回空字符串）。
+   *
+   * 返回值里的 `format` 是编码（264/265）：本机解不开 265（见 `MV_REQUEST_FORMAT`），
+   * UI 把编码显示在提示行上，失败时才能把「编码不支持」和「直链过期」分开说。
    */
   async getMvUrl(vid, filetype) {
     const credential = await requireCredential()
     const mvId = String(vid ?? '').trim()
     if (!mvId) throw new Error('缺少 MV vid')
     const { list, duration, interval } = await requestMvUrls(credential, mvId)
-    const wanted = filetype == null ? null : Number(filetype)
-    const picked = (wanted == null ? null : list.find(item => item.filetype === wanted)) ?? list[list.length - 1]
+    const picked = pickPlayable(list, filetype)
     if (picked == null) throw new Error('该 MV 没有可用播放地址')
     return {
       vid: mvId,

@@ -260,6 +260,7 @@
   "music_sort__title": "Adjust the position of \"{name}\" to: ",
   "music_sort__title_multiple": "Adjust the position of the selected {num} songs to: ",
   "music_time": "Length",
+  "mv__codec_unsupported": "This video's codec isn't supported here - try \"Open in system player\"",
   "mv__load_more": "Load more",
   "mv__open_external": "Open in system player",
   "mv__order_hot": "Hottest",

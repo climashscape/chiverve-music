@@ -4,11 +4,12 @@ import { deduplicationList, toNewMusicInfo } from '@renderer/utils'
 import music from '@renderer/utils/musicSdk'
 import { appSetting } from '@renderer/store/setting'
 import { player, openMv as openMvPlayer, closePlayer as closePlayerState, retryUrl as retryMvUrl, type MvInfo } from '@renderer/store/mv'
+import { shouldFetch } from './tabs'
 
 /**
  * 歌手页（M6）取数：歌手信息 / 歌曲 / 专辑 / MV / 相似歌手。
  *
- * 这个文件里的每个决定都是被下面五条约束逼出来的，改之前先读：
+ * 这个文件里的每个决定都是被下面七条约束逼出来的，改之前先读：
  *
  *   1. 🔴 **歌曲必须过 `toNewMusicInfo`**：数据层（`tx/singer.js` 的 `filterSongList`）
  *      给的是 `createSong` 出来的老式平铺对象，而 UI 侧是「平台字段进 meta」的新式模型
@@ -32,6 +33,22 @@ import { player, openMv as openMvPlayer, closePlayer as closePlayerState, retryU
  *      打开这些逻辑都已经在那儿了，歌手页只需要把列表项映射成 `MvInfo` 再调 `openMv`。
  *      ⚠️ 歌手 MV 接口不给歌手名（`GetSingerMvList` 只回 title/picurl/duration…），
  *      所以映射时用**歌手页自己的歌手名**补上这个字段。
+ *
+ *   6. **四个区块按 tab 懒加载（工单 02）**：进页只取「歌手信息 + 当前 tab」两块，其余 tab
+ *      首次切入时才取——入口是本文件的 `ensureSongsTab` / `ensureAlbumsTab` / `ensureMvsTab` /
+ *      `ensureSimilarTab`，由各面板在 setup 时调用一次（`components/*Panel.vue`）。
+ *      「要不要取」交给 `./tabs.ts` 的 `shouldFetch` 判：已成功取过的歌手（`Block.loadedMid === mid`）
+ *      不重复拉、在途的（`Block.loadingMid`）复用、换歌手或上次失败则重取。
+ *      **状态仍在模块级**（见下面「状态」段）：切走再回来组件重建，`loadedMid` 让「切回来不重复拉」
+ *      成立；失败不写 `loadedMid`，所以「切回来重试」也成立。
+ *      ⚠️ 这两块**并行**，别串起来：页头信息在途中（`isInfoLoading`）时页面壳照样挂 tab 面板，
+ *      否则面板要等 `loadInfo` 回来才挂载、两次往返变四次的观感（`headerLabel` 是「加载中」时
+ *      页面壳**不**拿它拦面板，见 index.vue）。
+ *
+ *   7. **换歌手前先清块**（`resetSongs` / `resetAlbums` / `resetMvs` / `resetSimilar`）：块里可能还是
+ *      上一个歌手的内容，而 `offset` / `page` / `hasMore` 这些游标在换歌手后没有意义——
+ *      不清就会出现「拿 A 的游标去取 B 的下一页」。清块一律 `list.splice(0, list.length)`
+ *      保留数组引用（第 2 条），且把 `loadedMid` 一并清掉（=「本块没有数据」）。
  */
 
 const t = (key: string) => window.i18n.t(key as any)
@@ -98,6 +115,13 @@ interface Block<T> {
   hasMore: boolean
   /** 「加载更多」失败：只提示、不清掉已加载内容 */
   moreError: string
+  /**
+   * 本块当前**内容**属于哪个歌手（成功取数后写入）。切回本 tab 时 `shouldFetch` 据此跳过重复请求；
+   * 失败 / 清块后留空，所以「失败重进可重试」也由它表达。
+   */
+  loadedMid: string
+  /** 正在请求的歌手：在途去重用（`isLoading` 管按钮禁用态，两者别混，理由见 Block 的注释与 tabs.ts）。 */
+  loadingMid: string
 }
 
 const createBlock = <T>(): Block<T> => ({
@@ -110,6 +134,8 @@ const createBlock = <T>(): Block<T> => ({
   isLoading: false,
   hasMore: false,
   moreError: '',
+  loadedMid: '',
+  loadingMid: '',
 })
 
 const emptyDetail = (): SingerInfo => ({
@@ -127,22 +153,32 @@ const emptyDetail = (): SingerInfo => ({
 // 状态留在模块里才能「切回来立刻显示上次的内容」。
 
 const detail = reactive<SingerInfo>(emptyDetail())
-/** 头部区块的文案（加载中/失败/不存在）；有值时页面不渲染五个区块，避免同一句话显示多遍。 */
+/** 头部区块的文案（加载中/失败/不存在）；有值时页面只显示它，不渲染 tab 栏与四个面板，避免同一句话显示多遍。 */
 const headerLabel = ref('')
+/**
+ * 页头信息是否还在请求中。**页面壳读它**：加载中不拿 `headerLabel` 拦面板，
+ * 好让「当前 tab 的取数」与页头信息并行（见文件头第 6 条）。
+ */
+const isInfoLoading = ref(false)
 
 const songs = reactive<Block<LX.Music.MusicInfoOnline> & { page: number, limit: number }>({
   ...createBlock<LX.Music.MusicInfoOnline>(),
   // material-online-list 要求 page/limit/total 三个必填项。limit 与 total 都跟着「已加载条数」走，
-  // 让组件底部的分页器整体不渲染（maxPage = 1）——真正的翻页由页面的「加载更多」按钮驱动，
+  // 让组件底部的分页器整体不渲染（maxPage = 1）——真正的翻页由面板的「加载更多」按钮驱动，
   // 因为数据层表达不出统一的页大小（文件头第 3 条）。
   page: 1,
   limit: 1,
 })
 const albums = reactive<Block<SingerAlbum>>(createBlock<SingerAlbum>())
 const mvs = reactive<Block<SingerMv> & { page: number }>({ ...createBlock<SingerMv>(), page: 1 })
-const similar = reactive<{ list: SimilarSinger[], noItemLabel: string }>({ list: [], noItemLabel: '' })
+// 相似歌手没有分页（服务端只收条数），所以不用 Block；懒加载的两个字段与 Block 同名同义
+const similar = reactive<{ list: SimilarSinger[], noItemLabel: string, loadedMid: string, loadingMid: string }>({
+  list: [],
+  noItemLabel: '',
+  loadedMid: '',
+  loadingMid: '',
+})
 
-let currentMid = ''
 let infoKey = ''
 let songKey = ''
 let albumKey = ''
@@ -172,6 +208,7 @@ const finishLabel = (block: { noItemLabel: string }, list: unknown[]) => {
 const loadInfo = async(mid: string) => {
   const key = `singer_info__${mid}`
   infoKey = key
+  isInfoLoading.value = true
   headerLabel.value = t('list__loading')
   try {
     const res = await music.tx.singer.getInfo(mid)
@@ -192,7 +229,24 @@ const loadInfo = async(mid: string) => {
     console.log('[singer] info', err)
     Object.assign(detail, emptyDetail())
     headerLabel.value = errorLabel(err)
+  } finally {
+    // 过期请求（换歌手了）不许把新请求的在途状态关掉
+    if (infoKey === key) isInfoLoading.value = false
   }
+}
+
+/**
+ * 把歌曲块清空（换歌手 / 首屏失败时用，见文件头第 7 条）：`splice` 保留数组引用（第 2 条），
+ * `loadedMid` 一并清掉表示「本块没有数据」——下次切进来 `shouldFetch` 会重取。
+ */
+const resetSongs = () => {
+  songs.list.splice(0, songs.list.length)
+  songs.total = 0
+  songs.offset = 0
+  songs.limit = 1
+  songs.hasMore = false
+  songs.moreError = ''
+  songs.loadedMid = ''
 }
 
 /** 歌曲。`offset` 为 0 是首屏（替换），否则是「加载更多」（追加）。 */
@@ -200,6 +254,7 @@ const loadSongs = async(mid: string, offset = 0) => {
   const key = `singer_songs__${mid}__${offset}`
   songKey = key
   songs.isLoading = true
+  songs.loadingMid = mid
   songs.moreError = ''
   if (offset === 0) songs.noItemLabel = t('list__loading')
   // 首屏才按设置取粒度，「加载更多」沿用同一个（理由见 Block.chunk）
@@ -217,22 +272,33 @@ const loadSongs = async(mid: string, offset = 0) => {
     songs.limit = songs.list.length || 1
     // 「这一块拿满了」且「还没到服务端报的总数」才算还有下一页
     songs.hasMore = list.length >= limit && songs.list.length < songs.total
+    songs.loadedMid = mid
     finishLabel(songs, songs.list)
   } catch (err: any) {
     if (songKey !== key) return
     console.log('[singer] songs', err)
     if (offset > 0) songs.moreError = errorLabel(err)
     else {
-      songs.list.splice(0, songs.list.length)
-      songs.total = 0
-      songs.offset = 0
-      songs.limit = 1
-      songs.hasMore = false
+      resetSongs()
       songs.noItemLabel = errorLabel(err)
     }
   } finally {
-    songs.isLoading = false
+    // 只清自己那一次的标记：换歌手时旧请求的收尾不许关掉新请求的在途状态（否则来回切 tab 会重打）
+    if (songKey === key) {
+      songs.isLoading = false
+      songs.loadingMid = ''
+    }
   }
+}
+
+/** 把专辑块清空（换歌手 / 首屏失败）；理由同 resetSongs。 */
+const resetAlbums = () => {
+  albums.list.splice(0, albums.list.length)
+  albums.total = 0
+  albums.offset = 0
+  albums.hasMore = false
+  albums.moreError = ''
+  albums.loadedMid = ''
 }
 
 /**
@@ -243,6 +309,7 @@ const loadAlbums = async(mid: string, offset = 0) => {
   const key = `singer_albums__${mid}__${offset}`
   albumKey = key
   albums.isLoading = true
+  albums.loadingMid = mid
   albums.moreError = ''
   if (offset === 0) albums.noItemLabel = t('list__loading')
   // 首屏才按设置取粒度，「加载更多」沿用同一个（理由见 Block.chunk）
@@ -262,21 +329,32 @@ const loadAlbums = async(mid: string, offset = 0) => {
     albums.total = Number(res?.total ?? albums.list.length)
     albums.offset = offset + list.length
     albums.hasMore = list.length >= limit && albums.list.length < albums.total
+    albums.loadedMid = mid
     finishLabel(albums, albums.list)
   } catch (err: any) {
     if (albumKey !== key) return
     console.log('[singer] albums', err)
     if (offset > 0) albums.moreError = errorLabel(err)
     else {
-      albums.list.splice(0, albums.list.length)
-      albums.total = 0
-      albums.offset = 0
-      albums.hasMore = false
+      resetAlbums()
       albums.noItemLabel = errorLabel(err)
     }
   } finally {
-    albums.isLoading = false
+    // 只清自己那一次的标记（理由同 loadSongs）
+    if (albumKey === key) {
+      albums.isLoading = false
+      albums.loadingMid = ''
+    }
   }
+}
+
+/** 把 MV 块清空（换歌手 / 首屏失败）；理由同 resetSongs。 */
+const resetMvs = () => {
+  mvs.list.splice(0, mvs.list.length)
+  mvs.page = 1
+  mvs.hasMore = false
+  mvs.moreError = ''
+  mvs.loadedMid = ''
 }
 
 /** 歌手 MV。这条接口的 start/count 是正常偏移语义，按普通分页走。 */
@@ -284,6 +362,7 @@ const loadMvs = async(mid: string, page = 1, more = false) => {
   const key = `singer_mv__${mid}__${page}`
   mvKey = key
   mvs.isLoading = true
+  mvs.loadingMid = mid
   mvs.moreError = ''
   if (!more) mvs.noItemLabel = t('list__loading')
   // MV 是页号制（不是偏移制），粒度现读设置即可：改完设置下次翻页生效
@@ -306,26 +385,36 @@ const loadMvs = async(mid: string, page = 1, more = false) => {
     // ⚠️ 这里的 total 实测是个很大的数（周杰伦 10426，含翻唱/现场），不能拿来算页码；
     // 按「本页是否拿满」判断有没有下一页 —— 与 MV 页同样处理（views/Mv/useMv.ts 文件头第 2 条）
     mvs.hasMore = list.length >= pageSize
+    mvs.loadedMid = mid
     finishLabel(mvs, mvs.list)
   } catch (err: any) {
     if (mvKey !== key) return
     console.log('[singer] mvs', err)
     if (more) mvs.moreError = errorLabel(err)
     else {
-      mvs.list.splice(0, mvs.list.length)
-      mvs.page = 1
-      mvs.hasMore = false
+      resetMvs()
       mvs.noItemLabel = errorLabel(err)
     }
   } finally {
-    mvs.isLoading = false
+    // 只清自己那一次的标记（理由同 loadSongs）
+    if (mvKey === key) {
+      mvs.isLoading = false
+      mvs.loadingMid = ''
+    }
   }
+}
+
+/** 把相似歌手块清空（换歌手 / 失败）；理由同 resetSongs。 */
+const resetSimilar = () => {
+  similar.list.splice(0, similar.list.length)
+  similar.loadedMid = ''
 }
 
 /** 相似歌手：一次取完（服务端没有分页参数）。 */
 const loadSimilar = async(mid: string) => {
   const key = `singer_similar__${mid}`
   similarKey = key
+  similar.loadingMid = mid
   similar.noItemLabel = t('list__loading')
   try {
     const res = await music.tx.singer.getSimilarSingerList(mid, SIMILAR_NUM)
@@ -336,35 +425,39 @@ const loadSimilar = async(mid: string) => {
       img: item.img ?? '',
     })) as SimilarSinger[])
     similar.list.splice(0, similar.list.length, ...list)
+    similar.loadedMid = mid
     finishLabel(similar, similar.list)
   } catch (err: any) {
     if (similarKey !== key) return
     console.log('[singer] similar', err)
-    similar.list.splice(0, similar.list.length)
+    resetSimilar()
     similar.noItemLabel = errorLabel(err)
+  } finally {
+    // 只清自己那一次的标记（理由同 loadSongs）
+    if (similarKey === key) similar.loadingMid = ''
   }
 }
 
-/** 进入/切换歌手：五个区块并发（各自 try/catch，失败不影响别人）。 */
-const initSinger = async(value: unknown) => {
+/**
+ * 进入/切换歌手：**只取歌手信息**（页头那几行），四个区块由各自 tab 懒加载（工单 02，文件头第 6 条）。
+ *
+ * 路由把 mid 换成另一个歌手时，四个块里的内容一律作废——但**不在这里清**：清块要连 `loadedMid`
+ * 一起清（第 7 条），而各块的入口（`ensureXxxTab`）本来就会做这件事，清两遍没有收益、还多一处状态。
+ * 代价是「A 的块留在内存里到切到该 tab 为止」，而那时 `shouldFetch` 会先清再取，不会闪旧数据
+ * （取数路径上 `noItemLabel` 会被置成「加载中」，列表容器随之隐藏）。
+ */
+const initSingerInfo = async(value: unknown) => {
   const mid = String(value ?? '').trim()
-  currentMid = mid
   if (!mid) {
-    // 路由没带 mid：不发请求，直接给「不存在」文案（数据层对空 mid 会抛错）
+    // 路由没带 mid：不发请求，直接给「不存在」文案（数据层对空 mid 会抛错）。
+    // `infoKey` 一并作废 + 清掉在途标记：上一个歌手的请求回来时不该把页头写成他（键不同它会自己退场）
+    infoKey = ''
+    isInfoLoading.value = false
     Object.assign(detail, emptyDetail())
-    songs.list.splice(0, songs.list.length)
-    songs.offset = 0
-    songs.total = 0
-    songs.limit = 1
-    songs.hasMore = false
-    albums.list.splice(0, albums.list.length)
-    albums.offset = 0
-    albums.total = 0
-    albums.hasMore = false
-    mvs.list.splice(0, mvs.list.length)
-    mvs.page = 1
-    mvs.hasMore = false
-    similar.list.splice(0, similar.list.length)
+    resetSongs()
+    resetAlbums()
+    resetMvs()
+    resetSimilar()
     headerLabel.value = t('singer__not_found')
     songs.noItemLabel = t('singer__not_found')
     albums.noItemLabel = t('singer__not_found')
@@ -372,28 +465,54 @@ const initSinger = async(value: unknown) => {
     similar.noItemLabel = t('singer__not_found')
     return
   }
-  await Promise.all([
-    loadInfo(mid),
-    loadSongs(mid, 0),
-    loadAlbums(mid, 0),
-    loadMvs(mid, 1, false),
-    loadSimilar(mid),
-  ])
+  await loadInfo(mid)
 }
 
+// ---------- 四个 tab 的懒加载入口（面板 setup 时各调一次，判据见 ./tabs.ts）----------
+
+/** 进/切到「歌曲」tab：换歌手先清块，首屏偏移为 0。 */
+const ensureSongsTab = (mid: string) => {
+  if (!shouldFetch(songs, mid)) return
+  resetSongs()
+  void loadSongs(mid, 0)
+}
+
+/** 进/切到「专辑」tab。 */
+const ensureAlbumsTab = (mid: string) => {
+  if (!shouldFetch(albums, mid)) return
+  resetAlbums()
+  void loadAlbums(mid, 0)
+}
+
+/** 进/切到「MV」tab。 */
+const ensureMvsTab = (mid: string) => {
+  if (!shouldFetch(mvs, mid)) return
+  resetMvs()
+  void loadMvs(mid, 1, false)
+}
+
+/** 进/切到「相似歌手」tab。 */
+const ensureSimilarTab = (mid: string) => {
+  if (!shouldFetch(similar, mid)) return
+  resetSimilar()
+  void loadSimilar(mid)
+}
+
+// 「加载更多」的 mid 取自本块自己的 `loadedMid`（有数据才有 hasMore，按钮才会出现）——
+// 不能用「当前页面的 mid」：换歌手后块里的游标属于上一个歌手，混用会把两个歌手的列表接在一起
 const loadMoreSongs = () => {
-  if (!currentMid || songs.isLoading) return
-  void loadSongs(currentMid, songs.offset)
+  if (!songs.loadedMid || songs.isLoading) return
+  void loadSongs(songs.loadedMid, songs.offset)
 }
 
 const loadMoreAlbums = () => {
-  if (!currentMid || albums.isLoading) return
-  void loadAlbums(currentMid, albums.offset)
+  if (!albums.loadedMid || albums.isLoading) return
+  void loadAlbums(albums.loadedMid, albums.offset)
 }
 
 const loadMoreMvs = () => {
-  if (!currentMid || mvs.isLoading) return
-  void loadMvs(currentMid, mvs.page + 1, true)
+  if (!mvs.loadedMid || mvs.isLoading) return
+  void loadMvs(mvs.loadedMid, mvs.page + 1, true)
 }
 
 export default () => {
@@ -424,12 +543,17 @@ export default () => {
   return {
     detail,
     headerLabel,
+    isInfoLoading,
     songs,
     albums,
     mvs,
     similar,
     mvPlayer: player,
-    initSinger,
+    initSingerInfo,
+    ensureSongsTab,
+    ensureAlbumsTab,
+    ensureMvsTab,
+    ensureSimilarTab,
     loadMoreSongs,
     loadMoreAlbums,
     loadMoreMvs,

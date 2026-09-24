@@ -77,6 +77,14 @@ export const player = reactive<{
   url: string
   urlError: string
   isLoading: boolean
+  /**
+   * 弹窗提示行的文本：**编码 + 体积**（如 `H.264 · 12.34 MiB`，由 action.ts 拼）。
+   *
+   * ⚠️ 编码要写在里面，别只留体积（2026-09-24 工单 01）：本机 Electron 解不开 H.265，
+   * 真机上「播不出来到底是编码问题还是直链问题」全靠这一行判断，而且它经四个调用点
+   * （乐馆 MV / 搜索 / 歌手页 / 歌曲详情）的既有 `:size-text` 透传，加编码不需要改视图。
+   * `H.264`/`H.265` 是编码专名，不进 i18n。
+   */
   sizeText: string
   filetype: number | null
 }>({

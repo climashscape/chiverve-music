@@ -1,18 +1,16 @@
-import { markRawList, reactive, ref } from '@common/utils/vueTools'
-import { deduplicationList, toNewMusicInfo } from '@renderer/utils'
+import { reactive, ref } from '@common/utils/vueTools'
 import music from '@renderer/utils/musicSdk'
 
 /**
- * 发现页 → 推荐 Tab 取数：首页 feed + 猜你喜欢。
+ * 发现页 → 推荐 Tab 取数：**只有首页 feed**。
  *
- * 四条约束是从合并版 useDiscover.ts 原样带过来的（2026-09-23 拆 Tab 时按 Tab 切分，逻辑没动）：
+ * 「猜你喜欢」区块与其取数（`getGuessRecommend` 那一路）已于 2026-09-24 按用户要求整体撤下
+ * ——推荐 tab 的内容就是首页推荐，不再挂第二个歌曲区块；数据层的 `tx/recommend.js` 的
+ * `getGuessRecommend` 保留（那是 SDK 的能力面，不是视图的私有逻辑）。
  *
- *   1. 🔴 **歌曲必须过 `toNewMusicInfo`**：数据层流通的是老式平铺对象，UI 侧读
- *      `item.meta._qualitys`，漏了转换不是显示难看，是渲染期抛错。
- *   2. 🔴 **歌曲列表只做原地改（splice/push）**：`usePlay` 在 setup 时就存了 `props.list`
- *      的数组引用，整体替换会让双击播放读到旧数组。
- *   3. **每个区块独立 try/catch**：接口都要登录态，一个 Promise.all 收口失败会让整块白屏。
- *   4. **翻页带 key 竞态守卫**：旧请求可能后到，回来先比 key。
+ * 原来属于歌曲区块的三条约束（过 `toNewMusicInfo` 转新式对象、列表只做原地改、每块独立
+ * try/catch）随区块一起撤掉了；同一套写法在「新歌」tab 的 `useNewSongsTab.ts` 里还活着。
+ * 这里剩下的一条是 **翻页的 key 竞态守卫**：旧请求可能后到，回来先比 key。
  *
  * 状态放模块级：路由页没有 keep-alive，切走再回来组件会重建，状态留在模块里才能
  * 「切回来立刻显示上次的内容」；`isInited` 避免重复打请求（切 Tab 也不重打）。
@@ -45,46 +43,6 @@ export interface FeedShelf {
   cards: FeedCard[]
 }
 
-/**
- * 歌曲区块。`limit` 恒等于「已加载条数」——这些接口要么没有页码语义（猜你喜欢）、
- * 要么用「换一批」累积，把 limit 撑到等于条数可以让列表底部的分页器不出现
- * （Pagination 在 maxPage <= 1 时整体不渲染）。
- */
-export interface SongBlock {
-  list: LX.Music.MusicInfoOnline[]
-  total: number
-  page: number
-  limit: number
-  noItemLabel: string
-  hasMore: boolean
-  /** 供「换一批」按钮做禁用态（失败后必须还能重试，所以不能拿文案当判据）。 */
-  isLoading: boolean
-}
-
-const createSongBlock = (): SongBlock => ({
-  list: [],
-  total: 0,
-  page: 1,
-  limit: 1,
-  noItemLabel: '',
-  hasMore: false,
-  isLoading: false,
-})
-
-/** 老式对象 → 新式模型 + 去重 + markRaw（列表不进深度代理，AGENTS §2.10）。 */
-const toOnlineSongs = (list: any[]): LX.Music.MusicInfoOnline[] => {
-  const next = deduplicationList(list.map(item => toNewMusicInfo(item)) as LX.Music.MusicInfoOnline[])
-  return markRawList(next)
-}
-
-/** 整块替换（保持数组引用不变，见文件头第 2 条）。 */
-const setSongs = (block: SongBlock, list: any[]) => {
-  const next = toOnlineSongs(list)
-  block.list.splice(0, block.list.length, ...next)
-  block.total = next.length
-  block.limit = next.length || 1
-}
-
 /** 失败文案：未登录与真失败分开，别把「没登录」说成「加载失败」。 */
 const errorLabel = (err: any) =>
   err?.message === 'QQ 音乐未登录' ? t('user_center__need_login') : t('list__load_failed')
@@ -113,9 +71,6 @@ const feed = reactive<{ shelves: FeedShelf[], noItemLabel: string, hasMore: bool
  */
 const feedPager: { next: Record<string, unknown> | null } = { next: null }
 let feedKey = ''
-
-const guess = reactive<SongBlock>(createSongBlock())
-let guessKey = ''
 
 const isInited = ref(false)
 
@@ -152,43 +107,17 @@ const loadFeed = async(more = false) => {
   }
 }
 
-/**
- * 猜你喜欢。「换一批」= 整块替换：数据层说每次调用都是新的一批 5 首、没有分页参数，
- * 那按钮就叫「换一批」并真的换掉——若改成累积追加，按钮名就名不副实了。
- */
-const loadGuess = async() => {
-  const key = `guess__${Date.now()}`
-  guessKey = key
-  guess.isLoading = true
-  guess.noItemLabel = t('list__loading')
-  try {
-    const res = await music.tx.recommend.getGuessRecommend(5)
-    if (guessKey !== key) return
-    setSongs(guess, res?.list ?? [])
-    finishLabel(guess, guess.list)
-  } catch (err: any) {
-    if (guessKey !== key) return
-    console.log('[discover] guess', err)
-    setSongs(guess, [])
-    guess.noItemLabel = errorLabel(err)
-  } finally {
-    guess.isLoading = false
-  }
-}
-
-/** 进推荐 Tab 时跑一次（两个区块并发，各自兜自己的失败）。 */
+/** 进推荐 Tab 时跑一次（feed 自己兜自己的失败）。 */
 const initFeedTab = async() => {
   if (isInited.value) return
   isInited.value = true
-  await Promise.all([loadFeed(), loadGuess()])
+  await loadFeed()
 }
 
 export default () => {
   return {
     feed,
-    guess,
     initFeedTab,
     loadFeed,
-    loadGuess,
   }
 }

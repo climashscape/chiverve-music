@@ -1,5 +1,5 @@
 <template>
-  <material-modal :show="show" :max-width="'86%'" teleport="#view" @close="handleClose">
+  <material-modal :show="show" :max-width="'86%'" :max-height="'92%'" teleport="#view" @close="handleClose">
     <div :class="$style.container">
       <div :class="$style.videoBox">
         <video
@@ -36,8 +36,14 @@
           <span v-if="uploaderName">{{ $t('mv__uploader') }}：{{ uploaderName }}</span>
         </p>
         <p v-if="desc" :class="$style.desc">{{ desc }}</p>
-        <p v-if="playError" :class="$style.tip">{{ $t('mv__url_expired') }}</p>
-        <p v-else-if="sizeText" :class="$style.tip">{{ sizeText }}</p>
+        <!--
+          失败提示分两类：「编码解不开」与「直链/网络失效」要分开说——旧实现一律说「地址已失效，
+          可重新获取」，而 H.265 档在本机根本不是重取能解决的（见 tx/mv.js 的 MV_REQUEST_FORMAT）。
+        -->
+        <p v-if="playError === 'codec'" :class="$style.tip">{{ $t('mv__codec_unsupported') }}</p>
+        <p v-else-if="playError === 'expired'" :class="$style.tip">{{ $t('mv__url_expired') }}</p>
+        <!-- 编码/体积在失败时也要能看到（所以不是 v-else-if）：真机排查就靠这一行认「拿到的是哪条流」 -->
+        <p v-if="sizeText" :class="$style.tip">{{ sizeText }}</p>
         <div :class="$style.actions">
           <base-btn min :disabled="isLoading" @click="$emit('retry')">{{ $t('mv__retry') }}</base-btn>
           <base-btn min :disabled="!url" @click="handleOpenExternal">{{ $t('mv__open_external') }}</base-btn>
@@ -99,13 +105,18 @@ export default {
     isLoading: boolean
     sizeText: string
   }, { emit }: { emit: (event: 'close' | 'retry') => void }) {
-    // <video> 自己的播放失败（多半是直链过期）：只标记，不自动重取——自动重取会在
-    // 「地址有效但编码不支持」这类错误上死循环。重新获取由用户点按钮触发。
-    const playError = ref(false)
+    // <video> 自己的播放失败：分两类显示，只标记不自动重取——自动重取会在
+    // 「地址有效但编码不支持」这类错误上死循环（换多少条流都解不开）。重取由用户点按钮触发。
+    //
+    // 分类依据是 `MediaError.code`（媒体层给的，比我们猜可靠）：
+    //   3 = MEDIA_ERR_DECODE / 4 = MEDIA_ERR_SRC_NOT_SUPPORTED → 编码/容器解不开，
+    //   换个直链也没用（本机常见的 H.265 档就是这条，见 tx/mv.js 的 MV_REQUEST_FORMAT）；
+    //   其它（1 中止 / 2 网络）→ 原来的「直链失效，可重新获取」是对的。
+    const playError = ref<'' | 'codec' | 'expired'>('')
 
     // 换地址（重新获取成功）或重新打开时清掉上一次的播放错误
     watch(() => props.url, () => {
-      playError.value = false
+      playError.value = ''
     })
 
     const info = computed<Partial<MvDetail & MvInfo>>(() => props.detail ?? props.mv ?? {})
@@ -120,7 +131,11 @@ export default {
     const desc = computed(() => info.value.desc ?? '')
     const uploaderName = computed(() => info.value.uploader?.name ?? '')
 
-    const handlePlayError = () => { playError.value = true }
+    const handlePlayError = (e: Event) => {
+      // 事件从 <video> 冒上来；拿不到 code 时按「直链/网络」算（保守：保留可重取的动作）
+      const code = (e.target as HTMLVideoElement | null)?.error?.code
+      playError.value = code === 3 || code === 4 ? 'codec' : 'expired'
+    }
     // 点歌手名进歌手页：每一位自带 mid（详情/列表数据里就有），不用再请求
     const { jumpToSingerList } = useMusicJump()
     const handleSingerJump = (item: JumpSinger) => { jumpToSingerList([item]) }
@@ -156,9 +171,23 @@ export default {
 .container {
   width: 680px;
   max-width: 80vw;
+  // 竖向 flex + 可滚动：让容器能被 material-modal 的 max-height 压住。
+  // ⚠️ 不写 `min-height: 0` 的话，flex 项的最小尺寸是内容高度，视频区+信息区超高时
+  // 会被 Modal 的 `overflow: hidden` 从底部裁掉——旧实现就是这样：1114×718 的窗口下
+  // #view 只有 582px，内容要 575px 而 max-height（默认 76%）只给 442px，底部按钮整排看不见
+  // （工单 01 的「太挤」就是它）。所以本弹窗显式传 `max-height="92%"`，再配下面这两条兜住。
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  // 视频区压到 200px 后还不够高时（最小窗口 828×540），由这一层滚动兜底，保证按钮够得着
 }
 .videoBox {
-  // 视频画布尺寸固定 16:9：MV 封面与画面都是 640x360 这一档，按钮区不受画面比例影响
+  // 高度自适应：16:9 是理想值（680 → 382.5px），窗口不够高时由 flex 收缩，
+  // 画面交给 <video> 的 object-fit: contain 留黑边（.videoBox 底色本来就是黑）
+  flex: 0 1 auto;
+  // 不许再矮：再矮就不是「画面」而是一条缝了，剩下的高度缺口交给 .container 滚动
+  min-height: 200px;
   width: 100%;
   aspect-ratio: 16 / 9;
   display: flex;
@@ -171,22 +200,27 @@ export default {
 .video {
   width: 100%;
   height: 100%;
+  // contain 而不是默认的拉伸：视频区被压扁时保持画幅比例，黑边由底色接上
+  object-fit: contain;
 }
 .placeholder p {
   font-size: 14px;
   color: #fff;
 }
 .info {
-  padding: 12px 15px 15px;
+  // 不参与收缩（flex: none）：信息区自己保持舒适高度，缺口全由视频区让——
+  // 反过来（让信息区先被压）就会出现「视频很大、按钮挤没了」，正是本轮要修的那个观感
+  flex: none;
+  padding: 18px 20px 20px;
 }
 .name {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--color-font);
   .mixin-ellipsis-1();
 }
 .singer {
-  margin-top: 4px;
+  margin-top: 6px;
   font-size: 13px;
   color: var(--color-font);
   .mixin-ellipsis-1();
@@ -202,29 +236,34 @@ export default {
   color: var(--color-font-label);
 }
 .meta {
-  margin-top: 6px;
+  margin-top: 10px;
   font-size: 12px;
+  line-height: 1.6;
   color: var(--color-font-label);
 
   span {
-    margin-right: 12px;
+    margin-right: 14px;
   }
 }
 .desc {
-  margin-top: 6px;
+  margin-top: 10px;
   font-size: 12px;
-  line-height: 1.4;
+  line-height: 1.6;
   color: var(--color-font-label);
   .mixin-ellipsis(3);
 }
 .tip {
-  margin-top: 6px;
+  margin-top: 10px;
   font-size: 12px;
+  line-height: 1.6;
   color: var(--color-font-label);
 }
 .actions {
-  margin-top: 10px;
+  // 控制区与信息区分开：一条分隔线 + 更大上边距，别让它和最后一行文字糊在一起
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-primary-light-100-alpha-100);
   display: flex;
-  gap: 10px;
+  gap: 12px;
 }
 </style>

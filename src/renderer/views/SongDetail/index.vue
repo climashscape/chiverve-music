@@ -1,8 +1,10 @@
 <template>
   <div :class="$style.container" class="scroll">
-    <div :class="$style.header">
+    <!-- 返回键搬到顶部工具栏搜索栏右侧（工单 03）：下面不再有「动作行」这一块，
+         封面块直接顶上。动作键的尺寸/间距由 common/ToolbarActions.vue 统一给。 -->
+    <common-toolbar-actions>
       <base-btn @click="handleBack">{{ $t('back') }}</base-btn>
-    </div>
+    </common-toolbar-actions>
 
     <div v-if="detail.errorLabel" :class="$style.error" v-text="detail.errorLabel" />
 
@@ -242,17 +244,11 @@ export default {
   overflow-y: auto;
 }
 
-// 头部区域与歌手页**同一套**（工单 24，以歌手页为准）：
-// 返回键靠右（票 14：`.actions` 在歌手页 header 的末位、专辑页动作条的末位，都贴容器右缘）、
-// `padding-bottom: 14px` + 同一条分隔线、`.song` 与 header 之间留 18px（歌手页 `.section` 的取值）。
-// 量测对照表见 .scratch/ui-polish-2/issues/24-song-detail-header-alignment.md
-.header {
-  display: flex;
-  flex-flow: row nowrap;
-  justify-content: flex-end;
-  padding-bottom: 14px;
-  border-bottom: 1px solid var(--color-000-alpha-700);
-}
+// 头部（工单 24 那套「返回键 + 分隔线」）整块退场：返回键搬到顶部工具栏（工单 03），
+// 原来封面要等 36（键）+ 14（padding）+ 1（分隔线）+ 18（间距）= 69px 才出现，这就是用户报的
+// 「上方有空白」（920 档实测 coverTop 147 → 78）。
+// 分隔线留在 `.song` 下方，三页「封面块 + 分隔线 + 正文」的语法与歌手页/专辑页保持一致（工单 24 的口径）。
+// 量测对照见表 .scratch/ui-polish-3/issues/03-toolbar-actions-slot.md
 
 .error {
   padding: 30px 0;
@@ -261,12 +257,12 @@ export default {
   color: var(--color-font-label);
 }
 
-// 封面/歌名这一块与 header 之间留 18px：歌手页第一块（`.section`）就是 18px，原来这里是 0，
-// 封面紧贴分隔线（工单 24 的「上方排版和歌手页没对齐」）
+// 封面/歌名这一块现在是页面第一块（上面没有 action 行了），所以去掉原来的 margin-top: 18px
 .song {
   display: flex;
   align-items: center;
-  margin-top: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--color-000-alpha-700);
 }
 .cover {
   flex: none;

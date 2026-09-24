@@ -260,6 +260,7 @@
   "music_sort__title": "将「{name}」的位置调整到：",
   "music_sort__title_multiple": "将已选的 {num} 首歌曲的位置调整到：",
   "music_time": "时长",
+  "mv__codec_unsupported": "视频编码不受支持，本机无法解码——可点「用系统播放器打开」",
   "mv__load_more": "加载更多",
   "mv__open_external": "用系统播放器打开",
   "mv__order_hot": "最热",

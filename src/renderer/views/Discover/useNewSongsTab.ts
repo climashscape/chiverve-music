@@ -21,7 +21,7 @@ const NEW_SONG_TYPES = [
   { type: 3, label: 'discover__area_japan' },
 ]
 
-/** 歌曲区块（与推荐 Tab 的 SongBlock 同形状，见 useFeedTab.ts 的注释）。 */
+/** 歌曲区块（同形状的那一份在 `useFeedTab.ts`，随推荐 Tab 的「猜你喜欢」一起撤下了）。 */
 export interface SongBlock {
   list: LX.Music.MusicInfoOnline[]
   total: number

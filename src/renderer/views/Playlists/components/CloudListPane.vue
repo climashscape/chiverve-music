@@ -4,7 +4,7 @@
       <h3 :class="$style.title" :title="card?.name">{{ card?.name }}</h3>
       <div :class="$style.btns">
         <base-btn min :disabled="isAdding" @click="isShowAddModal = true">{{ $t('playlists__cloud_add_songs') }}</base-btn>
-        <base-btn min :disabled="isLoading" @click="loadCloudListSongs(dirId, 1, false)">{{ $t('user_center__refresh') }}</base-btn>
+        <base-btn min :disabled="isLoading" @click="load(1, false)">{{ $t('user_center__refresh') }}</base-btn>
       </div>
     </div>
 
@@ -25,7 +25,7 @@
       />
     </div>
     <div v-if="cloudListSongs.list.length && cloudListSongs.list.length < cloudListSongs.total" :class="$style.more">
-      <base-btn min @click="loadCloudListSongs(dirId, cloudListSongs.page + 1, true)">{{ $t('user_center__load_more') }}</base-btn>
+      <base-btn min :disabled="isLoading" @click="load(cloudListSongs.page + 1, true)">{{ $t('user_center__load_more') }}</base-btn>
     </div>
 
     <add-songs-modal v-model:show="isShowAddModal" :card="card" />
@@ -65,10 +65,19 @@ export default {
     const isLoading = ref(false)
     const isAdding = ref(false)
 
+    /**
+     * 取歌用的歌单标识 —— **必须是卡片的 tid**（`createdLists` 的 `id`）。
+     * 读歌走 `CgiGetDiss` 的 `disstid`，给它 dirId 服务端恒返回 0 首（实测，见
+     * `docs/agents/qq-music-native.md`「读 tid、写 dirId」）；写歌才用 dirId。
+     * 卡片没到就什么都不请求——**不要拿 dirId 兜底**，那正是「刷新把列表清空」的成因。
+     */
+    const listTid = computed(() => String(card.value?.id ?? ''))
+
     const load = async(page: number, more: boolean) => {
+      if (!listTid.value) return
       isLoading.value = true
       try {
-        await loadCloudListSongs(String(card.value?.id ?? props.dirId), page, more)
+        await loadCloudListSongs(listTid.value, page, more)
       } finally {
         isLoading.value = false
       }
@@ -112,7 +121,7 @@ export default {
       isLoading,
       isAdding,
       isShowAddModal: ref(false),
-      loadCloudListSongs,
+      load,
       handlePlayList,
       handleRemoveSong,
     }

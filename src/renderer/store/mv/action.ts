@@ -23,6 +23,20 @@ const setList = (items: MvInfo[]) => {
   list.list.splice(0, list.list.length, ...items)
 }
 
+/**
+ * 编码 → 展示名。`H.264`/`H.265` 是编码专名，不进 i18n（同 `download_lxlyric` 的处理）。
+ * 认不出来（服务端回了别的值/缺失）就回空串——提示行宁可不显示编码，也别显示错的东西。
+ */
+const codecLabel = (format?: number) => {
+  if (format === 264) return 'H.264'
+  if (format === 265) return 'H.265'
+  return ''
+}
+
+/** 提示行：`编码 · 体积`（为什么编码必须在里面见 state.ts 的 `sizeText` 注释）。 */
+const buildSizeText = (format?: number, sizeText?: string) =>
+  [codecLabel(format), sizeText ?? ''].filter(Boolean).join(' · ')
+
 /** 列表。`more` 为 true 时追加（分页器不可用，见 state.ts 文件头第 2 条）。 */
 export const loadMvs = async(page = 1, more = false) => {
   const key = `mv__${list.order}__${page}`
@@ -89,7 +103,7 @@ const loadUrl = async(vid: string) => {
     if (urlKey !== key || player.mv?.vid !== vid) return
     player.url = res?.url ?? ''
     player.filetype = Number(res?.filetype ?? 0)
-    player.sizeText = res?.sizeText ?? ''
+    player.sizeText = buildSizeText(res?.format, res?.sizeText)
     if (!player.url) player.urlError = t('mv__url_unavailable')
   } catch (err: any) {
     if (urlKey !== key || player.mv?.vid !== vid) return
