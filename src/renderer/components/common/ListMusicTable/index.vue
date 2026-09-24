@@ -64,7 +64,12 @@
           </div>
           <div class="list-item-cell" style="flex: 0 0 9%;"><span class="no-select">{{ item.interval || '--/--' }}</span></div>
           <div class="list-item-cell" style="flex: 0 0 16%; padding-left: 0; padding-right: 0;">
-            <material-list-buttons :index="index" :download-btn="assertApiSupport(item.source) && item.source != 'local'" @btn-click="handleListBtnClick" />
+            <!-- 心形键与在线歌曲表同一套（工单 06 的补丁）：能收藏的判据在 ListButtons 里，
+                 本地文件这一首不显示死键；收藏态读 store/user，写成功后才就地变色 -->
+            <material-list-buttons
+              :index="index" :music-info="item" fav-btn
+              :download-btn="assertApiSupport(item.source) && item.source != 'local'" @btn-click="handleListBtnClick"
+            />
           </div>
         </div>
       </base-virtualized-list>
@@ -147,6 +152,7 @@ import useMusicActions from './useMusicActions'
 import useSearch from './useSearch'
 import useListScroll from './useListScroll'
 import usePlayingRowLocate from '@renderer/utils/compositions/usePlayingRowLocate'
+import useFavSong from '@renderer/utils/compositions/useFavSong'
 import { appSetting } from '@renderer/store/setting'
 
 export default {
@@ -164,6 +170,13 @@ export default {
   emits: ['show-menu'],
   setup(props, { emit }) {
     const actionButtonsVisible = appSetting['list.actionButtonsVisible']
+
+    // 「我喜欢」的一键开关（工单 06 的补丁）：行内心形键点它切换，与在线歌曲表共用同一份
+    // 判定与文案（`useFavSong`）；右键菜单那一份在 useMenu 里，也是同一个组合式
+    const { toggleFav, loadFavState } = useFavSong()
+    // 心形键要显示收藏态：一挂载就把它拉回来（store 里缓存，一次会话只真拉一次）。
+    // 只在开着操作键时拉——关着的时候行内根本没有这颗心，白拉一次请求
+    if (actionButtonsVisible) loadFavState()
 
     let scrollIndex = null
     let isAnimation = false
@@ -335,6 +348,10 @@ export default {
           break
         case 'listAdd':
           handleShowMusicAddModal(index, true)
+          break
+        case 'fav':
+          // 一键切换「我喜欢」（加入 / 移除由当前状态决定，失败在 toggleFav 里弹提示）
+          void toggleFav(list.value[index])
           break
       }
     }
