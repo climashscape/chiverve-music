@@ -1,5 +1,30 @@
 <template>
   <div :class="$style.container">
+    <!-- 四个动作键搬到顶部工具栏搜索栏右侧（工单 03 的机制）：原来它们占着页头右半边，
+         键的尺寸/间距/截断口径改由 common/ToolbarActions.vue 统一给，本页不再写 .headerRightBtn；
+         页头因此只剩「封面 + 信息」两个子项（原来按键列不占纵向空间，见 .songListHeader 注释） -->
+    <common-toolbar-actions>
+      <!-- 四个键都带 :title：工具栏里窄窗口/长文案会被省略号截断，截断时靠原生 title 看全文；
+           「播放」的 title 还拼上了歌单名（理由见 setup 里 playTip 的注释） -->
+      <base-btn
+        :disabled="!!listDetailInfo.noItemLabel"
+        :title="playTip"
+        @click="playSongListDetail(listDetailInfo.id, listDetailInfo.source, listDetailInfo.list)"
+      >
+        {{ $t('list__play') }}
+      </base-btn>
+      <base-btn
+        :disabled="!!listDetailInfo.noItemLabel"
+        :title="$t('list__collect')"
+        @click="addSongListDetail(listDetailInfo.id, listDetailInfo.source, listDetailInfo.info.name)"
+      >
+        {{ $t('list__collect') }}
+      </base-btn>
+      <base-btn :disabled="isFavLoading || !!listDetailInfo.noItemLabel" :title="isFav ? $t('fav__cancel') : $t('fav__add')" @click="handleToggleFav">
+        {{ isFav ? $t('fav__cancel') : $t('fav__add') }}
+      </base-btn>
+      <base-btn :title="$t('back')" @click="handleBack">{{ $t('back') }}</base-btn>
+    </common-toolbar-actions>
     <div :class="$style.songListHeader">
       <div :class="$style.songListHeaderLeft" :style="{ backgroundImage: 'url('+(picUrl || listDetailInfo.info.img)+')' }">
         <!-- <span v-if="listDetailInfo.info.play_count" :class="$style.playNum">{{ listDetailInfo.info.play_count }}</span> -->
@@ -7,26 +32,6 @@
       <div :class="$style.songListHeaderMiddle">
         <h3 :title="listDetailInfo.info.name">{{ listDetailInfo.info.name }}</h3>
         <p :title="listDetailInfo.info.desc">{{ listDetailInfo.info.desc }}</p>
-      </div>
-      <div :class="$style.songListHeaderRight">
-        <base-btn
-          :class="$style.headerRightBtn"
-          :disabled="!!listDetailInfo.noItemLabel"
-          @click="playSongListDetail(listDetailInfo.id, listDetailInfo.source, listDetailInfo.list)"
-        >
-          {{ $t('list__play') }}
-        </base-btn>
-        <base-btn
-          :class="$style.headerRightBtn"
-          :disabled="!!listDetailInfo.noItemLabel"
-          @click="addSongListDetail(listDetailInfo.id, listDetailInfo.source, listDetailInfo.info.name)"
-        >
-          {{ $t('list__collect') }}
-        </base-btn>
-        <base-btn :class="$style.headerRightBtn" :disabled="isFavLoading || !!listDetailInfo.noItemLabel" @click="handleToggleFav">
-          {{ isFav ? $t('fav__cancel') : $t('fav__add') }}
-        </base-btn>
-        <base-btn :class="$style.headerRightBtn" @click="handleBack">{{ $t('back') }}</base-btn>
       </div>
     </div>
     <div :class="$style.list">
@@ -49,6 +54,7 @@
 import { computed, ref, watch } from '@common/utils/vueTools'
 import { listDetailInfo } from '@renderer/store/songList/state'
 import { useRouter } from '@common/utils/vueRouter'
+import { useI18n } from '@renderer/plugins/i18n'
 import { addSongListDetail, playSongListDetail } from './action'
 import useList from './useList'
 import useKeyBack from './useKeyBack'
@@ -117,6 +123,7 @@ export default {
   beforeRouteUpdate: verifyQueryParams,
   setup() {
     const router = useRouter()
+    const t = useI18n()
 
     const {
       listRef,
@@ -124,6 +131,21 @@ export default {
       getListData,
       handlePlayList,
     } = useList()
+
+    /**
+     * 「播放」键的 title（工单 03 搬到工具栏后的语义收口）。
+     *
+     * 键在页头时，「播放」的语境由旁边的封面/歌单名给；上移到工具栏后那段语境没了，
+     * 光一个「播放」看不出作用于哪个列表——所以把**歌单名拼进 title**。
+     * 只用既有 i18n key（本票不许新增词条，lang 四份不必动），` · ` 分隔
+     * 与 store/mv/action.ts 的 `codecLabel · sizeText` 同一口径；歌单名还没取到时退回纯「播放」，
+     * 不留一个悬空的分隔符。
+     */
+    const playTip = computed(() => {
+      const name = listDetailInfo.info.name
+      const label = t('list__play')
+      return name ? `${label} · ${name}` : label
+    })
 
 
     const togglePage = (page: number) => {
@@ -193,6 +215,7 @@ export default {
       playSongListDetail,
       handlePlayList,
       handleBack,
+      playTip,
       isFav,
       isFavLoading,
       handleToggleFav,
@@ -214,6 +237,10 @@ export default {
   flex-flow: column nowrap;
 }
 
+// 单行页头：封面 + 信息。**按键列（原来的 .songListHeaderRight）本来就不占纵向空间**
+// ——四个键在这条 80px 行里垂直居中，行高由封面（height: 100% + aspect-ratio）决定。
+// 所以键搬去工具栏后这里没有「空白行」要收：封面顶缘、行高、正文起点都不变，
+// 变的只是信息列的宽度（按键列腾出的横向空间归 .songListHeaderMiddle，右 gutter 见下）。
 .songListHeader {
   flex: none;
   display: flex;
@@ -248,7 +275,10 @@ export default {
 
 .songListHeaderMiddle {
   flex: auto;
-  padding: 2px 7px;
+  // 右内边距 15px = 原 .songListHeaderRight 的 padding-right（按键列搬走后那一列没了，
+  // 这条 gutter 挪到这里，免得歌单名/简介（都是省略号截断）顶到窗口右缘。
+  // 左内边距 7 沿用旧的，与封面之间还有 .songListHeaderLeft 的 15px margin
+  padding: 2px 15px 2px 7px;
   min-width: 0;
   h3 {
     .mixin-ellipsis-1();
@@ -261,24 +291,6 @@ export default {
     font-size: 12px;
     line-height: 1.2;
     color: var(--color-font-label);
-  }
-}
-.songListHeaderRight {
-  flex: none;
-  display: flex;
-  align-items: center;
-  padding-right: 15px;
-
-  .headerRightBtn {
-    border-radius: 0;
-    &:first-child {
-      border-top-left-radius: 4px;
-      border-bottom-left-radius: 4px;
-    }
-    &:last-child {
-      border-top-right-radius: 4px;
-      border-bottom-right-radius: 4px;
-    }
   }
 }
 

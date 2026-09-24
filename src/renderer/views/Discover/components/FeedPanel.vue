@@ -77,7 +77,7 @@ export default {
       if (target) void router.push(target)
     }
     /**
-     * 渲染用的卡片组。两件事：
+     * 渲染用的卡片组。三件事：
      *
      * 1. **只渲染有点击目标的卡片**（用户 2026-09-23 反馈后定的口径）：「一周听歌排行 / 8月听歌排行」
      *    这类排行榜卡（type 800）点不动、QQ 侧也没有对应端点，整类不渲染；雷达入口卡（type 900，
@@ -85,6 +85,8 @@ export default {
      * 2. **连续的无名楼层并成一组**（票 20）：那些单卡槽各自成行会把首页推荐排成一竖列孤零零的小卡，
      *    理由与实测数字见 `../feedGroups.ts` 的文件头。组的标题不渲染（用户 2026-09-24），
      *    但这里**不能**因此改成「全部楼层并成一组」——并组的粒度决定卡片怎么分行。
+     * 3. **整块丢弃的楼层**（用户 2026-09-24：「为你打造」一并去掉）在 `../feedGroups.ts` 的
+     *    `DROPPED_SHELF_IDS` 里按楼层 id 判，视图这层不重复一份名单。
      */
     const visibleGroups = computed(() => groupShelves(feed.shelves, card => toCardTarget(card) != null))
     return {
