@@ -109,8 +109,12 @@ export const applyElectronEnvParams = () => {
   if (global.envParams.cmdParams.dha) app.disableHardwareAcceleration()
   if (global.envParams.cmdParams.dhmkh) app.commandLine.appendSwitch('disable-features', 'HardwareMediaKeyHandling')
 
-  // fix linux transparent fail. https://github.com/electron/electron/issues/25153#issuecomment-843688494
-  if (process.platform == 'linux') app.commandLine.appendSwitch('use-gl', 'desktop')
+  // 这里曾有 `if (process.platform == 'linux') app.commandLine.appendSwitch('use-gl', 'desktop')`
+  // —— 上游为「Linux 透明窗口失效」加的 workaround（electron/electron#25153 的评论，Electron 13 时代）。
+  // **Electron 42 已不接受这个值**：GPU 进程会以 `use-gl=disabled` 启动、整机退化成软件合成，
+  // 后果是弹窗与动画明显掉帧（本机实测：弹窗开关 13/5 掉帧、~870ms CPU/轮；去掉后 0 掉帧、16.8ms）。
+  // 2026-09-24 移除，并真机确认透明窗口（桌面歌词窗）仍正常。若将来透明窗口再出问题，
+  // 别直接把这行加回来——先看上游 issue 是否已有新结论（那样做等于用全机软件合成换一个窗口）。
 
   // https://github.com/electron/electron/issues/22691
   app.commandLine.appendSwitch('wm-window-animations-disabled')
