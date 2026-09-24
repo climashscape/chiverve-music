@@ -42,13 +42,14 @@
         </button>
       </div>
 
-      <!-- 中央这一首的信息（歌手名可点，工单 02） -->
+      <!-- 中央这一首的信息（歌手名可点，工单 02）。`.stop` 不能删（工单 23）：多歌手时这次点击会打开
+           选择菜单，而 base-menu 的「点空白收起」挂在 document 上，不停住冒泡就会被这次点击触发 -->
       <div :class="$style.info">
         <h2 :class="$style.name" :title="current?.name">{{ current?.name }}</h2>
         <p
           :class="[$style.singer, { [$style.jumpable]: current && canJumpToSinger(current) }]"
           :title="current && canJumpToSinger(current) ? $t('list__jump_singer') : (current?.singer || '')"
-          @click="handleSingerClick"
+          @click.stop="handleSingerClick"
         >{{ current?.singer }}</p>
       </div>
 
@@ -75,8 +76,9 @@
           </span>
         </base-btn>
         <!-- 两个跳转（工单 02 的能力搬到按钮上）：多位歌手时会在按钮处弹出选择菜单。
-             灰掉时补一句悬停说明（工单 05）：原来只有「灰 + 点了没反应」，看不出是坏了还是这首歌没这个信息 -->
-        <base-btn min :class="$style.btnAction" :disabled="!current || !canJumpToSinger(current)" :title="current && !canJumpToSinger(current) ? $t('list__jump_singer_disabled') : ''" @click="handleJumpSingerClick">
+             灰掉时补一句悬停说明（工单 05）：原来只有「灰 + 点了没反应」，看不出是坏了还是这首歌没这个信息。
+             `.stop` 不能删（工单 23）：理由同上面那条歌手名（键盘 Tab+Enter 走的也是这条 click） -->
+        <base-btn min :class="$style.btnAction" :disabled="!current || !canJumpToSinger(current)" :title="current && !canJumpToSinger(current) ? $t('list__jump_singer_disabled') : ''" @click.stop="handleJumpSingerClick">
           <span :class="$style.btnInner">
             <svg :class="$style.btnIcon" version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" viewBox="0 0 448 456" space="preserve"><use xlink:href="#icon-user" /></svg>
             <span>{{ $t('radar__to_singer') }}</span>

@@ -6,12 +6,12 @@
     <section :class="$style.section">
       <h3 :class="$style.title">{{ $t('discover__feed') }}</h3>
       <div v-show="!feed.noItemLabel">
-        <div v-for="shelf in visibleShelves" :key="shelf.id" :class="$style.shelf">
-          <h4 v-if="shelf.name" :class="$style.shelfTitle">{{ shelf.name }}</h4>
+        <div v-for="group in visibleGroups" :key="group.key" :class="$style.shelf">
+          <h4 v-if="group.name" :class="$style.shelfTitle">{{ group.name }}</h4>
           <ul :class="$style.cards">
             <li
-              v-for="card in shelf.cards"
-              :key="`${shelf.id}__${card.kind}__${card.id || card.name}`"
+              v-for="card in group.cards"
+              :key="`${group.key}__${card.kind}__${card.id || card.name}`"
               :class="[$style.card, {[$style.cardLink]: !!toCardTarget(card)}]"
               @click="handleCardClick(card)"
             >
@@ -57,6 +57,7 @@ import { computed, ref } from '@common/utils/vueTools'
 import { useRouter, useRoute } from '@common/utils/vueRouter'
 import usePlay from '@renderer/components/material/OnlineList/usePlay'
 import useFeedTab, { type FeedCard } from '../useFeedTab'
+import { groupShelves } from '../feedGroups'
 
 /** 音乐雷达入口卡的 id（`tx/recommend.js:48` 的实测记录：type 900、id 22000）。 */
 const RADAR_ENTRY_CARD_ID = '22000'
@@ -107,20 +108,19 @@ export default {
       if (target) void router.push(target)
     }
     /**
-     * 只渲染**有点击目标**的卡片（用户 2026-09-23 反馈后定的口径）：
-     * 「一周听歌排行 / 8月听歌排行」这类排行榜卡（type 800）点不动，且 QQ 侧**没有对应端点**，
-     * 做不出真交互，所以整类不渲染；雷达入口卡（type 900，id=22000）自 2026-09-23 起在
-     * toCardTarget 里有了目标（/radar），于是自动重新出现——过滤器不用改。
+     * 渲染用的卡片组。两件事：
+     *
+     * 1. **只渲染有点击目标的卡片**（用户 2026-09-23 反馈后定的口径）：「一周听歌排行 / 8月听歌排行」
+     *    这类排行榜卡（type 800）点不动、QQ 侧也没有对应端点，整类不渲染；雷达入口卡（type 900，
+     *    id=22000）自 2026-09-23 起在 toCardTarget 里有了目标（/radar），于是自动重新出现——过滤器不用改。
+     * 2. **连续的无名楼层并成一组**（票 20）：那些单卡槽各自成行会把首页推荐排成一竖列孤零零的小卡，
+     *    理由与实测数字见 `../feedGroups.ts` 的文件头。
      */
-    const visibleShelves = computed(() =>
-      feed.shelves
-        .map(shelf => ({ ...shelf, cards: shelf.cards.filter(card => toCardTarget(card) != null) }))
-        .filter(shelf => shelf.cards.length > 0),
-    )
+    const visibleGroups = computed(() => groupShelves(feed.shelves, card => toCardTarget(card) != null))
     return {
       feed,
       guess,
-      visibleShelves,
+      visibleGroups,
       toCardTarget,
       handleCardClick,
       handlePlayGuess,

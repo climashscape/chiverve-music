@@ -45,6 +45,12 @@ export default ({ visible, location, onHide }) => {
     }
     return `${x}px, ${y}px`
   }
+  // 「点空白收起」。⚠️ 打开菜单的那次点击**也会**冒泡到这里（工单 23 的成因）：
+  // Chromium 在每个监听器返回后跑一次 microtask checkpoint，Vue 的 watcher flush 就在里面，
+  // 菜单正是在那次 checkpoint 被打开的，于是同一次点击紧接着关掉了它。
+  // 所以**由 click 打开的菜单，触发元素上必须 `@click.stop`**（右键菜单走 contextmenu，不受影响）。
+  // 真浏览器里的派发顺序与现象：`触发元素监听 → microtask → document 监听`，表现为
+  // 「第一次点能弹（打开发生在事件派发之后）、之后再也弹不出（命中缓存 → 打开落回微任务）」。
   const handleDocumentClick = (event) => {
     if (!show) return
 

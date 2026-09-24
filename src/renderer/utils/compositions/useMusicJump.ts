@@ -35,6 +35,14 @@ export default () => {
 
   // ── 多位歌手时让用户挑（用 base-menu，位置贴在触发点）───────────────────────
   // 这几项平铺返回：模板里要直接绑 `v-model` / `:xy` / `:menus`，嵌套在对象里的 ref 不会被自动解包
+  //
+  // ⚠️ 调用方渲染 base-menu 时，**打开菜单的那次点击必须 `@click.stop`**（工单 23）：
+  // base-menu 的「点空白收起」挂在 document 上，而 Chromium 在每个监听器返回后都会跑一次
+  // microtask checkpoint —— Vue 的 watcher 正好是微任务，菜单就是在那次 checkpoint 里打开的，
+  // 于是**同一次点击**会紧接着冒泡到 document，把刚开的菜单立刻关掉。
+  // 第一次点常常看不出来（`resolveSingers` 还在等网络，打开发生在事件派发之后），
+  // 命中 `singerCache` 之后就变成「弹出一次、之后再点弹不出来」（2026-09-24 真机报的）。
+  // 真浏览器里量到的派发顺序：`触发元素监听 → microtask → document 监听`（两个歌曲表本来就是这么写的）。
   const isShowSingerPicker = ref(false)
   const singerPickerXy = shallowReactive({ x: 0, y: 0 })
   const singerPickerSingers = ref<JumpSinger[]>([])

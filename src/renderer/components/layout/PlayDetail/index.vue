@@ -14,10 +14,13 @@ transition(enter-active-class="animated slideInRight" leave-active-class="animat
           div.description(:class="['scroll', $style.description]")
             p {{ $t('player__music_name') }}{{ musicInfo.name }}
             //- 不可跳时也给一句悬停说明（工单 05）：原来是「没有 cursor、点了毫无反应」，用户不知道是灰的还是坏了
+            //- `.stop` 不能删（工单 23）：多歌手时这次点击会打开选择菜单，而 base-menu 的「点空白收起」
+            //- 挂在 document 上——不停住冒泡，菜单会被**打开它的这次点击**立刻关掉（真机表现为
+            //- 「第一次点能弹、之后再点弹不出来」，成因与实测见 useMusicJump 里 picker 那段的注释）
             p(
               :class="{ [$style.jumpable]: canJumpToSinger(playMusicInfo.musicInfo) }"
               :title="canJumpToSinger(playMusicInfo.musicInfo) ? $t('list__jump_singer') : $t('list__jump_singer_disabled')"
-              @click="handlePlayDetailSingerClick"
+              @click.stop="handlePlayDetailSingerClick"
             ) {{ $t('player__music_singer') }}{{ musicInfo.singer }}
             p(
               v-if="musicInfo.album"

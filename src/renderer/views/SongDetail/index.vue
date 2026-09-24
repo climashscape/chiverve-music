@@ -1,7 +1,7 @@
 <template>
   <div :class="$style.container" class="scroll">
     <div :class="$style.header">
-      <base-btn :class="$style.back" @click="handleBack">{{ $t('back') }}</base-btn>
+      <base-btn @click="handleBack">{{ $t('back') }}</base-btn>
     </div>
 
     <div v-if="detail.errorLabel" :class="$style.error" v-text="detail.errorLabel" />
@@ -12,10 +12,12 @@
         <img :class="$style.cover" loading="lazy" decoding="async" :src="detail.img" alt="">
         <div :class="$style.songInfo">
           <h2 :class="$style.name" :title="detail.name">{{ detail.name }}</h2>
+          <!-- `.stop` 不能删（工单 23）：多歌手时这次点击打开选择菜单，而 base-menu 的「点空白收起」挂在
+               document 上——不停住冒泡，菜单会被打开它的这次点击立刻关掉（详见 useMusicJump 里 picker 的注释） -->
           <p
             :class="[$style.meta, ...(detail.singers.length ? [$style.link] : [])]"
             :title="detail.singers.length ? $t('list__jump_singer') : $t('list__jump_singer_disabled')"
-            @click="handleSingerClick"
+            @click.stop="handleSingerClick"
           >{{ detail.singer }}</p>
           <p v-if="detail.albumMid" :class="[$style.meta, $style.link]" @click="toAlbum">{{ detail.albumName }}</p>
           <p v-else-if="detail.albumName" :class="$style.meta">{{ detail.albumName }}</p>
@@ -240,16 +242,16 @@ export default {
   overflow-y: auto;
 }
 
-// 返回键靠右：与歌手页（`.actions` 是 header 的最后一个 flex 子项）、专辑页（动作条里 返回 在末尾）
-// 保持同一个位置——用户报「歌曲详情页的返回键位置和歌手主页不一致」就是这里（票 14）
+// 头部区域与歌手页**同一套**（工单 24，以歌手页为准）：
+// 返回键靠右（票 14：`.actions` 在歌手页 header 的末位、专辑页动作条的末位，都贴容器右缘）、
+// `padding-bottom: 14px` + 同一条分隔线、`.song` 与 header 之间留 18px（歌手页 `.section` 的取值）。
+// 量测对照表见 .scratch/ui-polish-2/issues/24-song-detail-header-alignment.md
 .header {
   display: flex;
   flex-flow: row nowrap;
   justify-content: flex-end;
-  padding-bottom: 8px;
-}
-.back {
-  background: none !important;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--color-000-alpha-700);
 }
 
 .error {
@@ -259,9 +261,12 @@ export default {
   color: var(--color-font-label);
 }
 
+// 封面/歌名这一块与 header 之间留 18px：歌手页第一块（`.section`）就是 18px，原来这里是 0，
+// 封面紧贴分隔线（工单 24 的「上方排版和歌手页没对齐」）
 .song {
   display: flex;
   align-items: center;
+  margin-top: 18px;
 }
 .cover {
   flex: none;

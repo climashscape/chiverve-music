@@ -48,7 +48,10 @@ export default {
   // 路由页根容器带左右 padding 时必须 border-box：View.vue 给的是 width:100% + 默认 content-box，
   // 否则整块比窗口宽出 2×padding，右侧内容（按钮等）被挤出可视区
   box-sizing: border-box;
-  padding: 16px 22px 0;
+  // 左右留白**下放**给两个子块（工单 26）：滚动区自带 22px 后，6px 滚动条落到面板右边缘、
+  // 与内容之间留出 22px 净空。根容器留左右 padding 的话，滚动区的右边缘就是内容右边缘，
+  // 滚动条会**贴在内容上**（实测净空 −0.22px，即完全贴合），且它正好吊在账号卡分割线的右端下方
+  padding: 16px 0 0;
   color: var(--color-font);
   // 账号卡固定、内容区自己滚（工单 02）——整页滚动的写法是 sticky 或整块 overflow，
   // 这里用最省事的 flex 列：第一行不可伸缩，第二行吃掉剩余高度并滚动
@@ -56,11 +59,14 @@ export default {
   flex-flow: column nowrap;
 }
 
-// 内容区：`.scroll` 是全局类（滚动条样式），这里只负责高度与滚动
+// 内容区：`.scroll` 是全局类（滚动条样式），这里只负责高度、滚动与留白
 .content {
   flex: auto;
   min-height: 0;
   overflow-y: auto;
-  padding-bottom: 30px;
+  // 与歌手页 / 歌曲详情页同口径（那两页把 `padding: 16px 22px 30px` 直接挂在滚动容器上）：
+  // 左右 22px 由滚动区自己出；底部 30px 留在可滚动区**内部**（引擎会把它算进 scrollHeight，
+  // 实测 30.28px，不会贴底）
+  padding: 0 22px 30px;
 }
 </style>

@@ -1,6 +1,22 @@
 <template>
   <div :class="$style.container">
     <div :class="$style.header">
+      <!-- 动作条是 header 的**第一行**（用户 2026-09-24 重新定的位置）：四键的顶缘与歌手页「返回」键
+           同一条线（两页容器 padding-top 相同，都是 16px），右缘也同贴内容右缘（四键 `flex: 1 1 0`
+           + 上限 193px，恰好排满一行）。**别把它挪回 headerMain 里当右侧列**——那会挤掉简介与歌名列
+           （工单 17 的实测：简介 309.9px），也别挪到信息块下方（工单 17 的做法，用户推翻）。
+           量取表见 `.scratch/ui-polish-2/issues/22-album-actions-alignment.md` -->
+      <div :class="$style.actions">
+        <!-- 四个键都带 :title（工单 17 收尾）：键宽由 flex 等分固定，长文案会被省略号截断，
+             截断时靠原生 title 看全文（与本页 .name / .singer 的做法一致） -->
+        <base-btn :class="$style.btnAction" :title="isFav ? $t('fav__cancel') : $t('fav__add')" :disabled="isFavLoading" @click="handleToggleFav">
+          {{ isFav ? $t('fav__cancel') : $t('fav__add') }}
+        </base-btn>
+        <!-- 复制链接 / 在 QQ 音乐打开（工单 02）：分享走 QQ 网页链接，与本应用深链不是一回事 -->
+        <base-btn v-if="detail.mid" :class="$style.btnAction" :title="$t('album__copy_link')" @click="handleCopyAlbumLink">{{ $t('album__copy_link') }}</base-btn>
+        <base-btn v-if="detail.mid" :class="$style.btnAction" :title="$t('list__open_in_qq')" @click="handleOpenAlbumInQq">{{ $t('list__open_in_qq') }}</base-btn>
+        <base-btn :class="$style.btnAction" :title="$t('back')" @click="handleBack">{{ $t('back') }}</base-btn>
+      </div>
       <div :class="$style.headerMain">
         <div :class="$style.coverBox">
           <img v-if="detail.img" :class="$style.cover" loading="lazy" decoding="async" :src="detail.img" alt="">
@@ -30,19 +46,6 @@
             {{ isDescOpen ? $t('album__desc_collapse') : $t('album__desc_expand') }}
           </base-btn>
         </div>
-      </div>
-      <!-- 动作条**单独一行**放在专辑信息下方（工单 17）。四个键此前与封面/简介同排右侧，
-           横着吃掉一半宽度、把简介挤到左边（920 窗下 .info 只剩 310px），所以整条下移 -->
-      <div :class="$style.actions">
-        <!-- 四个键都带 :title（工单 17 收尾）：键宽由 flex 等分固定，长文案会被省略号截断，
-             截断时靠原生 title 看全文（与本页 .name / .singer 的做法一致） -->
-        <base-btn :class="$style.btnAction" :title="isFav ? $t('fav__cancel') : $t('fav__add')" :disabled="isFavLoading" @click="handleToggleFav">
-          {{ isFav ? $t('fav__cancel') : $t('fav__add') }}
-        </base-btn>
-        <!-- 复制链接 / 在 QQ 音乐打开（工单 02）：分享走 QQ 网页链接，与本应用深链不是一回事 -->
-        <base-btn v-if="detail.mid" :class="$style.btnAction" :title="$t('album__copy_link')" @click="handleCopyAlbumLink">{{ $t('album__copy_link') }}</base-btn>
-        <base-btn v-if="detail.mid" :class="$style.btnAction" :title="$t('list__open_in_qq')" @click="handleOpenAlbumInQq">{{ $t('list__open_in_qq') }}</base-btn>
-        <base-btn :class="$style.btnAction" :title="$t('back')" @click="handleBack">{{ $t('back') }}</base-btn>
       </div>
     </div>
 
@@ -207,7 +210,7 @@ export default {
 
 .header {
   flex: none;
-  // 纵向：封面/简介一行（.headerMain），动作条自己一行（见 .actions 的注释）
+  // 纵向：动作条一行（.actions），封面/简介一行（.headerMain）——顺序见模板里的注释
   display: flex;
   flex-flow: column nowrap;
   padding-bottom: 14px;
@@ -284,23 +287,30 @@ export default {
   margin-top: 4px;
   align-self: flex-start;
 }
-// 动作条：单独一行，放在专辑信息块下方（工单 17）
+// 动作条：独占一行，在专辑信息**上方**（用户 2026-09-24 定的位置）——与歌手页「返回」键同顶缘，
+// 且不改变简介与歌名/歌手/meta 的列宽（它们都在 .headerMain 里，横向一点没动）。
+// `justify-content: flex-end` 的必要性：四键排满一行只在内容宽 ≈802px（920 档）时成立；窗口更大时
+// 四键被 max-width 卡在 193，剩余空间会堆在**右侧**、最后一个键离内容右缘 179.5px（1114 档实测），
+// 与歌手页返回键（永远贴右缘）就对不齐了。靠右对齐后两档都贴右缘（1114 档实测差 0）。
 .actions {
   flex: none;
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 10px;
-  margin-top: 12px;
+  margin-bottom: 12px;
 }
 // 四个动作键（工单 17）：**同高同宽 + 文案不换行**。等宽思路借自 RadarCarousel 的同名类，
 // 但那页是固定 width:96px + base-btn min（12px 字号）；本页文案长得多（中文最长「取消 QQ 收藏」
 // 含内边距 119.6px、英文最长 231.6px），所以改成 flex 等分 + 默认字号，值另算。
+// 前提是**动作条自己占满一行**（现在是 header 的第一行，工单 22 起）：四键排满后右缘正好落在内容右缘，
+// 与歌手页「返回」键的右缘同一条线。
 // ⚠️ 别把 basis 改成 auto —— 那样宽度又跟着文案走（「返回」比「取消 QQ 收藏」窄一大截，
 // 收藏/取消收藏切换时宽度也会跳），四个键就又大小不一了。
 // 上限 193px 的来历：默认档 920×600 的**内容宽 800.3px**（= (920-16)×93.4% - 44 的左右 padding），
 // 每键可分到 (800.3-3×10)/4 ≈ 192.6px，取 193 让这一档刚好排满、更宽窗口也不再涨
 // （四键上限和 = 193×4+30 = 802px）；最窄档 828×540 内容宽只有 714.4px，上限不生效，
-// 靠等分收窄到各 171.1px，不溢出（实测见票 17 的量取表）。
+// 靠等分收窄到各 171.1px，不溢出（实测见票 17/22 的量取表）。
 .btnAction {
   flex: 1 1 0;
   min-width: 0;

@@ -48,6 +48,12 @@ export default {
 @import '@renderer/assets/styles/layout.less';
 
 .card {
+  // 页面根不再带左右 padding（工单 26）：左右留白由本卡片与滚动区各自出。
+  // 右边 28px = 22px 页面留白 + 6px 滚动条宽度（全局 `.scroll` 的 ::-webkit-scrollbar）：
+  // 6px 经典滚动条吃掉的是滚动区内容右边缘那一条，本卡片不在滚动区里，不让出这 6px
+  // 的话分割线会比下方内容宽出一条滚动条、正好吊在滚动条上方（实测 5.78px）。
+  // 口径同全局 `.thead` 的 `padding-right: 6px`（表头给滚动条让位）。
+  margin: 0 28px 0 22px;
   // 页面根是 flex 列：这张卡固定在顶部不滚（`flex: none` + 下面的内容区 `overflow-y: auto`）
   flex: none;
   display: flex;
