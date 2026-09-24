@@ -19,19 +19,22 @@ import LocalListsPanel from './components/LocalListsPanel.vue'
 import CloudListsPanel from './components/CloudListsPanel.vue'
 
 /**
- * 我的歌单（工单 09）：两个 tab——**本地歌单**（本地库的自建列表）与 **QQ 音乐·歌单**
- * （QQ 云端自建歌单）。两者是**两套数据、两种写语义**，以前堆在一根左栏里两个组各自滚动，
- * 现在各占一个 tab，每个 tab 内部仍是「左栏 + 右栏」。
+ * 我的歌单（工单 09；默认 tab 与顺序见工单 07）：两个 tab——**QQ 音乐·歌单**（QQ 云端自建歌单）
+ * 与 **本地歌单**（本地库的自建列表）。两者是**两套数据、两种写语义**，以前堆在一根左栏里两个组
+ * 各自滚动，现在各占一个 tab，每个 tab 内部仍是「左栏 + 右栏」。
  *
  * 这个文件只是壳：Tab 切换与 query 同步；两个面板在 components/ 里，各自取数。
  *
  * query（三个键各归其主）：
- * - `tab`：`local` / `cloud`，本文件写
+ * - `tab`：`cloud` / `local`，本文件写
  * - `id`：本地 tab 选中的列表，`LocalListsPanel` 写
  * - `cloud`：云端 tab 选中的 dirId，`CloudRail` 写
  * 切 tab **不丢**另外两个键：那是各自 tab 内部的选择，切回去还在原位（与收藏页把参数清掉不同——
  * 那边的参数只对一个 tab 有意义）。老地址因此照旧可用：`?id=…` 落本地 tab、`?cloud=…` 落云端 tab，
- * 两者都缺时默认 `local`（推断规则见 `./tabs.ts`，单测在 `tabs.test.ts`）。
+ * 两者都缺时默认 `cloud`（推断规则见 `./tabs.ts`，单测在 `tabs.test.ts`）。
+ *
+ * ⚠️ 默认 tab 是云端：进页面就会挂 `CloudListsPanel` → 跑一次 `initUserCenter()`（未登录时
+ * 云端那组落「未登录」文案）。这是「默认看 QQ 歌单」的既定代价，不是漏懒加载。
  */
 
 export default {
@@ -46,9 +49,11 @@ export default {
 
     const tab = ref<TabId>(tabFromQuery(route.query as Record<string, unknown>))
 
+    // 顺序与 tabs.ts 的 TABS 一致：**第一个是默认 tab**（cloud，2026-09-24 用户定），
+    // 本地第二。两处顺序别各改各的——TABS 那边有单测钉着，改它就要一起改这里。
     const tabs = [
-      { tab: 'local', label: window.i18n.t('playlists__tab_local' as any) },
       { tab: 'cloud', label: window.i18n.t('playlists__tab_cloud' as any) },
+      { tab: 'local', label: window.i18n.t('playlists__tab_local' as any) },
     ]
 
     const handleTabChange = (id: TabId) => {

@@ -210,6 +210,31 @@ export const isFavSongInCloud = (musicInfo: LX.Music.MusicInfoOnline | null | un
 }
 
 /**
+ * 这一首**能**写进 QQ「我喜欢」吗 —— 判据是「有没有 QQ 歌曲 ID」：
+ * 本地文件（source=local）与其它源的歌曲都没有（`meta.id` 是各自源的 id，送给 QQ 是错的）。
+ * 三个入口（行内键 / 右键菜单 / 播放栏）共用这一条：不能收藏的歌**不显示**收藏键。
+ */
+export const canFavSongInCloud = (musicInfo: LX.Music.MusicInfoOnline | null | undefined): boolean =>
+  musicInfo?.source == 'tx' && musicInfo?.meta?.id != null
+
+/**
+ * 「我喜欢」的**一键切换**（三个入口共用，别各写一套）：已在我喜欢里 → 移除，不在 → 加入。
+ *
+ * 状态判据要先有全量 id 集合，所以这里先 `loadFavSongIds()`：**动作不走界面上那份文案的判据**，
+ * 否则 state 还没加载完时点下去会走反方向（该移除的又收藏一遍）。未登录时它抛
+ * `QQ 音乐未登录`，由调用方用 `favErrorText` 弹提示。
+ *
+ * @returns 切换后的状态（true = 现在在我喜欢里）
+ */
+export const toggleFavSongToCloud = async(musicInfo: LX.Music.MusicInfoOnline): Promise<boolean> => {
+  await loadFavSongIds()
+  const isFav = isFavSongInCloud(musicInfo)
+  if (isFav) await removeFavSongFromCloud(musicInfo)
+  else await addFavSongToCloud(musicInfo)
+  return !isFav
+}
+
+/**
  * 收藏类写操作的失败文案：写接口抛的是内部串 `QQ 音乐未登录`（`requireCredential`），
  * 界面上要说人话；其它错误原样透出，兜底用 `list_add__cloud_failed`。
  * 四个入口（收藏弹窗 / 雷达 / 快捷键与托盘 / 任务栏）共用，别各写一份。

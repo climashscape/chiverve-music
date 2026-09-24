@@ -3,6 +3,7 @@ import musicSdk from '@renderer/utils/musicSdk'
 import { useI18n } from '@renderer/plugins/i18n'
 import { hasDislike } from '@renderer/core/dislikeList'
 import { canJumpToAlbum, canJumpToSinger, canShareMusic } from '@common/utils/musicLink'
+import useFavSong from '@renderer/utils/compositions/useFavSong'
 
 export default ({
   props,
@@ -25,6 +26,7 @@ export default ({
   const itemMenuControl = reactive({
     play: true,
     addTo: true,
+    fav: true,
     playLater: true,
     download: true,
     search: true,
@@ -35,6 +37,11 @@ export default ({
     share: true,
   })
   const t = useI18n()
+  // 「我喜欢」是**一键开关**（工单 06）：名字随当前状态变，点一下就地切换，不再开弹窗
+  const { canFav, favTitle, toggleFav, loadFavState } = useFavSong()
+  // 只记「当前右键的这一首」：菜单项名字与点击动作都读它，就不必再让调用方按 index 找歌
+  // （本地列表的那个 useMenu 拿不到 list，两边靠这个写成同一份）
+  const currentMusic = ref(null)
   const menuLocation = reactive({ x: 0, y: 0 })
   const isShowItemMenu = ref(false)
 
@@ -59,6 +66,13 @@ export default ({
         name: t('list__search'),
         action: 'search',
         disabled: !itemMenuControl.search,
+      },
+      // 「我喜欢」与「加入歌单」是两件事（工单 06）：前者一键切换（名字随状态变），
+      // 后者开弹窗。不能收藏的歌（本地文件等）**不显示**收藏项，而不是显示成灰的
+      {
+        name: favTitle(currentMusic.value),
+        action: 'fav',
+        hide: !itemMenuControl.fav,
       },
       {
         name: t('list__add_to'),
@@ -110,6 +124,12 @@ export default ({
 
     itemMenuControl.dislike = !hasDislike(musicInfo)
 
+    // 收藏态先拉回来（缓存住，一次会话只真拉一次）：拉不到就按「没收藏」显示文案，
+    // 点击那一下会再等一次（`toggleFav` 内部），所以不会点错方向
+    currentMusic.value = musicInfo
+    itemMenuControl.fav = canFav(musicInfo)
+    loadFavState()
+
     if (props.checkApiSource) {
       itemMenuControl.playLater =
       itemMenuControl.play =
@@ -150,6 +170,10 @@ export default ({
         break
       case 'addTo':
         handleShowMusicAddModal(index)
+        break
+      case 'fav':
+        // 一键切换「我喜欢」：失败会在 toggleFav 里弹出来（未登录 → 请先登录 QQ 音乐）
+        toggleFav(currentMusic.value)
         break
       case 'sourceDetail':
         handleOpenMusicDetail(index)

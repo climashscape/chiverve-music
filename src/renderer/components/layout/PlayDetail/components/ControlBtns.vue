@@ -18,6 +18,11 @@ div(:class="$style.footerLeftControlBtns")
   common-playback-rate-btn
   common-volume-btn
   common-toggle-play-mode-btn
+  // 「我喜欢」一键开关（工单 06）：与「+」拆开——收藏当前这首不必先进弹窗。
+  // 状态问云端；未登录时点了会弹「请先登录 QQ 音乐」；本地文件没有 QQ 歌曲 ID → 禁用并说明原因
+  button(:class="[$style.footerLeftControlBtn, { [$style.active]: isFav }]" :disabled="!canFav" :aria-label="favActionTitle" :title="favTitle" @click="handleToggleFav")
+    svg(version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" width="95%" viewBox="0 0 444.87 391.18" space="preserve")
+      use(xlink:href="#icon-love")
   button(:class="$style.footerLeftControlBtn" :aria-label="$t('player__add_music_to')" :title="$t('player__add_music_to')" @click="isShowAddMusicTo = true")
     svg(version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" viewBox="0 0 512 512" space="preserve")
       use(xlink:href="#icon-add-2")
@@ -26,7 +31,7 @@ div(:class="$style.footerLeftControlBtns")
 </template>
 
 <script>
-import { ref } from '@common/utils/vueTools'
+import { ref, computed } from '@common/utils/vueTools'
 import { useI18n } from '@renderer/plugins/i18n'
 
 import {
@@ -41,6 +46,8 @@ import {
 
 import useNextTogglePlay from '@renderer/utils/compositions/useNextTogglePlay'
 import useToggleDesktopLyric from '@renderer/utils/compositions/useToggleDesktopLyric'
+import useFavSong from '@renderer/utils/compositions/useFavSong'
+import { canFavSongInCloud, isFavSongInCloud } from '@renderer/store/user/action'
 import { dialog } from '@renderer/plugins/Dialog'
 import { setMediaDeviceId } from '@renderer/plugins/player'
 import { appSetting, saveMediaDeviceId, setEnableAudioVisualization } from '@renderer/store/setting'
@@ -71,6 +78,24 @@ export default {
 
     const isShowAddMusicTo = ref(false)
 
+    // 「我喜欢」：当前播放的这一首（`progress` 包装时取里面的歌，同 usePlayStatus 的取法）
+    const { toggleFav } = useFavSong()
+    const currentMusic = computed(() => playMusicInfo.musicInfo == null
+      ? null
+      : ('progress' in playMusicInfo.musicInfo ? playMusicInfo.musicInfo.metadata.musicInfo : playMusicInfo.musicInfo))
+    const canFav = computed(() => canFavSongInCloud(currentMusic.value))
+    const isFav = computed(() => canFav.value && isFavSongInCloud(currentMusic.value))
+    /** 键名（无障碍名）：说了要做什么，与行内/菜单/播放栏那三处同一套文案 */
+    const favActionTitle = computed(() => isFav.value ? t('list__unlove') : t('list_add__cloud_fav'))
+    /** 悬停提示：灰掉时改说「为什么灰」（没歌 / 这首不能收藏） */
+    const favTitle = computed(() => {
+      if (currentMusic.value == null) return ''
+      return canFav.value ? favActionTitle.value : t('list_add__cloud_no_song_id')
+    })
+    // 状态不在这里拉：播放链路（usePlayStatus）已会拉一次并缓存住，
+    // 且点下去时 `toggleFav` 会再等一次（所以不会出现「看到的和点的相反」）
+    const handleToggleFav = () => { void toggleFav(currentMusic.value) }
+
     const toggleAudioVisualization = async() => {
       const newSetting = !appSetting['player.audioVisualization']
       if (newSetting && appSetting['player.mediaDeviceId'] != 'default') {
@@ -100,6 +125,11 @@ export default {
       toggleAudioVisualization,
       isShowAddMusicTo,
       playMusicInfo,
+      canFav,
+      isFav,
+      favActionTitle,
+      favTitle,
+      handleToggleFav,
     }
   },
 }
@@ -140,6 +170,12 @@ export default {
     &.active {
       color: var(--color-primary);
       opacity: .8;
+    }
+
+    // 没有歌在播 / 这首不能收藏（本地文件）时的样子：灰掉，别让人以为点了没反应
+    &:disabled {
+      opacity: .25;
+      cursor: default;
     }
   }
 

@@ -31,12 +31,12 @@
         @scroll="saveListPosition" @contextmenu.capture="handleListRightClick"
       >
         <div
-          class="list-item" :class="[{ [$style.active]: playerInfo.isPlayList && playerInfo.playIndex === index }, { selected: selectedIndex == index || rightClickSelectedIndex == index }, { active: selectedList.includes(item) }, { disabled: !assertApiSupport(item.source) }]"
+          class="list-item" :class="[{ [$style.active]: playingRowIndex === index }, { selected: selectedIndex == index || rightClickSelectedIndex == index }, { active: selectedList.includes(item) }, { disabled: !assertApiSupport(item.source) }]"
           @click="handleListItemClick($event, index)" @contextmenu="handleListItemRightClick($event, index)"
         >
           <div class="list-item-cell no-select" :class="$style.num" style="flex: 0 0 5%;">
             <transition name="play-active">
-              <div v-if="playerInfo.isPlayList && playerInfo.playIndex === index" :class="$style.playIcon">
+              <div v-if="playingRowIndex === index" :class="$style.playIcon">
                 <svg version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" height="50%" viewBox="0 0 512 512" space="preserve">
                   <use xlink:href="#icon-play-outline" />
                 </svg>
@@ -75,12 +75,12 @@
       >
         <div
           class="list-item"
-          :class="[{ [$style.active]: playerInfo.isPlayList && playerInfo.playIndex === index }, { selected: selectedIndex == index || rightClickSelectedIndex == index }, { active: selectedList.includes(item) }, { disabled: !assertApiSupport(item.source) }]"
+          :class="[{ [$style.active]: playingRowIndex === index }, { selected: selectedIndex == index || rightClickSelectedIndex == index }, { active: selectedList.includes(item) }, { disabled: !assertApiSupport(item.source) }]"
           @click="handleListItemClick($event, index)" @contextmenu="handleListItemRightClick($event, index)"
         >
           <div class="list-item-cell no-select" :class="$style.num" style="flex: 0 0 5%;">
             <transition name="play-active">
-              <div v-if="playerInfo.isPlayList && playerInfo.playIndex === index" :class="$style.playIcon">
+              <div v-if="playingRowIndex === index" :class="$style.playIcon">
                 <svg version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" height="50%" viewBox="0 0 512 512" space="preserve">
                   <use xlink:href="#icon-play-outline" />
                 </svg>
@@ -146,6 +146,7 @@ import useSort from './useSort'
 import useMusicActions from './useMusicActions'
 import useSearch from './useSearch'
 import useListScroll from './useListScroll'
+import usePlayingRowLocate from '@renderer/utils/compositions/usePlayingRowLocate'
 import { appSetting } from '@renderer/store/setting'
 
 export default {
@@ -166,15 +167,17 @@ export default {
 
     let scrollIndex = null
     let isAnimation = false
-    const handleRestoreScroll = (_scrollIndex, _isAnimation) => {
+    let isCenter = false
+    const handleRestoreScroll = (_scrollIndex, _isAnimation, _isCenter = false) => {
       scrollIndex = _scrollIndex
       isAnimation = _isAnimation
-      if (isAnimation) void restoreScroll(scrollIndex, isAnimation)
+      isCenter = _isCenter
+      if (isAnimation) void restoreScroll(scrollIndex, isAnimation, isCenter)
       // console.log('handleRestoreScroll', scrollIndex, isAnimation)
     }
     const onLoadedList = () => {
       // console.log('restoreScroll', scrollIndex, isAnimation)
-      void restoreScroll(scrollIndex, isAnimation)
+      void restoreScroll(scrollIndex, isAnimation, isCenter)
     }
 
     const {
@@ -183,7 +186,7 @@ export default {
       dom_listContent,
       listRef,
       list,
-      playerInfo,
+      playingRowIndex,
       setSelectedIndex,
       isShowSource,
       excludeListIds,
@@ -195,6 +198,9 @@ export default {
       handleSelectData,
       removeAllSelect,
     } = useList({ listRef, list })
+
+    // 「定位到正在播放」：判定走 `playingRowIndex`，滚动与给播放栏的登记在这个组合式里（工单 08）
+    const { scrollToIndexCentered } = usePlayingRowLocate({ listRef, listItemHeight, playingRowIndex })
 
     const {
       handlePlayMusic,
@@ -285,7 +291,7 @@ export default {
       listRef,
     })
 
-    const { saveListPosition, restoreScroll } = useListScroll({ props, listRef, list, handleRestoreScroll })
+    const { saveListPosition, restoreScroll } = useListScroll({ props, listRef, list, handleRestoreScroll, scrollToIndexCentered })
 
 
     const handleListItemClick = (event, index) => {
@@ -381,7 +387,7 @@ export default {
       handleMusicSearchAction,
 
       list,
-      playerInfo,
+      playingRowIndex,
 
       saveListPosition,
       isShowSource,

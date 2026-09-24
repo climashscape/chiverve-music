@@ -28,10 +28,20 @@
           <base-virtualized-list v-if="actionButtonsVisible" ref="listRef" :list="list" key-name="id" :item-height="listItemHeight" container-class="scroll" content-class="list" @contextmenu.capture="handleListRightClick">
             <template #default="{ item, index }">
               <div
-                class="list-item" :class="[{ selected: rightClickSelectedIndex == index }, { active: selectedList.includes(item) }]"
+                class="list-item" :class="[{ [$style.active]: playingRowIndex === index }, { selected: rightClickSelectedIndex == index }, { active: selectedList.includes(item) }]"
                 @click="handleListItemClick($event, index)" @contextmenu="handleListItemRightClick($event, index)"
               >
-                <div class="list-item-cell no-select num" style="flex: 0 0 5%;" @click.stop>{{ index + 1 }}</div>
+                <div class="list-item-cell no-select num" :class="$style.num" style="flex: 0 0 5%;" @click.stop>
+                  <!-- 正在播放那一行：序号换成播放图标（与本地歌曲表同一个标记，见 ListMusicTable/index.vue） -->
+                  <transition name="play-active">
+                    <div v-if="playingRowIndex === index" :class="$style.playIcon">
+                      <svg version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" height="50%" viewBox="0 0 512 512" space="preserve">
+                        <use xlink:href="#icon-play-outline" />
+                      </svg>
+                    </div>
+                    <div v-else>{{ index + 1 }}</div>
+                  </transition>
+                </div>
                 <div class="list-item-cell auto name">
                   <span class="select name" :aria-label="item.name">{{ item.name }}</span>
                   <span v-if="item.meta._qualitys.flac24bit" class="no-select badge badge-theme-primary">{{ $t('tag__lossless_24bit') }}</span>
@@ -54,7 +64,7 @@
                 </div>
                 <div class="list-item-cell" style="flex: 0 0 9%;"><span class="no-select">{{ item.interval || '--/--' }}</span></div>
                 <div class="list-item-cell" style="flex: 0 0 16%; padding-left: 0; padding-right: 0;">
-                  <material-list-buttons :index="index" :remove-btn="showRemoveBtn" :remove-label="removeLabel" :download-btn="assertApiSupport(item.source)" :play-btn="checkApiSource ? assertApiSupport(item.source) : true" @btn-click="handleListBtnClick" />
+                  <material-list-buttons :index="index" :music-info="item" fav-btn :remove-btn="showRemoveBtn" :remove-label="removeLabel" :download-btn="assertApiSupport(item.source)" :play-btn="checkApiSource ? assertApiSupport(item.source) : true" @btn-click="handleListBtnClick" />
                 </div>
               </div>
             </template>
@@ -67,10 +77,20 @@
           <base-virtualized-list v-else ref="listRef" :list="list" key-name="id" :item-height="listItemHeight" container-class="scroll" content-class="list" @contextmenu.capture="handleListRightClick">
             <template #default="{ item, index }">
               <div
-                class="list-item" :class="[{ selected: rightClickSelectedIndex == index }, { active: selectedList.includes(item) }]"
+                class="list-item" :class="[{ [$style.active]: playingRowIndex === index }, { selected: rightClickSelectedIndex == index }, { active: selectedList.includes(item) }]"
                 @click="handleListItemClick($event, index)" @contextmenu="handleListItemRightClick($event, index)"
               >
-                <div class="list-item-cell no-select num" style="flex: 0 0 5%;" @click.stop>{{ index + 1 }}</div>
+                <div class="list-item-cell no-select num" :class="$style.num" style="flex: 0 0 5%;" @click.stop>
+                  <!-- 正在播放那一行：序号换成播放图标（与本地歌曲表同一个标记，见 ListMusicTable/index.vue） -->
+                  <transition name="play-active">
+                    <div v-if="playingRowIndex === index" :class="$style.playIcon">
+                      <svg version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" height="50%" viewBox="0 0 512 512" space="preserve">
+                        <use xlink:href="#icon-play-outline" />
+                      </svg>
+                    </div>
+                    <div v-else>{{ index + 1 }}</div>
+                  </transition>
+                </div>
                 <div class="list-item-cell auto name">
                   <span class="select name" :aria-label="item.name">{{ item.name }}</span>
                   <span v-if="item.meta._qualitys.flac24bit" class="no-select badge badge-theme-primary">{{ $t('tag__lossless_24bit') }}</span>
@@ -134,13 +154,19 @@
 <script>
 import { clipboardWriteText } from '@common/utils/electron'
 import { assertApiSupport } from '@renderer/store/utils'
-import { ref } from '@common/utils/vueTools'
+import { computed, ref } from '@common/utils/vueTools'
+import { playMusicInfo, playInfo } from '@renderer/store/player/state'
+import { tempListMeta } from '@renderer/store/list/state'
+import { LIST_IDS } from '@common/constants'
+import { findPlayingRowIndex } from '@renderer/utils/playingRowLocate'
+import usePlayingRowLocate from '@renderer/utils/compositions/usePlayingRowLocate'
 import useList from './useList'
 import useMenu from './useMenu'
-import usePlay from './usePlay'
+import usePlay, { getQueueId } from './usePlay'
 import useMusicDownload from './useMusicDownload'
 import useMusicAdd from './useMusicAdd'
 import useMusicActions from './useMusicActions'
+import useFavSong from '@renderer/utils/compositions/useFavSong'
 import { appSetting } from '@renderer/store/setting'
 export default {
   name: 'MaterialOnlineList',
@@ -194,12 +220,37 @@ export default {
     const dom_listContent = ref(null)
     const listRef = ref(null)
 
+    // 「我喜欢」的一键开关（工单 06）：行内的心形键点它就切换（右键菜单那份在 useMenu 里，
+    // 但两处共用 `useFavSong` 的同一份文案与动作）
+    const { toggleFav, loadFavState } = useFavSong()
+    // 行内键要显示收藏态，所以列表一挂载就把它拉回来（store 里缓存，一次会话只真拉一次）。
+    // 只在开着操作键时拉：关着的时候行内根本没有这个键，白拉一次请求
+    if (actionButtonsVisible) loadFavState()
+
     const {
       selectedList,
       listItemHeight,
       handleSelectData,
       removeAllSelect,
     } = useList({ props, listRef })
+
+    /**
+     * 正在播放那首歌在本列表里的行号（不在本列表里是 -1）——行内高亮与播放栏的
+     * 「定位到正在播放」都认它（判定在 `utils/playingRowLocate.ts`）。
+     *
+     * ⚠️ 队列身份要认 `tempListMeta.id`，**不是** `playMusicInfo.listId`：在线队列一律灌进临时列表
+     * 播放，`playMusicList` 把 `playMusicInfo.listId` 置为 `temp`（`core/player/action.ts`），
+     * 真正的「播的是哪个列表」记在 `tempListMeta.id` 上（同「雷达」「歌单详情」的判法）。
+     * 没传 `listId` 的宿主页（搜索 / 发现 / 收藏页的「我喜欢」）共用 `online_list__temp`，
+     * 光比身份不够，`findPlayingRowIndex` 还会按歌 id 认一遍行。
+     */
+    const playingRowIndex = computed(() => findPlayingRowIndex({
+      list: props.list,
+      isPlayingList: playInfo.playerListId == LIST_IDS.TEMP && tempListMeta.id == getQueueId(props.listId),
+      playIndex: playInfo.playIndex,
+      playingMusicId: playMusicInfo.musicInfo?.id,
+    }))
+    usePlayingRowLocate({ listRef, listItemHeight, playingRowIndex })
 
     const {
       handlePlayMusic,
@@ -306,6 +357,10 @@ export default {
         case 'listAdd':
           handleShowMusicAddModal(index, true)
           break
+        case 'fav':
+          // 一键切换「我喜欢」（加入 / 移除由当前状态决定，失败在 toggleFav 里弹提示）
+          void toggleFav(props.list[index])
+          break
         case 'remove':
           // 由调用方决定「移除」的含义（本地列表移除 / QQ 我喜欢取消喜欢）
           emit('remove-music', index)
@@ -318,6 +373,7 @@ export default {
 
     return {
       listItemHeight,
+      playingRowIndex,
       handleListItemClick,
       selectedList,
       handleListItemRightClick,
@@ -379,6 +435,35 @@ export default {
   display: flex;
   flex-flow: column nowrap;
   font-size: 14px;
+
+  // 正在播放那一行的字色（与本地歌曲表同一套：判定见 utils/playingRowLocate.ts）
+  :global(.list-item) {
+    &.active {
+      color: var(--color-button-font);
+    }
+  }
+}
+
+// 序号格里的「正在播放」图标（与 ListMusicTable/index.vue 的 `.num` / `.playIcon` 同构）
+.num {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+.playIcon {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  color: var(--color-button-font);
+  opacity: .7;
 }
 
 .content {

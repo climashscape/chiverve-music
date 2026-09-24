@@ -303,6 +303,7 @@
   "player__getting_url_delay_retry": "서버가 혼잡합니다. {time}초 후 다시 시도합니다...",
   "player__hide_detail_tip": "상세 페이지 숨기기\n(앱 창에서 우클릭하면 상세 페이지를 빠르게 숨길 수 있습니다)",
   "player__loading": "음악을 불러오는 중...",
+  "player__locate_playing": "재생 중인 곡 찾기",
   "player__music_album": "앨범: ",
   "player__music_name": "제목: ",
   "player__music_singer": "아티스트: ",

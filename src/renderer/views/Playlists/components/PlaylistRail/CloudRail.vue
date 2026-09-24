@@ -23,11 +23,15 @@
         :class="[$style.listsItem, {[$style.active]: String(item.dirId) == cloudDirId}, {[$style.clicked]: rightClickCloudItem?.dirId === item.dirId}]"
         :aria-label="item.name" @contextmenu="handleCloudItemRigthClick($event, item)" @click="handleSelect(String(item.dirId))"
       >
-        <span :class="$style.listsLabel">
-          <transition name="list-active">
-            <svg-icon v-if="String(item.dirId) == cloudDirId" name="angle-right-solid" :class="$style.activeIcon" />
-          </transition>
-          {{ item.name }}
+        <span :class="$style.listsLabel" :title="item.name">
+          <span :class="$style.markerSlot">
+            <transition name="list-active">
+              <svg-icon v-if="String(item.dirId) == cloudDirId" name="angle-right-solid" :class="$style.activeIcon" />
+            </transition>
+          </span>
+          <!-- 封面来自卡片的 `img`（`getCreatedSonglist` 的 logo / picUrl）；空或加载失败时组件内部落占位图 -->
+          <playlist-cover :src="item.img" />
+          <span :class="$style.listsName">{{ item.name }}</span>
         </span>
       </li>
       <transition enter-active-class="animated-fast slideInLeft" leave-active-class="animated-fast fadeOut" @after-leave="isNewCloudListLeave = false" @after-enter="$refs.dom_cloudNewInput.focus()">
@@ -47,6 +51,7 @@
 
 <script lang="ts">
 import { toRef } from '@common/utils/vueTools'
+import PlaylistCover from './PlaylistCover.vue'
 import useCloudLists from './useCloudLists'
 
 /**
@@ -58,6 +63,9 @@ import useCloudLists from './useCloudLists'
  */
 export default {
   name: 'PlaylistRailCloud',
+  components: {
+    PlaylistCover,
+  },
   props: {
     cloudDirId: {
       type: String,

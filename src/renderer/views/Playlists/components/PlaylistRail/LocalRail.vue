@@ -25,11 +25,15 @@
         :class="[$style.listsItem, {[$style.active]: item.id == listId}, {[$style.clicked]: rightClickItemIndex == index}, {[$style.fetching]: fetchingListStatus[item.id]}]"
         :data-index="index" :aria-label="item.name" :aria-selected="item.id == listId" @contextmenu="handleListsItemRigthClick($event, index)"
       >
-        <span :class="$style.listsLabel" @click="handleListToggle(item.id)">
-          <transition name="list-active">
-            <svg-icon v-if="item.id == listId" name="angle-right-solid" :class="$style.activeIcon" />
-          </transition>
-          {{ item.name }}
+        <!-- 本地自建列表没有封面字段（`userLists` 是本地库的列表，不是 QQ 卡片）→ 固定走占位图 -->
+        <span :class="$style.listsLabel" :title="item.name" @click="handleListToggle(item.id)">
+          <span :class="$style.markerSlot">
+            <transition name="list-active">
+              <svg-icon v-if="item.id == listId" name="angle-right-solid" :class="$style.activeIcon" />
+            </transition>
+          </span>
+          <playlist-cover />
+          <span :class="$style.listsName">{{ item.name }}</span>
         </span>
         <base-input
           :class="$style.listsInput" type="text" :value="item.name"
@@ -57,6 +61,7 @@
 import { openUrl, clipboardWriteText } from '@common/utils/electron'
 
 import musicSdk from '@renderer/utils/musicSdk'
+import PlaylistCover from './PlaylistCover.vue'
 import DuplicateMusicModal from './components/DuplicateMusicModal.vue'
 import ListSortModal from './components/ListSortModal.vue'
 import ListUpdateModal from './components/ListUpdateModal.vue'
@@ -94,6 +99,7 @@ import useDuplicate from './useDuplicate'
 export default {
   name: 'PlaylistRailLocal',
   components: {
+    PlaylistCover,
     DuplicateMusicModal,
     ListSortModal,
     ListUpdateModal,

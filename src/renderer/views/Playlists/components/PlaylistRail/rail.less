@@ -7,9 +7,16 @@
 @import '@renderer/assets/styles/layout.less';
 
 @lists-item-height: 36px;
+// 行首三角的常驻占位宽度：`.9em`（13px 字号下 ≈ 11.7px）取整 + 一点余量。
+// **常驻**是关键——三角只在选中时渲染，占位不常驻的话封面会随着选中横移 12px
+@lists-marker-width: 12px;
 .lists {
   flex: none;
-  width: 16%;
+  // 16% → 21%（工单 07）：行里多了封面（26px）、常驻三角槽（12px）与几处间距，名字的可用宽度
+  // 靠这部分补回来。21% 是量出来的（真 Chromium 两版 rail.less 对量，现场 /tmp/pl-covers/probe.py）：
+  // 名字可用宽度 828 档 88.0px（改前 88.16，持平）、920 档 106（改前 102.16）、
+  // 1400 档 200（改前 174.16）；代价是右栏让出 ~36px（828 档 600 → 564）
+  width: 21%;
   display: flex;
   flex-flow: column nowrap;
 }
@@ -125,15 +132,30 @@
 .activeIcon {
   height: .9em;
   width: .9em;
-  margin-left: -0.45em;
   vertical-align: -0.05em;
 }
+// 三角的槽位：常驻（选中与否都占位），所以封面 / 名字不会因为选中而横移。
+// 负外边距是老写法（把三角拉进 .listsLabel 的 10px 内边距里），进 flex 后不需要了
+.markerSlot {
+  flex: none;
+  width: @lists-marker-width;
+  display: flex;
+  align-items: center;
+}
 .listsLabel {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   height: @lists-item-height;
-  padding: 0 10px;
+  padding: 0 8px 0 4px;
   font-size: 13px;
-  line-height: @lists-item-height;
+  // cursor 仍由 `.listsItem` 管（选中项不显示手型，是老口径，别在这里覆盖）
+}
+// 名字的省略号必须落在**这个**子项上：`.listsLabel` 现在是 flex 容器，
+// 容器自己设 ellipsis 不生效
+.listsName {
+  flex: auto;
+  min-width: 0;
   .mixin-ellipsis-1();
 }
 .listsInput {

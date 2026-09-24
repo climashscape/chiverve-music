@@ -2,24 +2,42 @@
   <material-modal :show="show" :bg-close="bgClose" max-width="70%" :teleport="teleport" @close="handleClose">
     <main :class="$style.main">
       <h2>{{ $t('list_add__multiple_' + (isMove ? 'title_move' : 'title_add'), { num: musicList.length }) }}</h2>
-      <div class="scroll" :class="$style.btnContent">
-        <base-btn v-for="(item, index) in lists" :key="item.id" :class="$style.btn" :aria-label="$t('list_add__multiple_btn_title', { name: item.name })" @click="handleClick(index)">{{ item.name }}</base-btn>
-        <base-btn :class="[$style.btn, $style.newList, isEditing ? $style.editing : null]" :aria-label="$t('lists__new_list_btn')" :title="$t('lists__new_list_btn')" @click="handleEditing($event)">
-          <svg version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" viewBox="0 0 42 42" space="preserve">
-            <use xlink:href="#icon-addTo" />
-          </svg>
-          <base-input :class="$style.newListInput" :value="newListName" :placeholder="$t('lists__new_list_input')" @keyup.enter="handleSaveList($event)" @blur="handleSaveList($event)" />
-        </base-btn>
-        <span v-for="i in spaceNum" :key="i" :class="$style.btn" />
+      <!-- 与单曲那个弹窗同一套结构（工单 06）：批量**不做「我喜欢」**——「喜欢了没」是逐首的状态，
+           一个键没法如实表达「有的喜欢了、有的没有」，硬做只能出现「点了不知道会加还是减」的批量开关；
+           要收藏就逐首点（行内心形键 / 右键菜单 / 播放栏）。所以这里只有「加入歌单」，
+           去处同样两条：本地自建列表 + QQ 云端自建歌单 -->
+      <div :class="$style.group">
+        <h3 :class="$style.groupTitle">{{ $t('playlists__local_group') }}</h3>
+        <div class="scroll" :class="$style.btnContent">
+          <base-btn v-for="(item, index) in lists" :key="item.id" :class="$style.btn" :aria-label="$t('list_add__multiple_btn_title', { name: item.name })" @click="handleClick(index)">{{ item.name }}</base-btn>
+          <base-btn :class="[$style.btn, $style.newList, isEditing ? $style.editing : null]" :aria-label="$t('lists__new_list_btn')" :title="$t('lists__new_list_btn')" @click="handleEditing($event)">
+            <svg version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" viewBox="0 0 42 42" space="preserve">
+              <use xlink:href="#icon-addTo" />
+            </svg>
+            <base-input :class="$style.newListInput" :value="newListName" :placeholder="$t('lists__new_list_input')" @keyup.enter="handleSaveList($event)" @blur="handleSaveList($event)" />
+          </base-btn>
+          <span v-for="i in spaceNum" :key="i" :class="$style.btn" />
+        </div>
+      </div>
+      <!-- 移动模式 / 选中的歌里没有能进云端的（本地文件没有 QQ 歌曲 ID）时不给死键，改说一句为什么 -->
+      <div v-if="!isMove" :class="$style.group">
+        <h3 :class="$style.groupTitle">{{ $t('playlists__cloud_group') }}</h3>
+        <p v-if="cloudTip" :class="$style.groupTip">{{ cloudTip }}</p>
+        <div v-else class="scroll" :class="$style.btnContent">
+          <base-btn v-for="item in cloudLists" :key="item.id" :class="$style.btn" :aria-label="$t('list_add__multiple_btn_title', { name: item.name })" :disabled="!!addingCloudId" @click="handleAddToCloudList(item)">{{ item.name }}</base-btn>
+          <span v-for="i in spaceNumCloud" :key="i" :class="$style.btn" />
+        </div>
       </div>
     </main>
   </material-modal>
 </template>
 
 <script>
-import { computed } from '@common/utils/vueTools'
+import { computed, watch } from '@common/utils/vueTools'
 import { userLists } from '@renderer/store/list/state'
 import { addListMusics, moveListMusics, createUserList } from '@renderer/store/list/action'
+import { createdLists, labels as userLabels } from '@renderer/store/user/state'
+import { addSongsToCloudList, canFavSongInCloud, initUserCenter } from '@renderer/store/user/action'
 import useKeyDown from '@renderer/utils/compositions/useKeyDown'
 import { dialog } from '@renderer/plugins/Dialog'
 
@@ -71,9 +89,31 @@ export default {
       // 不再是本地去处（收藏只写 QQ 的我喜欢，2026-09-24）——留着它们，用户仍能往那两处写歌
       return userLists.filter(l => !props.excludeListId.includes(l.id))
     })
+
+    // QQ 云端自建歌单（工单 06）：与单曲那个弹窗读同一份 store 数据
+    const cloudLists = computed(() => createdLists)
+    // 选中的歌里**能进云端**的那些：本地文件没有 QQ 歌曲 ID，混进去会让整批写失败
+    // （写接口遇到没有 songId 的那首就抛），所以要先把它们挑出来
+    const cloudSongs = computed(() => (props.musicList.length
+      ? ('progress' in props.musicList[0] ? props.musicList.map(t => t.metadata.musicInfo) : props.musicList)
+      : []
+    ).filter(canFavSongInCloud))
+    const cloudTip = computed(() => {
+      if (!cloudSongs.value.length) return window.i18n.t('playlists__add_songs_no_online')
+      if (!cloudLists.value.length) return userLabels.createdLists || window.i18n.t('no_item')
+      return ''
+    })
+    // 还没到手就懒加载一次（initUserCenter 自带「一个会话一次」的守卫），与「我的歌单」页同一条路
+    watch(() => props.show, show => {
+      if (show && !createdLists.length) void initUserCenter()
+    })
+
     return {
       keyModDown,
       lists,
+      cloudLists,
+      cloudSongs,
+      cloudTip,
     }
   },
   data() {
@@ -81,12 +121,17 @@ export default {
       isEditing: false,
       newListName: '',
       rowNum: 3,
+      // 正在往云端歌单加的那张卡片的 id（'' = 空闲）：期间所有云端键都禁用，防连点加两次
+      addingCloudId: '',
     }
   },
   computed: {
 
     spaceNum() {
       return this.lists.length < 2 ? 0 : (this.rowNum - this.lists.length % this.rowNum - 1)
+    },
+    spaceNumCloud() {
+      return this.cloudLists.length < 2 ? 0 : (this.rowNum - this.cloudLists.length % this.rowNum - 1)
     },
   },
   mounted() {
@@ -119,6 +164,24 @@ export default {
     },
     handleClose() {
       this.$emit('update:show', false)
+    },
+    /** 整批加到 QQ 云端自建歌单（卡片就是 store 里那张：dirId 写、id=tid 比对）。
+     *  写接口失败必须弹出来——用户主动发起的动作，静默失败会让人以为已经加进去了。 */
+    async handleAddToCloudList(card) {
+      if (this.addingCloudId || !this.cloudSongs.length) return
+      this.addingCloudId = card.id
+      try {
+        await addSongsToCloudList(card, this.cloudSongs)
+        if (this.keyModDown) return
+        this.$nextTick(() => {
+          this.handleClose()
+          this.$emit('confirm')
+        })
+      } catch (err) {
+        void dialog({ message: err?.message || String(err), type: 'error' })
+      } finally {
+        this.addingCloudId = ''
+      }
     },
     handleEditing(event) {
       if (this.isEditing) return
@@ -160,6 +223,31 @@ export default {
     text-align: center;
     padding: 15px;
   }
+}
+
+// 一个去处一组（本地自建列表 / QQ 云端自建歌单）：组头 + 组内按钮网格
+.group {
+  flex: 1 1 auto;
+  min-height: 0;
+  // 两组各自最多三成半视口高，超出在组内滚（.btnContent 带 .scroll）。
+  // 不封顶的话弹窗会随列表条数无限长，而外层 .content 是 overflow: hidden —— 超出的部分会**看不见**
+  max-height: 35vh;
+  display: flex;
+  flex-flow: column nowrap;
+}
+.groupTitle {
+  flex: none;
+  padding: 0 15px 10px;
+  font-size: 12px;
+  font-weight: normal;
+  color: var(--color-font-label);
+}
+// 这一组进不去时的说明（未登录 / 加载中 / 选中的歌里没有能进云端的）
+.groupTip {
+  flex: none;
+  padding: 0 15px 15px;
+  font-size: 12px;
+  color: var(--color-font-label);
 }
 
 .btnContent {

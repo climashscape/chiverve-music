@@ -2,6 +2,7 @@ import { ref, watch, computed, onBeforeUnmount } from '@common/utils/vueTools'
 import { playMusicInfo, playInfo } from '@renderer/store/player/state'
 import { getListMusics } from '@renderer/store/list/action'
 import { appSetting } from '@renderer/store/setting'
+import { findPlayingRowIndex } from '@renderer/utils/playingRowLocate'
 
 
 export default ({ props, onLoadedList }) => {
@@ -27,6 +28,17 @@ export default ({ props, onLoadedList }) => {
   const playerInfo = computed(() => ({
     isPlayList: playMusicInfo.listId == props.listId,
     playIndex: playInfo.playIndex,
+  }))
+
+  /**
+   * 正在播放那首歌在本列表里的行号（不在本列表里是 -1）。
+   * 行内高亮与播放栏的「定位到正在播放」都认它，判定只有一处（见 `utils/playingRowLocate.ts`）。
+   */
+  const playingRowIndex = computed(() => findPlayingRowIndex({
+    list: list.value,
+    isPlayingList: playerInfo.value.isPlayList,
+    playIndex: playerInfo.value.playIndex,
+    playingMusicId: playMusicInfo.musicInfo?.id,
   }))
 
   const setSelectedIndex = index => {
@@ -55,6 +67,7 @@ export default ({ props, onLoadedList }) => {
     listRef,
     list,
     playerInfo,
+    playingRowIndex,
     setSelectedIndex,
     isShowSource,
     excludeListIds,
