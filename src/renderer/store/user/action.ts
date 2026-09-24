@@ -174,6 +174,35 @@ export const writeFailText = (res: any, fallback: string): string => {
 }
 
 /**
+ * 把刚写进云端的这首歌**就地补进「我收藏的歌曲」列表**（列表加载过才动它）。
+ *
+ * ⚠️ 为什么不是「写完再读一次来刷新列表」（2026-09-24 用户报障，真机实测）：
+ * 写成功那一刻，服务端还没把这次改动反映到读接口上——就是下面 `favSongIds` 那条注释说的
+ * 「这次收藏要**等下次重拉**才认」。于是那次立刻重读拿回来的**还是旧的一页**，正好把界面盖回原样：
+ * 表现是「在收藏页上点心收藏，列表当场不变，切走再回来才看到」。就地改没有这个时间差。
+ *
+ * 信任档位与 `favSongIds` 一致：写接口 `isWriteOk` 判过成功才动本地。
+ * 位置放最前（刚收藏的歌应当一眼看到）；与服务端真实次序若有出入，下次进页面重拉时校正。
+ */
+const insertFavSongIntoList = (musicInfo: LX.Music.MusicInfoOnline) => {
+  if (favSongs.total <= 0) return // 列表还没加载过：进页面自然会重拉，不必动
+  const songId = String(musicInfo?.meta?.id ?? '')
+  if (!songId || favSongs.list.some(item => String(item.meta?.id) === songId)) return
+  favSongs.list.unshift(musicInfo)
+  favSongs.total += 1
+}
+
+/** 取消喜欢：把这一行**就地移出列表**（理由与坑同 `insertFavSongIntoList`，两者对称）。 */
+const removeFavSongFromList = (musicInfo: LX.Music.MusicInfoOnline) => {
+  if (favSongs.total <= 0) return
+  const songId = String(musicInfo?.meta?.id ?? '')
+  const index = favSongs.list.findIndex(item => String(item.meta?.id) === songId)
+  if (index === -1) return
+  favSongs.list.splice(index, 1)
+  favSongs.total -= 1
+}
+
+/**
  * 我喜欢 —— **写入云端**（QQ 的 dirId=201 目录）。
  *
  * 与上面那批只读接口不同，写操作**失败必须抛给调用方**（由弹窗用 `dialog` 明确报错，
@@ -192,8 +221,7 @@ export const addFavSongToCloud = async(musicInfo: LX.Music.MusicInfoOnline): Pro
   // 收藏态集合已加载过就地补上：不补的话这次收藏要等下次重拉才认，
   // 那之前各处按钮仍显示「没收藏」（点第二次又走一遍收藏）
   if (favSongIdsLoaded.value && !favSongIds.includes(String(songId))) favSongIds.unshift(String(songId))
-  // 列表已经加载过才刷新（没加载过的话，进「我的收藏」页时自然会是最新的，不必多打一次请求）
-  if (favSongs.total > 0) await loadFavSongs()
+  insertFavSongIntoList(musicInfo)
 }
 
 /** 取消喜欢：从 QQ「我喜欢」移除。失败抛错（带 QQ 的错误码），由调用方提示。 */
@@ -208,7 +236,7 @@ export const removeFavSongFromCloud = async(musicInfo: LX.Music.MusicInfoOnline)
     const index = favSongIds.indexOf(String(songId))
     if (index > -1) favSongIds.splice(index, 1)
   }
-  if (favSongs.total > 0) await loadFavSongs()
+  removeFavSongFromList(musicInfo)
 }
 
 // ── 收藏态（「这一首喜欢了没」）────────────────────────────────────────────

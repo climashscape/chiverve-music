@@ -44,8 +44,10 @@ beforeEach(() => {
   vi.clearAllMocks()
   favSongIds.splice(0, favSongIds.length)
   favSongIdsLoaded.value = false
-  // total 归零：add/remove 成功后会「列表已加载才刷新」，这里不需要那次刷新
+  // total 归零 = 「我收藏的歌曲」列表还没加载过：写成功后的就地更新不会动它
+  // （本组用例只关心收藏态与写接口；列表就地更新那组会自己把 total 与列表铺好）
   favSongs.total = 0
+  favSongs.list.splice(0, favSongs.list.length)
   getFavSongIds.mockResolvedValue([])
   likeSong.mockResolvedValue(true)
   unlikeSong.mockResolvedValue(true)
@@ -146,5 +148,81 @@ describe('store/user/action 的写失败诊断', () => {
     await addFavSongToCloud(song('1'))
 
     expect(favSongIds.includes('1')).toBe(true)
+  })
+})
+
+/**
+ * 「我收藏的歌曲」列表的**就地更新**（2026-09-24 用户报障）。
+ *
+ * 现象：人在收藏页上，在别处点心收藏/取消，列表当场不变，切走再回来才看到。
+ * 根因：写成功后那次「立刻重读」拿回来的是**服务端还没反映这次写的旧页**
+ * （同 `favSongIds` 注释说的「这次收藏要等下次重拉才认」），正好把界面盖回原样。
+ * 所以现在改成写成功即就地改列表——这组用例钉住它，并覆盖几种边界。
+ */
+const idsOf = () => favSongs.list.map((item: any) => item.meta.id)
+
+describe('store/user/action 的「我收藏的歌曲」就地更新', () => {
+  const seedList = (...ids: string[]) => {
+    favSongs.list.splice(0, favSongs.list.length, ...ids.map(id => song(id)))
+    favSongs.total = ids.length
+  }
+
+  it('收藏成功 → 新歌立刻出现在列表最前，total +1', async() => {
+    seedList('9', '8')
+    likeSong.mockResolvedValue({ ok: true, code: 0, retCode: 0, msg: '' })
+
+    await addFavSongToCloud(song('1'))
+
+    expect(idsOf()).toEqual(['1', '9', '8'])
+    expect(favSongs.total).toBe(3)
+  })
+
+  it('取消喜欢成功 → 那一行立刻从列表移出，total -1', async() => {
+    seedList('1', '9')
+    unlikeSong.mockResolvedValue({ ok: true, code: 0, retCode: 0, msg: '' })
+
+    await removeFavSongFromCloud(song('1'))
+
+    expect(idsOf()).toEqual(['9'])
+    expect(favSongs.total).toBe(1)
+  })
+
+  it('重复收藏同一首（已在列表里）→ 不重复插入、total 不加', async() => {
+    seedList('1', '9')
+    likeSong.mockResolvedValue(true)
+
+    await addFavSongToCloud(song('1'))
+
+    expect(idsOf()).toEqual(['1', '9'])
+    expect(favSongs.total).toBe(2)
+  })
+
+  it('取消一首不在列表里的（列表只加载了第一页）→ 列表不动、total 不变', async() => {
+    seedList('1', '9')
+    unlikeSong.mockResolvedValue(true)
+
+    await removeFavSongFromCloud(song('404'))
+
+    expect(idsOf()).toEqual(['1', '9'])
+    expect(favSongs.total).toBe(2)
+  })
+
+  it('列表还没加载过（total=0）→ 不往列表里塞东西（进页面会重拉）', async() => {
+    likeSong.mockResolvedValue(true)
+
+    await addFavSongToCloud(song('1'))
+
+    expect(favSongs.list).toHaveLength(0)
+    expect(favSongs.total).toBe(0)
+  })
+
+  it('写被拒（真机形状 code 80105 + retCode 0）→ 列表一行都不动', async() => {
+    seedList('9')
+    likeSong.mockResolvedValue({ ok: false, code: 80105, retCode: 0, msg: '' })
+
+    await expect(addFavSongToCloud(song('1'))).rejects.toThrow()
+
+    expect(idsOf()).toEqual(['9'])
+    expect(favSongs.total).toBe(1)
   })
 })
