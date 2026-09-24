@@ -61,14 +61,8 @@ const modules = {
 
     player_status: 'player_status',
     change_tray: 'change_tray',
-    quit_update: 'quit_update',
-    update_check: 'update_check',
-    update_download_update: 'update_download_update',
-    update_available: 'update_available',
-    update_error: 'update_error',
-    update_progress: 'update_progress',
-    update_downloaded: 'update_downloaded',
-    update_not_available: 'update_not_available',
+    // 更新相关的通道（quit_update / update_check / update_* 事件）已随应用内更新链路删除，
+    // 2026-09-24 用户裁定；ADR-0008 不发布任何打包版，没有更新源可查。
     set_ignore_mouse_events: 'set_ignore_mouse_events',
     set_window_size: 'set_window_size',
 

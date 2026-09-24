@@ -8,7 +8,7 @@ div
   div(data-setting-key="list.pageSize")
     .p.small
       | {{ $t('setting__list_page_size') }}
-      svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__list_page_size_tip')" :title="$t('setting__list_page_size_tip')")
+      common-setting-help-icon(:text="$t('setting__list_page_size_tip')" :label="$t('setting__list_page_size')")
     div
       base-selection.gap-left(:model-value="appSetting['list.pageSize']" :list="pageSizeOptions" item-key="id" item-name="id" @update:model-value="updateSetting({'list.pageSize': $event})")
   .gap-top
@@ -18,7 +18,7 @@ div
   div(data-setting-key="common.sourceNameType")
     .p
       | {{ $t('setting__list_source_name_type') }}
-      svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__list_source_tip')" :title="$t('setting__list_source_tip')")
+      common-setting-help-icon(:text="$t('setting__list_source_tip')" :label="$t('setting__list_source_name_type')")
     base-checkbox.gap-left(
       v-for="item in sourceNameTypeList" :id="`setting_list_source_name_type_${item.id}`" :key="item.id"
       name="setting_list_source_name_type" need :model-value="appSetting['common.sourceNameType']" :value="item.id" :label="item.name"

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Ch'iverve Music 应用图标（占位版·大字标）——用于 >= 64px 的尺寸。
+
+  这是**占位**图标：用户以后要换，直接替换本文件（或 resources/icons/README.md
+  里写的三个源文件）后重跑 `resources/icons/make-icons.sh` 即可，不用改任何引用。
+
+  设计约束（改动时别破坏）：
+  - 配色取自 UI 的品牌 token（src/renderer/assets/styles/index.less 里名为
+    color-primary / color-primary-light-100 / color-primary-dark-200 的 CSS 变量，
+    分别是 rgb(77,175,124)、rgb(113,191,150)、rgb(62,142,101)），图标与界面同色系。
+  - 字标是两行 `Ch'iverve` / `MUSIC`（AGENTS.md §8 的品牌变体表）。
+  - 注释里不能出现连续两个减号（XML 规范禁止），写 CSS 变量名时别带前缀。
+  - 字体只写通用栈 Arial/Helvetica/sans-serif：Arial 与 Helvetica 覆盖
+    Win/mac，Linux 由 fontconfig 的 Liberation Sans 等度量兼容字体兜底，
+    避免绑定本机专有字体导致换个机器重生成就跑版。
+  - <= 48px 用 app-icon-compact.svg（单字母标）：两行字标在这个尺寸下是糊的。
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" version="1.1">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#71bf96"/>
+      <stop offset="1" stop-color="#3e8e65"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="1024" height="1024" rx="224" ry="224" fill="url(#tile)"/>
+  <text x="512" y="478" text-anchor="middle"
+        font-family="Arial, Helvetica, sans-serif" font-weight="bold"
+        font-size="128" fill="#ffffff">Ch'iverve</text>
+  <text x="525" y="628" text-anchor="middle"
+        font-family="Arial, Helvetica, sans-serif" font-weight="bold"
+        font-size="84" letter-spacing="26" fill="#ffffff" fill-opacity="0.85">MUSIC</text>
+</svg>

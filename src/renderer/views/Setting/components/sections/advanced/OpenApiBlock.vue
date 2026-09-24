@@ -6,14 +6,14 @@ div
       :model-value="appSetting['openAPI.enable']" :label="$t('setting__open_api_enable')"
       @update:model-value="updateSetting({ 'openAPI.enable': $event })"
     )
-    svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__open_api_tip')" :title="$t('setting__open_api_tip')")
+    common-setting-help-icon(:text="$t('setting__open_api_tip')" :label="$t('setting__open_api_enable')")
   .p
     base-checkbox(
       id="setting_open_api_bind_lan" data-setting-key="openAPI.bindLan"
       :model-value="appSetting['openAPI.bindLan']" :label="$t('setting__open_api_bind_lan')"
       @update:model-value="updateSetting({ 'openAPI.bindLan': $event })"
     )
-    svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__open_api_bind_lan_tip')" :title="$t('setting__open_api_bind_lan_tip')")
+    common-setting-help-icon(:text="$t('setting__open_api_bind_lan_tip')" :label="$t('setting__open_api_bind_lan')")
   .p
     .p.small {{ $t('setting__open_api_port') }}
     div
@@ -22,7 +22,7 @@ div
         :class="$style.portInput" type="number" :model-value="appSetting['openAPI.port']" :placeholder="$t('setting__open_api_port_tip')"
         @update:model-value="setPort"
       )
-      svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__open_api_port_tip')" :title="$t('setting__open_api_port_tip')")
+      common-setting-help-icon(:text="$t('setting__open_api_port_tip')" :label="$t('setting__open_api_port')")
   //- 服务地址与错误信息是运行时状态（`openAPI.address` / `openAPI.message`），不是设置项
   .p.small
     | {{ $t('setting__open_api_address') }}

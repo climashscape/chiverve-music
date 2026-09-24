@@ -22,6 +22,9 @@
         <component :is="name" v-for="name in contentComponents" :key="name" />
       </dl>
     </div>
+    //- `?` 帮助弹窗只挂这一份（60+ 个入口共用它，多挂几份就会「点开第二个不关第一个」）；
+    //- 挂在页根部而不是每个节里：节是切换渲染的，弹窗跟着节走会在切节时被卸掉
+    common-setting-help-modal
   </div>
 </template>
 

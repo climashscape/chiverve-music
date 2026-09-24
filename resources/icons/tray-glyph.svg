@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Ch'iverve Music 托盘字形（占位版）——黑色单色，透明底。
+
+  托盘三点约束（改坐标前先读）：
+  - 只画字形、不画底板：托盘图标是贴在面板上的小图，带方底板会在浅色/深色面板上
+    出现一个突兀的方块。
+  - 基准 16px（`tray*.png` 的原始尺寸档），笔画在 16px 下至少 2px 才不糊；
+    这里的 C 环厚 5.2/32 单位 = 16px 下 2.6px。@1.25x/@1.5x/@2x 由同一矢量放大，
+    不做手工小图。
+  - 颜色不在本文件里定：`tray_black`/`trayTemplate` 用黑色原样，
+    `tray_origin` 由 make-icons.sh 用 ImageMagick `-colorize` 染成品牌绿
+    （黑底透明图整片染色不会破坏边缘抗锯齿）。所以这里**必须**是纯黑 #000000。
+  - XML 注释里不能出现连续两个减号，写命令行参数时别照抄带前缀的写法。
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" version="1.1">
+  <!-- C：半径 8.9 的圆环，取 270°，缺口朝右 -->
+  <path d="M 21.793 10.207 A 8.9 8.9 0 1 0 21.793 22.793"
+        fill="none" stroke="#000000" stroke-width="5.2" stroke-linecap="butt"/>
+  <!-- 撇号：抬到 C 顶线之上，与 C 上臂端点留出间隙，避免 16px 下糊成一坨 -->
+  <path d="M 24.8 5 L 26.4 9.4" fill="none" stroke="#000000" stroke-width="3" stroke-linecap="round"/>
+</svg>

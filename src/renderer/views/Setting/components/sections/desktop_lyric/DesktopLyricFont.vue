@@ -6,7 +6,7 @@ dd
     div.gap-top(data-setting-key="desktopLyric.style.align")
       .p.small
         | {{ $t('setting__desktop_lyric_align') }}
-        svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__desktop_lyric_align_tip')" :title="$t('setting__desktop_lyric_align_tip')")
+        common-setting-help-icon(:text="$t('setting__desktop_lyric_align_tip')" :label="$t('setting__desktop_lyric_align')")
       div
         base-checkbox.gap-left(id="setting_desktop_lyric_align_left" :model-value="appSetting['desktopLyric.style.align']" need value="left" :label="$t('setting__desktop_lyric_align_left')" @update:model-value="updateSetting({ 'desktopLyric.style.align': $event })")
         base-checkbox.gap-left(id="setting_desktop_lyric_align_center" :model-value="appSetting['desktopLyric.style.align']" need value="center" :label="$t('setting__desktop_lyric_align_center')" @update:model-value="updateSetting({ 'desktopLyric.style.align': $event })")
@@ -20,7 +20,7 @@ dd
     div.gap-top(data-setting-key="desktopLyric.style.lineGap")
       .p.small
         | {{ $t('setting__desktop_lyric_line_gap', { num: appSetting['desktopLyric.style.lineGap'] }) }}
-        svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__desktop_lyric_line_gap_tip')" :title="$t('setting__desktop_lyric_line_gap_tip')")
+        common-setting-help-icon(:text="$t('setting__desktop_lyric_line_gap_tip')" :label="$t('setting__desktop_lyric_line_gap', { num: appSetting['desktopLyric.style.lineGap'] })")
       .p
         base-btn.btn(min @click="changeLineGap(-1)") {{ $t('setting__desktop_lyric_line_gap_dec') }}
         base-btn.btn(min @click="changeLineGap(1)") {{ $t('setting__desktop_lyric_line_gap_add') }}
@@ -31,7 +31,7 @@ dd
     //- 文案 key 用元数据的 `setting__desktop_lyric_font_zoom`（与主窗那条成对），帮助文案票 11 已补
     .gap-top(data-setting-key="desktopLyric.style.isZoomActiveLrc")
       base-checkbox(id="setting_desktop_lyric_zoom" :model-value="appSetting['desktopLyric.style.isZoomActiveLrc']" :label="$t('setting__desktop_lyric_font_zoom')" @update:model-value="updateSetting({ 'desktopLyric.style.isZoomActiveLrc': $event })")
-      svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__desktop_lyric_font_zoom_tip')" :title="$t('setting__desktop_lyric_font_zoom_tip')")
+      common-setting-help-icon(:text="$t('setting__desktop_lyric_font_zoom_tip')" :label="$t('setting__desktop_lyric_font_zoom')")
     //- 「对哪些歌词加粗」三项：旧的那个「加粗字体」分组（拿 i18n key 当 DOM id 的那个）并进本组，
     //- 这行说明文字的四语文案票 04 已改成「对哪些歌词加粗」；三个复选框各自带 data-setting-key
     .p.small.gap-top {{ $t('setting__desktop_lyric_font_weight') }}

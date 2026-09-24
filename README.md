@@ -1,13 +1,89 @@
 <h1 align="center">Ch'iverve Music</h1>
 
+> **Research source only — no binaries, no packaged releases.**
+> Ch'iverve Music is a research fork of [LX Music Desktop](https://github.com/lyswhut/lx-music-desktop) that rebuilds QQ Music as a native desktop client (login, my music, recommendations, multi-quality streaming). It is **not affiliated with Tencent** in any way, and **this repository ships no installers and no build artifacts** — build it yourself from source. All documentation is written in Chinese.
+
 > ## 关于本仓库
 >
-> 本仓库是 [LX Music 桌面版](https://github.com/lyswhut/lx-music-desktop)（作者 [lyswhut](https://github.com/lyswhut)，中文署名「落雪无痕」）的**独立衍生产品**，基于上游 `v2.12.6`（commit `ad95d509`）整树建立。**发布形态尚未决定。**
+> > 由于官方 qq 音乐官方 Linux 版年久失修 不得以我们发布本研究仓库 我们十分尊重版权 所以我们的仓库仅供研究 所以我们不对外发布任何打包版 请自行学习建构
 >
-> - 改造目标：在桌面端内置完整的 QQ 音乐能力（登录、我的音乐、推荐、多音质取流等），详见 `docs/agents/qq-music-native.md`。
-> - 与上游关系：本仓库**不跟随上游 rebase**；已配置 `upstream` remote，上游的接口修复按需 `git cherry-pick`。
-> - 版权：代码沿用上游 Apache-2.0 许可证。**无论最终是否公开分发，上游署名与协议全文均完整保留**（`LICENSE` 与 `licenses/`），并沿用上游补充条款：禁止违法使用、非商业性质、版权数据 24 小时内清除。
-> - 下方 README 内容为上游原文，用于描述本仓库实际继承的代码与能力，尚未按本产品重写。
+> 本仓库是 [LX Music 桌面版](https://github.com/lyswhut/lx-music-desktop)（作者 [lyswhut](https://github.com/lyswhut)，中文署名「落雪无痕」）的**独立衍生产品**，基于上游 `v2.12.6`（commit `ad95d509`）整树建立，改造目标是在桌面端内置完整的 QQ 音乐能力（登录、我的音乐、推荐、多音质取流等，详见 `docs/agents/qq-music-native.md`）。**本仓库仅供技术研究与学习交流，不对外发布任何打包版。** 定位的决策记录见 `docs/adr/0008-research-only-no-packaged-releases.md`。
+>
+> - **不提供任何打包版**：不发安装包、不发 Release，**也不对外提供任何构建产物**（CI 只跑测试与 lint）。想用就自行学习建构，方式见下方「自行构建」——这是本仓库的定位，不是待补的缺口。
+> - **与腾讯无关联**：本项目与腾讯及其关联公司**没有任何关系，也未获其授权、认可或支持**；内置能力仅为技术可行性研究。请支持正版，并在 **24 小时内清除**使用过程中产生的版权数据（沿用上游补充条款 §2.1）。
+> - **不做对抗性设计**：不规避风控、不伪造设备指纹；用自己账号、低频、节流。**使用本仓库代码的合规责任由使用者自负。**
+> - **与上游的关系**：本仓库**不跟随上游 rebase**；已配置 `upstream` remote，上游的接口修复按需 `git cherry-pick`（见 `docs/agents/upstream.md`）。
+> - **版权**：代码沿用上游 Apache-2.0 许可证。**上游署名与协议全文完整保留**（`LICENSE` 与 `licenses/`；后者含上游补充条款：禁止违法使用、非商业性质、版权数据 24 小时内清除）。
+> - **协作口径**：**欢迎在 [Issues](https://github.com/climashscape/chiverve-music/issues) 报问题**（bug、构建失败、文档错漏都收）；但本仓库是单人业余维护的研究项目，**不承诺接受外部 PR，也不承诺响应时限**。安全问题请走 `SECURITY.md`。
+
+## 自行构建
+
+本项目**只提供源码**，不提供任何构建产物。下面是从源码把项目跑起来的最小步骤；更细的构建链与全部已知坑见 `docs/agents/pitfalls.md`（§7 常用命令 + 已知坑）与 `docs/agents/build-and-pack.md`。
+
+### 环境要求
+
+- **Node.js >= 22**、npm >= 8.5.2（`package.json` 的 `engines`）。Node 24/25 也能构建，node-gyp 相关包在 v25 上会打 `EBADENGINE` 警告——**只是警告，不影响构建**。
+- 能访问 **GitHub**：`package.json` 里有 5 个 `github:lyswhut/*` 依赖是上游打过补丁的 fork 版（换成 npm 官方版会破坏构建）。
+- Linux 桌面环境（Electron 运行需要图形环境；本项目主要在 Linux 上验证）。
+
+### 装依赖（两个必踩的坑）
+
+```bash
+git clone https://github.com/climashscape/chiverve-music.git
+cd chiverve-music
+npm i
+```
+
+`npm i` 有两个环境相关的坑，都是网络问题、不是代码问题，**照着下面的对策来就不会卡**：
+
+1. **`better-sqlite3` 会让 `npm i` 失败**：包内含 `binding.gyp`，npm 会自动跑 `node-gyp rebuild` 并从 **nodejs.org** 下载 Node 头文件，网络不通即报 `ConnectTimeoutError`。对策（二选一）——给 node-gyp 配镜像，或走你自己的 HTTP 代理：
+
+   ```bash
+   NODEJS_ORG_MIRROR=https://npmmirror.com/mirrors/node/ npm i
+   # 或：HTTPS_PROXY=http://127.0.0.1:<你的代理端口> npm i
+   ```
+
+   另注：`package.json` 里的 `allowScripts` 字段**对 npm 无效**（实测 npm 11 无此实现），别指望它跳过编译；最终生效的原生产物来自仓库的 `postinstall` → `deps.copyLib()`（用仓库自带的 `build-config/lib/*.node` 覆盖），所以这一步编译成功与否都不影响最终结果。
+
+2. **Electron 二进制不会自动下载**：electron 包的 npm `scripts` 为 `null`（没有 postinstall），装完 `node_modules/electron` 里只有包装、没有二进制。手动补一步（配镜像）：
+
+   ```bash
+   cd node_modules/electron
+   ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ node install.js
+   cd ../..
+   ```
+
+### 跑开发版
+
+```bash
+npm run dev      # 起 9080/9081 + electron，产物在 dist-dev/
+```
+
+开发版的数据目录是 `~/.config/chiverve-music-dev/`（与安装版的 `~/.config/chiverve-music/` 分开，两者互不干扰），主进程日志在 `~/.config/chiverve-music-dev/logs/main.log` —— 日志含 ANSI 颜色码，**要用 `grep -a` 读**。
+
+### 构建与自测
+
+```bash
+npm run build    # 四个 target 的生产构建 → dist/
+npm run test     # vitest：node 侧（主进程 / common / musicSdk / worker）+ dom 侧（渲染 store / 组件）
+npm run lint     # eslint（TS 文件在 build 期不跑 lint，改了 TS 要单独跑这条）
+```
+
+⚠️ **`npm run build` 必须确认退出码为 0**，并 `ls dist/index.html` 确认它生成了：构建失败会留下半成品 `dist/`，而打包步骤照样会按白名单拷出一只坏包（asar 12 MB vs 正常 30 MB，装上去白屏）。
+
+### 想自己造包（可选）
+
+本仓库不发布打包版，打包只为本地自测：
+
+```bash
+npm run build && npm run pack:linux:deb:amd64   # → build/chiverve-music_<版本>_amd64.deb
+```
+
+平台约束（macOS 的 dmg 只能在 macOS 上构建、Windows 目标在 Linux 上还要 wine 与 winCodeSign）与装机步骤见 `docs/agents/build-and-pack.md`（§7.2 打包与装包、§7.3 平台约束）。
+
+## 以下为上游 README 原文（非本项目承诺）
+
+> 这一节整段是 [LX Music 桌面版](https://github.com/lyswhut/lx-music-desktop) 的 README 原文，用来描述本仓库继承的代码与能力。其中的**软件下载指引、贡献 / PR 流程、上游文档站链接**都属于上游项目，**不适用于本仓库**——本仓库的定位、自建方式与协作口径见上文。
 
 <hr>
 

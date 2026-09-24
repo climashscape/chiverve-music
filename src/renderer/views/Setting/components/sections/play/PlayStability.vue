@@ -8,7 +8,7 @@ dd
     .gap-top(data-setting-key="player.onUrlFailStrategy")
       .p.small
         | {{ $t('setting__play_on_url_fail_strategy') }}
-        svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__play_on_url_fail_strategy_tip')" :title="$t('setting__play_on_url_fail_strategy_tip')")
+        common-setting-help-icon(:text="$t('setting__play_on_url_fail_strategy_tip')" :label="$t('setting__play_on_url_fail_strategy')")
       div
         base-checkbox.gap-left(
           v-for="item in failStrategyList" :id="`setting_play_on_url_fail_strategy_${item}`" :key="item"
@@ -19,7 +19,7 @@ dd
     .gap-top(v-for="item in numberItems" :key="item.key" :data-setting-key="item.key")
       .p.small
         | {{ $t(item.i18nKey) }}
-        svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t(item.helpI18nKey)" :title="$t(item.helpI18nKey)")
+        common-setting-help-icon(:text="$t(item.helpI18nKey)" :label="$t(item.i18nKey)")
       div
         base-input(:class="$style.numInput" type="number" :model-value="appSetting[item.key]" :placeholder="$t(item.i18nKey)" @update:model-value="setNumber(item.key, $event)")
 </template>

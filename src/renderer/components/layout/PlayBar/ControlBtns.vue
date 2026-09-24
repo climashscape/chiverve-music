@@ -12,10 +12,14 @@
     <!-- 「我喜欢」一键开关（工单 06）：与「+」拆开——收藏当前这首是高频动作，不该先进弹窗再点一次。
          状态问云端（本地收藏已取消）；未登录时点它在 toggleFav 里弹「请先登录 QQ 音乐」；
          当前这首没有 QQ 歌曲 ID（本地文件）→ 禁用，并在悬停里说明原因。
-         空心/实心按状态切（工单 10）；宽度 80%（不是同排的 90%）：心形的 viewBox 贴着墨迹裁、
-         宽高比 1.137，90% 会撑出 21.6px 宽，比准星/加号那一排显大一圈 -->
+         空心/实心按状态切（工单 10）；宽度 72%（不是同排的 90%）：心形的 viewBox 贴着墨迹裁、
+         宽高比 1.135，90% 会撑出 21.6px 宽，比准星/加号那一排显大一圈。
+         72% ↔ 墨迹 17.29×15.22（= 同排四个邻居墨迹面积的**中位数** 259.65，本键 263.2，
+         2026-09-24 用户二次反馈「爱心比同排其他按钮大」后按面积中位数对齐；宽度中位数口径只
+         降 1.8%，解释不了观感）。空心/实心同一副剪影、同一尺寸——**不给实心单独内缩**：
+         两态共用这一个 svg，内缩等于每次点收藏都跳一次大小（工单 10 明确要避免） -->
     <button :class="[$style.titleBtn, { [$style.favOn]: isFav }]" :disabled="!canFav" :aria-label="favActionTitle" :title="favTitle" @click="handleToggleFav">
-      <svg version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" width="80%" viewBox="0 0 444.87 391.18" space="preserve">
+      <svg version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" width="72%" viewBox="0 0 444.87 391.18" space="preserve">
         <use :xlink:href="favIcon" />
       </svg>
     </button>

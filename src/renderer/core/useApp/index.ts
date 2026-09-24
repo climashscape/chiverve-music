@@ -7,7 +7,6 @@ import { restoreTimeoutStop } from '@renderer/core/player/timeoutStop'
 import useSync from './useSync'
 import useOpenAPI from './useOpenAPI'
 import useStatusbarLyric from './useStatusbarLyric'
-import useUpdate from './useUpdate'
 import useDataInit from './useDataInit'
 import useHandleEnvParams from './useHandleEnvParams'
 import useEventListener from './useEventListener'
@@ -37,7 +36,6 @@ export default () => {
   const initDeeplink = useDeeplink()
   // const handleListAutoUpdate = useListAutoUpdate()
 
-  useUpdate()
   useSettingSync()
 
   void getEnvParams().then(envParams => {
@@ -76,12 +74,9 @@ export default () => {
       sendInited()
 
       handleListAutoUpdate()
-      // 独立衍生产品：关闭启动时自动更新检查。
-      // 原逻辑 checkUpdate() 会读 app-update.yml（由 build-pack.js 的 publish 生成）并检查发布源；
-      // 本仓库尚未发布 release 时该检查必然失败并弹出错误弹窗；
-      // 更重要的是，若不改 publish 而保留此调用，上游发布的新版本可能直接安装覆盖改造版。
-      // 需要在自有仓库发布后再启用时：恢复下面一行，并确保 publish 指向自有仓库。
-      // if (window.lx.isProd && appSetting['common.isAgreePact']) checkUpdate()
+      // 应用内没有更新检查了（2026-09-24 用户裁定；ADR-0008：本仓库不对外发布任何打包版）。
+      // 原 `checkUpdate()` 会读 app-update.yml 并请求发布源；现在发布链路、主进程 autoUpdater
+      // 与渲染侧的全部更新入口都已删除，这里不再需要「保持注释」的妥协。
     })
   })
 }

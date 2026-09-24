@@ -13,7 +13,7 @@ dd
     div.gap-top(data-setting-key="common.playBarProgressStyle")
       .p.small
         | {{ $t('setting__basic_playbar_progress_style') }}
-        svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__basic_playbar_progress_style_tip')" :title="$t('setting__basic_playbar_progress_style_tip')")
+        common-setting-help-icon(:text="$t('setting__basic_playbar_progress_style_tip')" :label="$t('setting__basic_playbar_progress_style')")
       div
         base-checkbox.gap-left(
           id="setting_basic_playbar_progress_style_mini" name="setting_basic_playbar_progress_style"

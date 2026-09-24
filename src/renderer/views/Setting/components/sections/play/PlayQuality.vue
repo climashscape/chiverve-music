@@ -7,7 +7,7 @@ dd
     div.gap-top(data-setting-key="player.playQuality")
       .p.small
         | {{ $t('setting__play_playQuality') }}
-        svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__play_playQuality_tip')" :title="$t('setting__play_playQuality_tip')")
+        common-setting-help-icon(:text="$t('setting__play_playQuality_tip')" :label="$t('setting__play_playQuality')")
       div
         base-checkbox.gap-left(
           v-for="item in playQualityList" :id="`setting_play_quality_${item.value}`" :key="item.value"

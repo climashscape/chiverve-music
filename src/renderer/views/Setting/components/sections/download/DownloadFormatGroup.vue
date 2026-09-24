@@ -4,7 +4,7 @@ div
   div(data-setting-key="download.lrcFormat")
     .p
       | {{ $t('setting__download_lyric_format') }}
-      svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__download_lyric_format_tip')" :title="$t('setting__download_lyric_format_tip')")
+      common-setting-help-icon(:text="$t('setting__download_lyric_format_tip')" :label="$t('setting__download_lyric_format')")
     base-checkbox.gap-left(
       v-for="item in lrcFormatList" :id="`setting_download_lrcFormat_${item.id}`" :key="item.id"
       name="setting_download_lrcFormat" need :model-value="appSetting['download.lrcFormat']" :value="item.id" :label="item.name"

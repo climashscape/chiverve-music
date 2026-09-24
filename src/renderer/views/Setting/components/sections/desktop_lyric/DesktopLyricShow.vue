@@ -11,17 +11,17 @@ dd
     //- 勾上才会在任务栏出现歌词窗（录屏软件抓不到时的兜底）
     .gap-top(data-setting-key="desktopLyric.isShowTaskbar")
       base-checkbox(id="setting_desktop_lyric_showTaskbar" :model-value="appSetting['desktopLyric.isShowTaskbar']" :label="$t('setting__desktop_lyric_show_taskbar')" @update:model-value="updateSetting({ 'desktopLyric.isShowTaskbar': $event })")
-      svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__desktop_lyric_show_taskbar_tip')" :title="$t('setting__desktop_lyric_show_taskbar_tip')")
+      common-setting-help-icon(:text="$t('setting__desktop_lyric_show_taskbar_tip')" :label="$t('setting__desktop_lyric_show_taskbar')")
     .gap-top(data-setting-key="desktopLyric.isAlwaysOnTop")
       base-checkbox(id="setting_desktop_lyric_alwaysOnTop" :model-value="appSetting['desktopLyric.isAlwaysOnTop']" :label="$t('setting__desktop_lyric_always_on_top')" @update:model-value="updateSetting({ 'desktopLyric.isAlwaysOnTop': $event })")
     //- 依赖上面的置顶开启（没开置顶时改这项无效果）
     .gap-top(data-setting-key="desktopLyric.isAlwaysOnTopLoop")
       base-checkbox(id="setting_desktop_lyric_alwaysOnTopLoop" :model-value="appSetting['desktopLyric.isAlwaysOnTopLoop']" :label="$t('setting__desktop_lyric_always_on_top_loop')" @update:model-value="updateSetting({ 'desktopLyric.isAlwaysOnTopLoop': $event })")
-      svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__desktop_lyric_always_on_top_loop_tip')" :title="$t('setting__desktop_lyric_always_on_top_loop_tip')")
+      common-setting-help-icon(:text="$t('setting__desktop_lyric_always_on_top_loop_tip')" :label="$t('setting__desktop_lyric_always_on_top_loop')")
     //- 默认值平台相关（isWin）；关了可以把歌词拖到副屏——双屏用户的关键项
     .gap-top(data-setting-key="desktopLyric.isLockScreen")
       base-checkbox(id="setting_desktop_lyric_lockScreen" :model-value="appSetting['desktopLyric.isLockScreen']" :label="$t('setting__desktop_lyric_lock_screen')" @update:model-value="updateSetting({ 'desktopLyric.isLockScreen': $event })")
-      svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__desktop_lyric_lock_screen_tip')" :title="$t('setting__desktop_lyric_lock_screen_tip')")
+      common-setting-help-icon(:text="$t('setting__desktop_lyric_lock_screen_tip')" :label="$t('setting__desktop_lyric_lock_screen')")
     //- 决定渲染 LyricHorizontal 还是 LyricVertical 两套布局（scrollAlign 只在垂直模式下参与布局）
     div.gap-top(data-setting-key="desktopLyric.direction")
       .p.small {{ $t('setting__desktop_lyric_direction') }}
@@ -31,7 +31,7 @@ dd
     //- 与主窗的 player.audioVisualization 是两个独立开关；与自定义输出设备互斥
     .gap-top(data-setting-key="desktopLyric.audioVisualization")
       base-checkbox(id="setting_desktop_lyric_audio_visualization" :model-value="appSetting['desktopLyric.audioVisualization']" :label="$t('setting__desktop_lyric_audio_visualization')" @update:model-value="updateSetting({ 'desktopLyric.audioVisualization': $event })")
-      svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__desktop_lyric_audio_visualization_tip')" :title="$t('setting__desktop_lyric_audio_visualization_tip')")
+      common-setting-help-icon(:text="$t('setting__desktop_lyric_audio_visualization_tip')" :label="$t('setting__desktop_lyric_audio_visualization')")
 </template>
 
 <script>

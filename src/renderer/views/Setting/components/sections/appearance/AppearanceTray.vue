@@ -15,7 +15,7 @@ dd
     //- 仅 mac，且依赖托盘开启（实现是把当前歌词行写进托盘 title）；Linux/Windows 上不渲染这一项
     .gap-top(v-if="isMac" data-setting-key="player.isShowStatusBarLyric")
       base-checkbox(id="setting_player_showStatusBarLyric" :model-value="appSetting['player.isShowStatusBarLyric']" :label="$t('setting__play_statusbar_lyric')" @update:model-value="updateSetting({'player.isShowStatusBarLyric': $event})")
-      svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__play_statusbar_lyric_tip')" :title="$t('setting__play_statusbar_lyric_tip')")
+      common-setting-help-icon(:text="$t('setting__play_statusbar_lyric_tip')" :label="$t('setting__play_statusbar_lyric')")
     //- Windows/Linux 任务栏图标进度条（mac 是 Dock 进度条），与托盘图标本身无关
     .gap-top(data-setting-key="player.isShowTaskProgess")
       base-checkbox(id="setting_player_showTaskProgess" :model-value="appSetting['player.isShowTaskProgess']" :label="$t('setting__play_task_bar')" @update:model-value="updateSetting({'player.isShowTaskProgess': $event})")

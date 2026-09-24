@@ -1,23 +1,6 @@
 <template lang="pug">
 dt#about {{ $t('setting__update_about') }}
 dd
-  h3#about_update {{ $t('setting__update') }}
-  div
-    .gap-top
-      base-checkbox(
-        id="setting__update_tryAutoUpdate" data-setting-key="common.tryAutoUpdate"
-        :model-value="appSetting['common.tryAutoUpdate']" :label="$t('setting__update_try_auto_update')"
-        @update:model-value="updateSetting({'common.tryAutoUpdate': $event})"
-      )
-      svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__update_try_auto_update_tip')" :title="$t('setting__update_try_auto_update_tip')")
-    .gap-top
-      base-checkbox(
-        id="setting__update_showChangeLog" data-setting-key="common.showChangeLog"
-        :model-value="appSetting['common.showChangeLog']" :label="$t('setting__update_show_change_log')"
-        @update:model-value="updateSetting({'common.showChangeLog': $event})"
-      )
-      svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__update_show_change_log_tip')" :title="$t('setting__update_show_change_log_tip')")
-dd
   h3#about_version {{ $t('setting__about_version_title') }}
   div
     SettingAboutVersionInfo
@@ -36,16 +19,15 @@ dd
 
 <script>
 import { isShowPact } from '@renderer/store'
-import { appSetting, updateSetting } from '@renderer/store/setting'
 
 import SettingAboutVersionInfo from './VersionInfo.vue'
 
 /**
- * 更新与关于（`about`）节：更新 / 版本信息 / 许可三组，照元数据顺序渲染。
+ * 关于（`about`）节：版本信息 / 许可两组，照元数据顺序渲染。
  *
- * - 「更新」两项的文案要与实情一致（启动自动检查更新被刻意关闭，见 AGENTS §9 品牌隔离）：
- *   两个开关都带 `?` 帮助讲清「什么时候才会检查」，开关标签本身票 04 也改成了「检查到新版本时…」
- *   （不再读成「应用会自己去发现新版本」）。
+ * - **没有「软件更新」组**：应用内更新链路（检查更新 / 更新日志 / 下载更新）已于 2026-09-24
+ *   整体删除（ADR-0008 不对外发布任何打包版），原 `common.tryAutoUpdate` /
+ *   `common.showChangeLog` 两个开关随之退场，别再按上游那套加回来。
  * - 「版本信息」「许可」两组的内容都是非 key 控件（只读展示 + 动作按钮），元数据里 items 为空。
  */
 export default {
@@ -58,8 +40,6 @@ export default {
       isShowPact.value = true
     }
     return {
-      appSetting,
-      updateSetting,
       handleShowPact,
     }
   },

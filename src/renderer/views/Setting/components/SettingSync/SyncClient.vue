@@ -5,10 +5,11 @@ dd
     .p.small {{ $t('setting__sync_client_status', { status: clientStatus }) }}
     .p.small {{ $t('setting__sync_client_address', { address: sync.client.status.address.join(', ') || '' }) }}
     .p
-      //- 帮助图标（票 11）：地址填过之后 placeholder 就不再显示，帮助只能靠 `?` 提供
+      //- 帮助图标（票 11）：地址填过之后 placeholder 就不再显示，帮助只能靠 `?` 提供；
+      //- 票 13 起 `?` 可点，长文案在弹窗里看（悬停提示照旧）
       .p.small
         | {{ $t('setting__sync_client_host') }}
-        svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__sync_client_host_tip')" :title="$t('setting__sync_client_host_tip')")
+        common-setting-help-icon(:text="$t('setting__sync_client_host_tip')" :label="$t('setting__sync_client_host')")
       div
         base-input.gap-left(:class="$style.hostInput" :model-value="appSetting['sync.client.host']" :disabled="sync.enable" :placeholder="$t('setting__sync_client_host_tip')" @update:model-value="setSyncClientHost")
 </template>

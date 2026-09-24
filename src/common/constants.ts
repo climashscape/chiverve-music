@@ -40,13 +40,10 @@ export const DATA_KEYS = {
   listScrollPosition: 'listScrollPosition',
   listPrevSelectId: 'listPrevSelectId',
   listUpdateInfo: 'listUpdateInfo',
-  ignoreVersion: 'ignoreVersion',
 
   leaderboardSetting: 'leaderboardSetting',
   songListSetting: 'songListSetting',
   searchSetting: 'searchSetting',
-
-  lastStartInfo: 'lastStartInfo',
 } as const
 
 // 在线源只有 tx（见 LX.OnlineSource 的说明）。这些默认值在首次进入对应页面时生效，

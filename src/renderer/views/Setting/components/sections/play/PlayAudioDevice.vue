@@ -3,7 +3,7 @@ dd
   //- 帮助图标挂在分组标题上：设备选择那一项没有独立文案行（`setting__play_mediaDevice` 就是本组标题）
   h3#play_audio_device
     | {{ $t('setting__play_audio_device_title') }}
-    svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__play_mediaDevice_tip')" :title="$t('setting__play_mediaDevice_tip')")
+    common-setting-help-icon(:text="$t('setting__play_mediaDevice_tip')" :label="$t('setting__play_audio_device_title')")
   div
     //- 选定的输出设备 id（default = 系统默认）；与高级音频特性互斥：本次启动已启用音效/可视化/最大声道时改不动
     //- 这一项没有独立标签行：它的文案（`setting__play_mediaDevice`）就是本组标题，再写一遍是同文重复
@@ -12,7 +12,7 @@ dd
     //- 开启时若已选非默认设备会被强制重置为 default；与音效/可视化互斥
     .gap-top(data-setting-key="player.isMaxOutputChannelCount")
       base-checkbox(id="setting_player_isMaxOutputChannelCount" :model-value="isMaxOutputChannelCount" :label="$t('setting__play_max_output_channel_count')" @update:model-value="handleUpdateMaxOutputChannelCount")
-      svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__play_max_output_channel_count_tip')" :title="$t('setting__play_max_output_channel_count_tip')")
+      common-setting-help-icon(:text="$t('setting__play_max_output_channel_count_tip')" :label="$t('setting__play_max_output_channel_count')")
     //- 播放中拔/换设备时立即暂停
     .gap-top(data-setting-key="player.isMediaDeviceRemovedStopPlay")
       base-checkbox(id="setting_player_isMediaDeviceRemovedStopPlay" :model-value="appSetting['player.isMediaDeviceRemovedStopPlay']" :label="$t('setting__play_mediaDevice_remove_stop_play')" @update:model-value="updateSetting({'player.isMediaDeviceRemovedStopPlay': $event})")

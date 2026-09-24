@@ -14,7 +14,7 @@ dd
     div.gap-top(data-setting-key="common.font")
       .p.small
         | {{ $t('setting__basic_font') }}
-        svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__basic_font_tip')" :title="$t('setting__basic_font_tip')")
+        common-setting-help-icon(:text="$t('setting__basic_font_tip')" :label="$t('setting__basic_font')")
       div(style="--selection-width: 12rem;")
         base-selection.gap-left(:list="fontList" :model-value="fonts[0]" item-key="id" item-name="label" @update:model-value="updateFonts($event, fonts[1])")
         base-selection.gap-left(v-if="fonts[0]" :list="fontList" :model-value="fonts[1]" item-key="id" item-name="label" @update:model-value="updateFonts(fonts[0], $event)")

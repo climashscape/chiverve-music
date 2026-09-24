@@ -14,7 +14,7 @@ dd
     div.gap-top(data-setting-key="player.playbackRate")
       .p.small
         | {{ $t('player__playback_rate') }} {{ appSetting['player.playbackRate'].toFixed(2) }}x
-        svg-icon.gap-left.help-icon(name="help-circle-outline" :aria-label="$t('setting__help_shared_with_lyric_window')" :title="$t('setting__help_shared_with_lyric_window')")
+        common-setting-help-icon(:text="$t('setting__help_shared_with_lyric_window')" :label="$t('player__playback_rate')")
       div
         base-slider-bar(:value="appSetting['player.playbackRate'] * 100" :min="50" :max="200" :step="1" @change="setPlaybackRate")
     .gap-top(data-setting-key="player.preservesPitch")
@@ -23,7 +23,7 @@ dd
     div.gap-top(data-setting-key="player.togglePlayMethod")
       .p.small
         | {{ $t('setting__play_toggle_play_method') }}
-        svg-icon.gap-left.help-icon(name="help-circle-outline" :aria-label="$t('setting__play_toggle_play_method_tip')" :title="$t('setting__play_toggle_play_method_tip')")
+        common-setting-help-icon(:text="$t('setting__play_toggle_play_method_tip')" :label="$t('setting__play_toggle_play_method')")
       div
         base-checkbox.gap-left(
           v-for="item in playMethodList" :id="`setting_play_defaults_method_${item.value}`" :key="item.value"

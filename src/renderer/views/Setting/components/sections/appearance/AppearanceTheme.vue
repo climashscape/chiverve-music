@@ -4,7 +4,7 @@ dd
   //- 元数据给 `theme.id` 声明了 helpI18nKey（讲「跟随系统」与色卡右键），不挂就没有可见帮助
   h3#appearance_theme
     | {{ $t('setting__basic_theme') }}
-    svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__basic_theme_auto_tip')" :title="$t('setting__basic_theme_auto_tip')")
+    common-setting-help-icon(:text="$t('setting__basic_theme_auto_tip')" :label="$t('setting__basic_theme')")
   div
     //- 色卡：左键切换 `theme.id`，右键进「亮/暗主题设置」或主题编辑器（11 键取色器，自定义主题上限 10 个）
     //- 命中高亮定位在这张色卡列表上（`theme.lightId` / `theme.darkId` 的控件在下面复用的弹窗里）

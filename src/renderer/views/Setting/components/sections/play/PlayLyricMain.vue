@@ -6,7 +6,7 @@ dd
     div.gap-top(data-setting-key="lyric.sourcePriority")
       .p.small
         | {{ $t('setting__lyric_source_priority') }}
-        svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__lyric_source_priority_tip')" :title="$t('setting__lyric_source_priority_tip')")
+        common-setting-help-icon(:text="$t('setting__lyric_source_priority_tip')" :label="$t('setting__lyric_source_priority')")
       div
         base-checkbox.gap-left(
           v-for="item in lyricSourcePriorityList" :id="`setting_lyric_source_priority_${item}`" :key="item"
@@ -17,33 +17,33 @@ dd
     //- 前三项共用一条「跨窗共用」帮助（元数据的 helpI18nKey 是同一个 key），第 4 项有自己的性能提示
     .gap-top(data-setting-key="player.isShowLyricTranslation")
       base-checkbox(id="setting_player_lyric_transition" :model-value="appSetting['player.isShowLyricTranslation']" :label="$t('setting__play_lyric_transition')" @update:model-value="updateSetting({'player.isShowLyricTranslation': $event})")
-      svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__help_shared_with_lyric_window')" :title="$t('setting__help_shared_with_lyric_window')")
+      common-setting-help-icon(:text="$t('setting__help_shared_with_lyric_window')" :label="$t('setting__play_lyric_transition')")
     .gap-top(data-setting-key="player.isShowLyricRoma")
       base-checkbox(id="setting_player_lyric_roma" :model-value="appSetting['player.isShowLyricRoma']" :label="$t('setting__play_lyric_roma')" @update:model-value="updateSetting({'player.isShowLyricRoma': $event})")
-      svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__help_shared_with_lyric_window')" :title="$t('setting__help_shared_with_lyric_window')")
+      common-setting-help-icon(:text="$t('setting__help_shared_with_lyric_window')" :label="$t('setting__play_lyric_roma')")
     .gap-top(data-setting-key="player.isSwapLyricTranslationAndRoma")
       base-checkbox(id="setting_player_awap_lyric_trans_roma" :model-value="appSetting['player.isSwapLyricTranslationAndRoma']" :label="$t('setting__player_swap_lyric_trans_roma')" @update:model-value="updateSetting({'player.isSwapLyricTranslationAndRoma': $event})")
-      svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__help_shared_with_lyric_window')" :title="$t('setting__help_shared_with_lyric_window')")
+      common-setting-help-icon(:text="$t('setting__help_shared_with_lyric_window')" :label="$t('setting__player_swap_lyric_trans_roma')")
     .gap-top(data-setting-key="player.isPlayLxlrc")
       base-checkbox(id="setting_player_lyric_play_lxlrc" :model-value="appSetting['player.isPlayLxlrc']" :label="$t('setting__play_lyric_lxlrc')" @update:model-value="updateSetting({'player.isPlayLxlrc': $event})")
-      svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__play_lyric_lxlrc_tip')" :title="$t('setting__play_lyric_lxlrc_tip')")
+      common-setting-help-icon(:text="$t('setting__play_lyric_lxlrc_tip')" :label="$t('setting__play_lyric_lxlrc')")
     //- 是转换不是显示开关：它同时影响**下载的歌词**（文案由票 11 注明）
     .gap-top(data-setting-key="player.isS2t")
       base-checkbox(id="setting_player_lyric_s2t" :model-value="appSetting['player.isS2t']" :label="$t('setting__play_lyric_s2t')" @update:model-value="updateSetting({'player.isS2t': $event})")
-      svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__play_lyric_s2t_tip')" :title="$t('setting__play_lyric_s2t_tip')")
+      common-setting-help-icon(:text="$t('setting__play_lyric_s2t_tip')" :label="$t('setting__play_lyric_s2t')")
     //- 主窗「当前行放大」；与桌面歌词的 desktopLyric.style.isZoomActiveLrc 是两个独立开关
     .gap-top(data-setting-key="playDetail.isZoomActiveLrc")
       base-checkbox(id="setting_play_detail_font_zoom_enable" :model-value="appSetting['playDetail.isZoomActiveLrc']" :label="$t('setting__play_detail_font_zoom')" @update:model-value="updateSetting({'playDetail.isZoomActiveLrc': $event})")
-      svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__play_detail_font_zoom_tip')" :title="$t('setting__play_detail_font_zoom_tip')")
+      common-setting-help-icon(:text="$t('setting__play_detail_font_zoom_tip')" :label="$t('setting__play_detail_font_zoom')")
     //- 逐行滚动延迟 600ms；与桌面歌词的 desktopLyric.isDelayScroll 同名不同物
     .gap-top(data-setting-key="playDetail.isDelayScroll")
       base-checkbox(id="setting_play_detail_lyric_delayScroll" :model-value="appSetting['playDetail.isDelayScroll']" :label="$t('setting__play_detail_lyric_delay_scroll')" @update:model-value="updateSetting({ 'playDetail.isDelayScroll': $event })")
-      svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__play_detail_lyric_delay_scroll_tip')" :title="$t('setting__play_detail_lyric_delay_scroll_tip')")
+      common-setting-help-icon(:text="$t('setting__play_detail_lyric_delay_scroll_tip')" :label="$t('setting__play_detail_lyric_delay_scroll')")
     //- 主窗歌词对齐；歌词右键菜单里有同一项的入口（改的是同一个值），与桌面歌词那份独立
     div.gap-top(data-setting-key="playDetail.style.align")
       .p.small
         | {{ $t('setting__play_detail_align') }}
-        svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__play_detail_align_tip')" :title="$t('setting__play_detail_align_tip')")
+        common-setting-help-icon(:text="$t('setting__play_detail_align_tip')" :label="$t('setting__play_detail_align')")
       div
         base-checkbox.gap-left(id="setting_play_detail_align_left" :model-value="appSetting['playDetail.style.align']" need value="left" :label="$t('setting__play_detail_align_left')" @update:model-value="updateSetting({ 'playDetail.style.align': $event })")
         base-checkbox.gap-left(id="setting_play_detail_align_center" :model-value="appSetting['playDetail.style.align']" need value="center" :label="$t('setting__play_detail_align_center')" @update:model-value="updateSetting({ 'playDetail.style.align': $event })")

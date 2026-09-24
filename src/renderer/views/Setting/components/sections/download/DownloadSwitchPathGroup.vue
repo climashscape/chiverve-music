@@ -9,7 +9,7 @@ div
     .p
       | {{ $t('setting__download_path_label') }}
       span.auto-hidden.hover(:aria-label="$t('setting__download_path_open_label')" :title="$t('setting__download_path_open_label')" @click="openDirInExplorer(appSetting['download.savePath'])") {{ appSetting['download.savePath'] }}
-      svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__download_path_tip')" :title="$t('setting__download_path_tip')")
+      common-setting-help-icon(:text="$t('setting__download_path_tip')" :label="$t('setting__download_path_label')")
     .p
       base-btn.btn(min @click="handleChangeSavePath") {{ $t('setting__download_path_change_btn') }}
   .gap-top

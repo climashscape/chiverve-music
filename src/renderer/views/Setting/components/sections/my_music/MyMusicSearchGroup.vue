@@ -11,7 +11,7 @@ div
   .gap-top(data-setting-key="search.historyMaxNum")
     .p.small
       | {{ $t('setting__search_history_max_num') }}
-      svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__search_history_max_num_tip')" :title="$t('setting__search_history_max_num_tip')")
+      common-setting-help-icon(:text="$t('setting__search_history_max_num_tip')" :label="$t('setting__search_history_max_num')")
     div
       base-input(:class="$style.numInput" type="number" :model-value="appSetting['search.historyMaxNum']" :placeholder="$t('setting__search_history_max_num')" @update:model-value="setHistoryMaxNum")
   .gap-top

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Ch'iverve Music 应用图标（占位版·单字母标）——用于 <= 48px 的尺寸。
+
+  两行字标在 48px 以下会糊成一团，这里退化成品牌首字母 `C` + 撇号（`Ch'iverve`
+  里那个撇号是品牌最省地方的识别点）。与 app-icon.svg 共用同一块渐变底板，
+  所以两个尺寸段看起来仍是一套。
+
+  `C` 与撇号都用路径/描边画，不依赖字体——小尺寸下才能保证笔画宽度可控。
+
+  几何约束（改动前先读，两点都是实测踩过的）：
+  - C 是"半径 241 的圆取 270°"，缺口的两个切口在 ±45°；撇号必须落在缺口外侧
+    （缺口右上那片空地），同时与 C 上臂的切口留出 >= 50 单位（≈5% 边长）的间隙：
+    贴上去就会被读成"钩在 C 上"，而不是独立的撇号。改 C 的半径或撇号位置都要
+    重新核对这个间隙。
+  - 本文件的撇号比例与 resources/icons/tray-glyph.svg 完全一致（同一个品牌缩略
+    标记在两处的相对笔画宽度要对得上），改一处要同步另一处。
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" version="1.1">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#71bf96"/>
+      <stop offset="1" stop-color="#3e8e65"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="1024" height="1024" rx="224" ry="224" fill="url(#tile)"/>
+  <!-- C：圆心 (500,532)，半径 241、环厚 118，取 270° 圆环，缺口朝右 -->
+  <path d="M 670.41 361.59 A 241 241 0 1 0 670.41 702.41"
+        fill="none" stroke="#ffffff" stroke-width="118" stroke-linecap="butt"/>
+  <!-- 撇号：抬到 C 顶线（y=232）之上，圆头，略向外倾 -->
+  <path d="M 742.6 232 L 784.4 346.7"
+        fill="none" stroke="#ffffff" stroke-width="78" stroke-linecap="round"/>
+</svg>

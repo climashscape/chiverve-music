@@ -696,33 +696,25 @@ export const SETTING_SECTIONS: readonly Section[] = [
   },
 
   // ===================================================================================
-  // §9 更新与关于（about）—— 一级分组「系统」
+  // §9 关于（about）—— 一级分组「系统」
   // 版本信息（只读展示 + 连点 5 次开 DevTools 的隐藏手势）与许可协议按钮是非 key 控件。
+  // **没有「软件更新」分组**：应用内更新链路已于 2026-09-24 整体删除（ADR-0008 不发布任何打包版），
+  // 原先的 `common.tryAutoUpdate` / `common.showChangeLog` 两个开关随之退场。
   // ===================================================================================
   {
     id: 'about',
-    i18nKey: 'setting__update_about', // 新增（合节：软件更新 + 关于）
+    i18nKey: 'setting__update_about',
     navGroup: 'system',
     groups: [
       {
-        // §9.1 更新（附 A1：两条文案要与「启动不自动检查更新」的实情一致）
-        id: 'about_update',
-        i18nKey: 'setting__update',
-        items: [
-          // 只影响 autoUpdater.autoDownload；启动自动检查已被刻意关闭（AGENTS §9 品牌隔离）
-          { key: 'common.tryAutoUpdate', i18nKey: 'setting__update_try_auto_update', control: 'checkbox', helpI18nKey: 'setting__update_try_auto_update_tip' },
-          { key: 'common.showChangeLog', i18nKey: 'setting__update_show_change_log', control: 'checkbox', helpI18nKey: 'setting__update_show_change_log_tip' },
-        ],
-      },
-      {
-        // §9.2 版本信息（只读展示：版本 / 代码版本 / 提交日期 / 最新版本 + 打开更新窗口；
+        // §9.1 版本信息（只读展示：版本 / 代码版本 / 提交日期；
         // 「当前版本」一行连点 5 次开 DevTools 的隐藏手势也在这里，勿「顺手清理」）
         id: 'about_version',
         i18nKey: 'setting__about_version_title', // 新增（旧的 setting__about 是「关于 Ch'iverve Music」，语义不同）
         items: [],
       },
       {
-        // §9.3 许可（界面只显示签署状态 + 打开协议原文；`common.isAgreePact` 是内部机制键）
+        // §9.2 许可（界面只显示签署状态 + 打开协议原文；`common.isAgreePact` 是内部机制键）
         id: 'about_license',
         i18nKey: 'setting__about_license_title', // 新增（不复用 setting__about_pact_tip：那条是半截句，附 A13 要改写）
         items: [],

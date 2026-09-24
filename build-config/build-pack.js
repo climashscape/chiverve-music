@@ -43,13 +43,18 @@ const options = {
   extraResources: [
     './licenses',
   ],
-  publish: [
-    {
-      provider: 'github',
-      owner: 'climashscape',
-      repo: 'chiverve-music',
-    },
-  ],
+  // 本项目不发布任何打包版（ADR-0008）：原 publish 段（provider: github / owner: climashscape /
+  // repo: chiverve-music，指向自有 Releases）已于 2026-09-24 用户裁定删除。
+  //
+  // ⚠️ 仅删掉 publish 段**不够**：electron-builder 在「没有 publish 配置」时，会退回
+  // **package.json 的 `repository` 字段**推断出 github 发布源，并且**无论 publish 策略是什么**
+  // 都把 `resources/app-update.yml` 写进产物（`app-builder-lib/out/publish/PublishManager.js` 的
+  // `getPublishConfigsForUpdateInfo`：publishConfigs 长度为 0 就 `detect using repository info`；
+  // 官方原话是 "file should be generated regardless of publish state"）。实测：只删段后
+  // `target=dir` 打出的包 resources/ 下仍有该文件，owner/repo 正是本仓库。
+  // 显式写 `publish: null` 才是那条「do not publish」的开关：`getPublishConfigs` 一旦在
+  // config / 平台 / 目标任一层拿到 null 就返回 null，app-update.yml 随之不再生成。
+  publish: null,
 }
 /**
  * @type {import('electron-builder').Configuration}
@@ -290,9 +295,8 @@ const createTarget = {
  * @param {'win' | 'mac' | 'linux' | 'dir'} target 构建目标平台
  * @param {'x86_64' | 'x64' | 'x86' | 'arm64' | 'armv7l'} arch 包架构
  * @param {*} packageType 包类型
- * @param {'onTagOrDraft' | 'always' | 'never'} publishType 发布类型
  */
-const build = async(target, arch, packageType, publishType) => {
+const build = async(target, arch, packageType) => {
   if (target == 'dir') {
     await builder.build({
       dir: true,
@@ -304,7 +308,9 @@ const build = async(target, arch, packageType, publishType) => {
   // Promise is returned
   await builder.build({
     ...targetInfo.buildOptions,
-    publish: publishType ?? 'never',
+    // 硬编码 'never'：本项目不发布任何打包版（ADR-0008），发布参数面一并删掉了
+    // （原先 `publish=always` 由 `publish:*` 脚本透传，那批脚本 2026-09-24 已删）
+    publish: 'never',
     x64: arch == 'x64' || arch == 'x86_64',
     ia32: arch == 'x86' || arch == 'x86_64',
     arm64: arch == 'arm64',
@@ -330,5 +336,5 @@ if (params.target == null) throw new Error('Missing target')
 if (params.target != 'dir' && params.arch == null) throw new Error('Missing arch')
 if (params.target != 'dir' && params.type == null) throw new Error('Missing type')
 
-console.log(params.target, params.arch, params.type, params.publish ?? '')
-build(params.target, params.arch, params.type, params.publish)
+console.log(params.target, params.arch, params.type)
+build(params.target, params.arch, params.type)

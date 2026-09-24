@@ -10,6 +10,7 @@ import zhCn from '@root/lang/zh-cn.json'
 import MyMusicListGroup from './my_music/MyMusicListGroup.vue'
 import MyMusicSearchGroup from './my_music/MyMusicSearchGroup.vue'
 import PlayLyricMain from './play/PlayLyricMain.vue'
+import SettingHelpIcon from '@renderer/components/common/SettingHelpIcon.vue'
 
 /**
  * 设置项入口的渲染冒烟（设置页重构票 09 的 E/F/G 三处）。
@@ -29,7 +30,13 @@ const mountWithI18n = async(component: unknown) => {
   const wrapper = mount(component as never, {
     global: {
       plugins: [i18nPlugin],
-      components: { 'base-checkbox': BaseCheckbox, 'base-selection': BaseSelection },
+      components: {
+        'base-checkbox': BaseCheckbox,
+        'base-selection': BaseSelection,
+        // `?` 帮助键（设置页票 13 起是可点的按钮）：挂**真件**——这几条断言断的就是
+        // 「帮助文案挂在这一项上」，替身会把这条链断掉（真件把文案写在按钮的 title 上）
+        'common-setting-help-icon': SettingHelpIcon,
+      },
       // base-input 与 svg-icon 是全局注册的，这里只关心「挂上了没 / 值对不对」
       stubs: {
         'base-input': { props: ['modelValue', 'placeholder'], template: '<input class="stub-input" :value="modelValue">' },

@@ -17,7 +17,7 @@ dd
           :model-value="appSetting['network.proxy.host']" :placeholder="proxy.envProxy ? proxy.envProxy.host : $t('setting__network_proxy_host')"
           @update:model-value="setHost"
         )
-        svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__network_proxy_host_tip')" :title="$t('setting__network_proxy_host_tip')")
+        common-setting-help-icon(:text="$t('setting__network_proxy_host_tip')" :label="$t('setting__network_proxy_host')")
     .p
       .p.small {{ $t('setting__network_proxy_port') }}
       div
@@ -26,7 +26,7 @@ dd
           :model-value="appSetting['network.proxy.port']" :placeholder="proxy.envProxy ? proxy.envProxy.port : $t('setting__network_proxy_port')"
           @update:model-value="setPort"
         )
-        svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__network_proxy_port_tip')" :title="$t('setting__network_proxy_port_tip')")
+        common-setting-help-icon(:text="$t('setting__network_proxy_port_tip')" :label="$t('setting__network_proxy_port')")
 dd
   h3#network_timeout {{ $t('setting__network_timeout_title') }}
 </template>

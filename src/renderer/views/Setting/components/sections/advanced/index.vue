@@ -21,7 +21,7 @@ dd
         :model-value="appSetting['player.audioVisualization']" :label="$t('audio_visualization')"
         @update:model-value="handleUpdateAudioVisualization"
       )
-      svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__advanced_audio_visualization_tip')" :title="$t('setting__advanced_audio_visualization_tip')")
+      common-setting-help-icon(:text="$t('setting__advanced_audio_visualization_tip')" :label="$t('audio_visualization')")
 </template>
 
 <script>

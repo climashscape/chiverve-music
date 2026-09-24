@@ -5,13 +5,13 @@ div
   .gap-top(data-setting-key="cache.musicUrlKeepDays")
     .p.small
       | {{ $t('setting__data_cache_music_url_keep_days') }}
-      svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__data_cache_music_url_keep_days_tip')" :title="$t('setting__data_cache_music_url_keep_days_tip')")
+      common-setting-help-icon(:text="$t('setting__data_cache_music_url_keep_days_tip')" :label="$t('setting__data_cache_music_url_keep_days')")
     div
       base-input(:class="$style.numInput" type="number" :model-value="appSetting['cache.musicUrlKeepDays']" :placeholder="$t('setting__data_cache_music_url_keep_days')" @update:model-value="setNumber('cache.musicUrlKeepDays', $event)")
   .gap-top(data-setting-key="cache.maxSizeMB")
     .p.small
       | {{ $t('setting__data_cache_max_size') }}
-      svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__data_cache_max_size_tip')" :title="$t('setting__data_cache_max_size_tip')")
+      common-setting-help-icon(:text="$t('setting__data_cache_max_size_tip')" :label="$t('setting__data_cache_max_size')")
     div
       base-input(:class="$style.numInput" type="number" :model-value="appSetting['cache.maxSizeMB']" :placeholder="$t('setting__data_cache_max_size')" @update:model-value="setNumber('cache.maxSizeMB', $event)")
   .gap-top

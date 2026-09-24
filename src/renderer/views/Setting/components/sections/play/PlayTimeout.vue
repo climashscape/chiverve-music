@@ -11,7 +11,7 @@ dd
     div.gap-top(data-setting-key="player.waitPlayEndStopTime")
       .p.small
         | {{ $t('setting__play_timeout_time') }}
-        svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__play_timeout_time_tip')" :title="$t('setting__play_timeout_time_tip')")
+        common-setting-help-icon(:text="$t('setting__play_timeout_time_tip')" :label="$t('setting__play_timeout_time')")
       div
         base-input(:class="$style.numInput" type="number" :model-value="appSetting['player.waitPlayEndStopTime']" :placeholder="$t('setting__play_timeout_time')" @update:model-value="setWaitTime")
     //- 「开始 / 取消定时」按钮 + 当前剩余时间：弹窗仍作为开始 / 取消的入口（它也带时长输入，同值）

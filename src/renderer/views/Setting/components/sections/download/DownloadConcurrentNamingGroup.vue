@@ -4,14 +4,14 @@
 div
   .p(data-setting-key="download.maxDownloadNum")
     | {{ $t('setting__download_max_num') }}
-    svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__download_max_num_tooltip')" :title="$t('setting__download_max_num_tooltip')")
+    common-setting-help-icon(:text="$t('setting__download_max_num_tooltip')" :label="$t('setting__download_max_num')")
     base-selection.gap-left(:class="$style.selectWidth" :model-value="appSetting['download.maxDownloadNum']" :list="maxNums" item-key="id" item-name="id" @change="handleUpdateMaxNum")
   .gap-top(data-setting-key="download.skipExistFile")
     base-checkbox(id="setting_download_skip_exist_file" :model-value="appSetting['download.skipExistFile']" :label="$t('setting__download_skip_exist_file')" @update:model-value="updateSetting({'download.skipExistFile': $event})")
   .gap-top(data-setting-key="download.fileNameTemplate")
     .p
       | {{ $t('setting__download_name') }}
-      svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__download_file_name_tip')" :title="$t('setting__download_file_name_tip')")
+      common-setting-help-icon(:text="$t('setting__download_file_name_tip')" :label="$t('setting__download_name')")
     div
       base-input(:class="$style.nameInput" :model-value="appSetting['download.fileNameTemplate']" :placeholder="$t('setting__download_name')" @update:model-value="setFileNameTemplate")
       //- 改造前的三个「命名方式」预设，改成快捷按钮：按钮文案就是模板串本身（点一下原样写进左边输入框），
@@ -20,7 +20,7 @@ div
       base-btn.gap-left(v-for="item in nameTemplates" :key="item.template" min :title="$t(item.i18nKey)" @click="saveFileNameTemplate(item.template)") {{ item.template }}
   .gap-top(data-setting-key="download.degradeWhenUnsupported")
     base-checkbox(id="setting_download_degrade_when_unsupported" :model-value="appSetting['download.degradeWhenUnsupported']" :label="$t('setting__download_degrade_when_unsupported')" @update:model-value="updateSetting({'download.degradeWhenUnsupported': $event})")
-    svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__download_degrade_when_unsupported_tip')" :title="$t('setting__download_degrade_when_unsupported_tip')")
+    common-setting-help-icon(:text="$t('setting__download_degrade_when_unsupported_tip')" :label="$t('setting__download_degrade_when_unsupported')")
 </template>
 
 <script>
