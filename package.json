@@ -1,6 +1,6 @@
 {
   "name": "chiverve-music",
-  "version": "2.12.6",
+  "version": "1.48.23",
   "description": "A QQ Music desktop client, forked from LX Music (source-only, research use)",
   "main": "./dist/main.js",
   "scripts": {
