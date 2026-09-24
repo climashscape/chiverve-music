@@ -13,7 +13,12 @@ div
       | {{ $t('setting__download_name') }}
       common-setting-help-icon(:text="$t('setting__download_file_name_tip')" :label="$t('setting__download_name')")
     div
-      base-input(:class="$style.nameInput" :model-value="appSetting['download.fileNameTemplate']" :placeholder="$t('setting__download_name')" @update:model-value="setFileNameTemplate")
+      //- ⚠️ `gap-left` 是「给**后一个**兄弟加左边距」的约定（`.gap-left + .gap-left`，见
+      //- `assets/styles/index.less:577`）：链条的**第一个**元素也得带这个类，否则紧跟着它的那个
+      //- 元素没有间距。这里由输入框带类、后面三个预设按钮依次吃到 20px——少了输入框那一份，
+      //- 第一个按钮会**贴住输入框**（两块灰底连成一条、文案还是重复的，看着像同一个控件，
+      //- 2026-09-24 用户报「这个显示有问题」即此）
+      base-input.gap-left(:class="$style.nameInput" :model-value="appSetting['download.fileNameTemplate']" :placeholder="$t('setting__download_name')" @update:model-value="setFileNameTemplate")
       //- 改造前的三个「命名方式」预设，改成快捷按钮：按钮文案就是模板串本身（点一下原样写进左边输入框），
       //- 悬停提示给它的中文说法（`setting__download_name1/2/3`）。文案给的是模板实义而不是快捷键名，
       //- 是因为「点了会写进什么」必须一眼可见（四语里 `歌名` / `歌手` 都是不可翻译的契约词）
