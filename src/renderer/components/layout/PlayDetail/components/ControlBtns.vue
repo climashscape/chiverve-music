@@ -19,13 +19,19 @@ div(:class="$style.footerLeftControlBtns")
   common-volume-btn
   common-toggle-play-mode-btn
   // 「我喜欢」一键开关（工单 06）：与「+」拆开——收藏当前这首不必先进弹窗。
-  // 状态问云端；未登录时点了会弹「请先登录 QQ 音乐」；本地文件没有 QQ 歌曲 ID → 禁用并说明原因
+  // 状态问云端；未登录时点了会弹「请先登录 QQ 音乐」；本地文件没有 QQ 歌曲 ID → 禁用并说明原因。
+  // 空心/实心按状态切（工单 10）；宽度 80%（不是同排的 95%）：心形的 viewBox 贴着墨迹裁、
+  // 宽高比 1.137，95% 会撑出 19px 宽，比同排的频谱/评论键（墨迹 15.8）大一圈
   button(:class="[$style.footerLeftControlBtn, { [$style.active]: isFav }]" :disabled="!canFav" :aria-label="favActionTitle" :title="favTitle" @click="handleToggleFav")
-    svg(version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" width="95%" viewBox="0 0 444.87 391.18" space="preserve")
-      use(xlink:href="#icon-love")
+    svg(version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" width="80%" viewBox="0 0 444.87 391.18" space="preserve")
+      use(:xlink:href="favIcon")
+  // `#icon-list-add`（Material 的 playlist_add：三条目 + 加号）——语义就是「加入歌单」。
+  // 工单 10 之前这里是 `#icon-add-2`，那是个**心形带加号**的图形，用户看到「添加到…」下面一颗心，
+  // 报「不要用爱心的图标」。宽度补上 95%，与同排的频谱/歌词/评论三个键同一口径（原来没写，
+  // 默认 100% → 比邻居宽 1px）
   button(:class="$style.footerLeftControlBtn" :aria-label="$t('player__add_music_to')" :title="$t('player__add_music_to')" @click="isShowAddMusicTo = true")
-    svg(version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" viewBox="0 0 512 512" space="preserve")
-      use(xlink:href="#icon-add-2")
+    svg(version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" width="95%" viewBox="0 0 24 24" space="preserve")
+      use(xlink:href="#icon-list-add")
   common-list-add-modal(v-model:show="isShowAddMusicTo" :music-info="playMusicInfo.musicInfo")
 
 </template>
@@ -46,7 +52,7 @@ import {
 
 import useNextTogglePlay from '@renderer/utils/compositions/useNextTogglePlay'
 import useToggleDesktopLyric from '@renderer/utils/compositions/useToggleDesktopLyric'
-import useFavSong from '@renderer/utils/compositions/useFavSong'
+import useFavSong, { favIconOf } from '@renderer/utils/compositions/useFavSong'
 import { canFavSongInCloud, isFavSongInCloud } from '@renderer/store/user/action'
 import { dialog } from '@renderer/plugins/Dialog'
 import { setMediaDeviceId } from '@renderer/plugins/player'
@@ -85,6 +91,8 @@ export default {
       : ('progress' in playMusicInfo.musicInfo ? playMusicInfo.musicInfo.metadata.musicInfo : playMusicInfo.musicInfo))
     const canFav = computed(() => canFavSongInCloud(currentMusic.value))
     const isFav = computed(() => canFav.value && isFavSongInCloud(currentMusic.value))
+    /** 心形按状态取空心/实心（工单 10）：映射在 `favIconOf` 一处，三处入口共用 */
+    const favIcon = computed(() => favIconOf(isFav.value))
     /** 键名（无障碍名）：说了要做什么，与行内/菜单/播放栏那三处同一套文案 */
     const favActionTitle = computed(() => isFav.value ? t('list__unlove') : t('list_add__cloud_fav'))
     /** 悬停提示：灰掉时改说「为什么灰」（没歌 / 这首不能收藏） */
@@ -127,6 +135,7 @@ export default {
       playMusicInfo,
       canFav,
       isFav,
+      favIcon,
       favActionTitle,
       favTitle,
       handleToggleFav,

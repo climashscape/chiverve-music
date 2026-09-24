@@ -27,6 +27,27 @@ import { mapMusicGene, pickGeneSingerMid } from './utils/gene'
 
 const PAGE_SIZE = 30
 
+/** `getFavSongIds` 的页数硬上限（防 total 异常时死循环；撞上会打日志）。60 页 = 1800 首。 */
+const MAX_PAGES = 60
+
+/**
+ * 「我喜欢」的目录 id。读取侧是 `CgiGetDiss` 的 `dirid`；写侧（`tx/songList.js` 的
+ * `likeSong`/`unlikeSong`）用的也是它，那里从本文件导入，别再写一份字面量。
+ */
+export const FAV_DIR_ID = 201
+
+/**
+ * `GetPlaylistByUin` 返回的 `v_playlist` 里挑出「我喜欢」那一行的 **tid**（拿不到回 0）。
+ *
+ * 为什么写接口要用它：这一行是账号里「我喜欢」这个歌单的**真实 tid**（大数字，与 dirId 201
+ * 不是一回事）。自建歌单那边有受控真机往返记录（M6：建临时歌单 → 加歌 → 校验 songNum 0→1 →
+ * 移歌 → 删）——那次**传的就是该歌单自己的 tid**，不是 0；201 这条路径此前一律传 0。
+ * tid 到底是不是必需还没定论（参考实现 `like_song` 传 0 且有 CI 覆盖），所以这里只做
+ * 「有真实值就用真实值」，取不到一律回 0（= 旧行为），**任何情况下都不因这次解析失败挡住写**。
+ */
+export const pickFavDirTid = rawList =>
+  Number((rawList ?? []).find(item => Number(item?.dirId) === FAV_DIR_ID)?.tid ?? 0) || 0
+
 /** `search_type`：1 = 歌手档（**2 是专辑档**，别写错——spec 事实 C 的实测记录）。 */
 const SEARCH_TYPE_SINGER = 1
 /** 基因歌手按名字搜时取的结果条数：歌手档按相关度排序，同名艺人集中在前几条。 */
@@ -48,6 +69,23 @@ const toDate = ts => {
 const singerNames = singers => Array.isArray(singers)
   ? singers.map(s => s?.name ?? '').filter(Boolean).join('、')
   : (singers?.name ?? '')
+
+/**
+ * `GetPlaylistByUin` 的取数：返回**原始行**（不映射成卡片）与总数。
+ * 两个调用方要的东西不同——`getCreatedSonglist` 要卡片（映射后 `id` 是 tid）、
+ * `getFavDirTid` 要原始 `tid`（卡片在没有 tid 时会把 `id` 兜底成 dirId，当 tid 用会写错目标）——
+ * 所以原样回原始行，映射交给各自的调用方。
+ */
+const getPlaylistsRaw = async() => {
+  const credential = await requireCredential()
+  const data = await txCgi({
+    module: 'music.musicasset.PlaylistBaseRead',
+    method: 'GetPlaylistByUin',
+    param: { uin: String(credential.musicid ?? '') },
+  }, webComm(credential)).promise
+  const d = data?.data ?? {}
+  return { raw: d.v_playlist ?? [], total: d.total }
+}
 
 /** QQ 歌单（自建 / 收藏同构）→ LX 歌单卡片对象（对齐 store/songList/state.ts 的 ListInfoItem）。
  *  `id` 用 tid（打开详情页要用它）；另带 `dirId`——「我喜欢」就是靠 dirId=201 识别的。 */
@@ -84,7 +122,7 @@ export default {
       method: 'CgiGetDiss',
       param: {
         disstid: 0,
-        dirid: 201,
+        dirid: FAV_DIR_ID,
         tag: true,
         song_begin: num * (page - 1),
         song_num: num,
@@ -117,35 +155,47 @@ export default {
    *
    * 同 `getFavAlbumIds`：这条读接口没有按 id 单查的形态，只能拉全量在本地比对。
    * 两处与那两口不同，改这里前先看：
-   *   1. 页长用 `PAGE_SIZE`（50，正是「我喜欢」列表分页用的值），**不给大值**——
+   *   1. 页长用 `PAGE_SIZE`（30，与「我喜欢」列表分页同一档），**不给大值**——
    *      `song_begin = num * (page - 1)` 是按请求页长算的，服务端一旦按更小的页长截断，
    *      大页长就会跳过中间没拿到的歌（`getFavAlbumIds` 敢给 600 是因为那两口实测过）。
-   *      代价是该账号 922 首要 19 次请求，但只在**会话内第一次需要收藏态**时拉一次（缓存住）。
-   *   2. 结束判据是 `total_song_num`（`songlist_size` 是**本页条数**，别取错），
-   *      页数上限只是防 total 异常时的死循环。
+   *   2. 结束判据是 `total_song_num`（`songlist_size` 是**本页条数**，别取错）。
+   *      页数上限 `MAX_PAGES` 只是防 total 异常（0/NaN/极大）时的死循环；**够数就提前停**，
+   *      所以这个账号（923 首）实际只拉 31 页。旧写法把上限写死 40 页 = 1200 首，
+   *      超过就静默截断——截断的后果是收藏态判成「未收藏」（点「取消喜欢」反而去收藏），
+   *      所以真的撞上限时必须留一行日志（见本票）。
    */
   async getFavSongIds() {
     const ids = []
-    for (let page = 1; page <= 40; page++) {
+    let total = 0
+    for (let page = 1; page <= MAX_PAGES; page++) {
       const res = await this.getFavSong(page, PAGE_SIZE)
       if (!res.list.length) break
       res.list.forEach(item => { if (item.songId) ids.push(String(item.songId)) })
-      if (res.total && ids.length >= res.total) break
+      total = Number(res.total ?? 0) || total
+      if (total && ids.length >= total) break
+    }
+    if (ids.length >= MAX_PAGES * PAGE_SIZE) {
+      console.log('[tx] 我喜欢的 id 集合撞到页数上限，可能截断', { ids: ids.length, total, maxPages: MAX_PAGES })
     }
     return ids
   },
 
+  /**
+   * 「我喜欢」（dirId=201）的**真实 tid**——写接口（`PlaylistDetailWrite`）要带的那个。
+   *
+   * 从 `GetPlaylistByUin` 的原始行里取（不走 `toPlaylistInfo`：那张卡片把 `id` 兜底成了
+   * dirId，兜底值当 tid 用会写错目标）。取不到回 0，调用方（`tx/songList.js` 的 likeSong）
+   * 在解析失败时也回落到 0——**解析失败绝不挡住写**。
+   */
+  async getFavDirTid() {
+    return pickFavDirTid((await getPlaylistsRaw()).raw)
+  },
+
   /** 自建歌单列表。注意"我喜欢"也在这个列表里（它的 dirId 是 201）。 */
   async getCreatedSonglist() {
-    const credential = await requireCredential()
-    const data = await txCgi({
-      module: 'music.musicasset.PlaylistBaseRead',
-      method: 'GetPlaylistByUin',
-      param: { uin: String(credential.musicid ?? '') },
-    }, webComm(credential)).promise
-    const d = data?.data ?? {}
-    const list = (d.v_playlist ?? []).map(toPlaylistInfo)
-    return { list, total: Number(d.total ?? list.length), source: 'tx' }
+    const { raw, total } = await getPlaylistsRaw()
+    const list = raw.map(toPlaylistInfo)
+    return { list, total: Number(total ?? list.length), source: 'tx' }
   },
 
   /** 收藏的（他人）歌单。 `hasmore` 是 0/1。 */

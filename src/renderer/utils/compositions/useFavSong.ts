@@ -5,6 +5,17 @@ import {
 } from '@renderer/store/user/action'
 
 /**
+ * 心形按状态取图标（ui-polish-3 工单 10）：不在「我喜欢」里 → 空心（`#icon-love`，
+ * `components/layout/Icons.vue` 里已有的那份，也是左栏「我喜欢」入口与雷达页用的同一个）；
+ * 已经在里面 → 实心（`assets/svgs/love-solid.svg`，见该文件头部的说明）。
+ *
+ * 「空/实」是**形状**上的区分，「已选中」的主色是**额外**的一层：色弱、灰度屏或高对比主题下
+ * 颜色可能不生效，形状仍能看出来（工单 10 的用户原话就是「区别不大，已喜欢的要实心」）。
+ * 三个入口（行内键 / 播放栏 / 播放详情页）共用这一个函数——各写一遍 ternary 迟早会漂。
+ */
+export const favIconOf = (isFav: boolean) => (isFav ? '#icon-love-solid' : '#icon-love')
+
+/**
  * 「我喜欢」的共用行为（ui-polish-3 工单 06）：在线歌曲表与本地列表歌曲表、播放栏三处共用这一份，
  * 免得各写一套判定、文案与失败提示（同 `useMusicJump` 的分工：判定与动作在 store，
  * 这里只负责「显示成什么＋点下去做什么」）。

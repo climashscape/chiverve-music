@@ -2,9 +2,59 @@ import { httpFetch } from '../../request'
 import { decodeName, dateFormat, formatPlayCount } from '../../index'
 import { createSong } from './utils/song'
 import { txCgi, buildComm, requireCredential } from './utils/request'
+// 「我喜欢」的 dirId（201）与它的**真实 tid** 的解析都在 tx/user.js：读取侧（`getFavSong` 的
+// `dirid`）与写侧（本文件的 `likeSong`）必须用同一个目录，常量只留一份。
+import user, { FAV_DIR_ID } from './user'
 
-/** QQ「我喜欢」的目录 id（读取侧见 tx/user.js 的 getFavSong）。 */
-const FAV_DIR_ID = 201
+/** 增删歌曲的端点（工单 09：判读与诊断都收在 `readWriteResult` 里）。 */
+const SONG_WRITE_MODULE = 'music.musicasset.PlaylistDetailWrite'
+
+/**
+ * 写接口要带的「我喜欢」tid——**拿不到就回 0**（= 旧行为）。
+ *
+ * 为什么要带：自建歌单那次受控真机往返（M6）传的是目标歌单自己的 tid；201 这条路径
+ * 此前一律传 0（参考实现 `like_song` 也传 0，且有 CI 覆盖，所以 tid 是否必需没定论）。
+ * 这里只做「有真实值就用真实值」；解析失败**绝不能挡住写**，所以吞掉异常回落 0。
+ */
+const favDirTid = async() => {
+  try {
+    return await user.getFavDirTid()
+  } catch (err) {
+    console.log('[tx] 取「我喜欢」的 tid 失败，按 tid=0 写', err)
+    return 0
+  }
+}
+
+/**
+ * 判读写歌单接口的响应节点（**纯函数**，单测直接喂响应）。
+ *
+ * 响应是 `req_1` 节点，实测形状 `{ code: 0, data: { retCode: 0, result: {...} } }`
+ * （M6 的四个写操作记录见 `docs/agents/qq-music-native.md` §5.3）。判据两条，改之前先看：
+ *
+ *   1. **只有 `retCode === 0`（数值或数值串）算成功**。旧实现是
+ *      `retCode === 0 || retCode === 80092`——80092 的语义是猜的（注释写「歌单里没有这首歌」），
+ *      而参考实现 `modules/songlist.py:152-155,186-189` 对 80092 **两个方向都返回 False**，
+ *      且它的两个 docstring 明确说「已在歌单里」/「不在歌单里」这两种幂等情况走的是
+ *      retCode 0 的成功分支。→ 80092 一律按失败处理：把失败当成功就是**假成功**
+ *      （界面不报错、还就地改了收藏态，QQ 侧却没有），正是本票「点了没反应也没报错」的现成解释。
+ *      本轮**不给任何方向留例外**：宁可让用户看到一句带码的失败，也不静默替服务端宣布成功。
+ *   2. 判不出成功时，把 `code` / `retCode` / `msg` **原样带出去**。旧实现只回一个 false，
+ *      连 QQ 的错误码都丢了；真机上「收藏点了没反应」时无从查起（本票的硬要求：
+ *      失败必须能原样贴回来）。
+ *
+ * @returns {{ ok: boolean, code: number|null, retCode: number|null, msg: string }}
+ */
+export const readWriteResult = node => {
+  const code = Number(node?.code)
+  const retCode = Number(node?.data?.retCode ?? node?.retCode)
+  const msg = String(node?.data?.msg ?? node?.msg ?? '')
+  return {
+    ok: retCode === 0,
+    code: Number.isFinite(code) ? code : null,
+    retCode: Number.isFinite(retCode) ? retCode : null,
+    msg,
+  }
+}
 
 export default {
   _requestObj_tags: null,
@@ -476,6 +526,9 @@ export default {
    * 往自建歌单里加歌。
    * `songs` 每项要 `{ songId, songType }`——`songType` 是 QQ 的原始 `type`，
    * 工厂（utils/song.js）已把它放在歌曲对象上，直接传 `musicInfo.songId/songType` 即可。
+   *
+   * 返回 `readWriteResult` 的那个结构（`{ ok, code, retCode, msg }`），**不是裸布尔**：
+   * 失败时调用方要靠 `code`/`retCode` 说清是哪一步被拒（工单 09）。
    */
   async addSongToList(dirId, songs, tid = 0) {
     return this._writeSongList('AddSonglist', dirId, songs, tid)
@@ -489,22 +542,24 @@ export default {
   /**
    * 收藏歌曲到 QQ 的「我喜欢」。
    *
-   * dirId 固定 201（与 `tx/user.js` 的 `getFavSong` 读取侧同一个目录），tid 用默认 0——
-   * 依据是参考实现 QQMusicApi `modules/songlist.py` 的 `like_song`：它也是
-   * `add_songs(201, song_info)`、不传 tid，且有 `test_like_song_roundtrip` 覆盖。
-   * 参数形状与自建歌单增删完全一致（同一端点 `PlaylistDetailWrite/AddSonglist`）。
+   * dirId 固定 201（与 `tx/user.js` 的 `getFavSong` 读取侧同一个目录，常量从那里导入）。
+   * tid 用**运行时解析出来的真实 tid**（`user.getFavDirTid()`，拿不到回 0）：
+   *   - 自建歌单那次受控真机往返（M6）传的是目标歌单自己的 tid；
+   *   - 201 这条路径此前一律传 0，且真机记录互相矛盾——`docs/agents/qq-music-native.md`
+   *     §5.3 记过一次成功（总数 922 → 923），2026-09-24 用户又报「点了没加也没移」（本票）。
+   *   所以本轮把「能拿到真实 tid 就带真实 tid」补上（对齐唯一有完整记录的那次成功形状），
+   *   tid 到底是不是必需仍有待真机 A/B（见票面的验证清单）。
    *
-   * ⚠️ 本项目只对**自建歌单**的增删做过真机往返验证（spec §5.3 的 M6），
-   * **201 这条路径未做真机验证**——所以调用方（store/user/action.ts）必须把失败抛出去，
-   * 不能静默吞掉。
+   * 失败不再只回 false：诊断信息由 `readWriteResult` 带出，调用方（store/user/action.ts）
+   * 必须把它塞进报错文案，别静默吞掉。
    */
   async likeSong(songs) {
-    return this.addSongToList(FAV_DIR_ID, songs)
+    return this.addSongToList(FAV_DIR_ID, songs, await favDirTid())
   },
 
   /** 从 QQ「我喜欢」移除（参考实现 songlist.unlike_song，同一端点只换 method）。 */
   async unlikeSong(songs) {
-    return this.removeSongFromList(FAV_DIR_ID, songs)
+    return this.removeSongFromList(FAV_DIR_ID, songs, await favDirTid())
   },
 
   /**
@@ -528,7 +583,9 @@ export default {
     return Number(result.result ?? 0) === 0 && !failed.map(Number).includes(numericId)
   },
 
-  /** 增删歌曲的公共实现（两者只差 method）。 */
+  /**
+   * 增删歌曲的公共实现（两者只差 method）。返回 `readWriteResult` 的结构（含诊断）。
+   */
   async _writeSongList(method, dirId, songs, tid = 0) {
     const credential = await requireCredential()
     const v_songInfo = (songs ?? []).map(song => ({
@@ -536,18 +593,34 @@ export default {
       songType: Number(song.songType ?? 0),
     }))
     if (!v_songInfo.length) throw new Error('未选择歌曲')
-    const data = await txCgi({
-      module: 'music.musicasset.PlaylistDetailWrite',
+    const numericDirId = Number(dirId)
+    const numericTid = Number(tid)
+    const node = await txCgi({
+      module: SONG_WRITE_MODULE,
       method,
       param: {
-        dirId: Number(dirId),
-        tid: Number(tid),
+        dirId: numericDirId,
+        tid: numericTid,
         bFmtUtf8: true,
         v_songInfo,
       },
     }, buildComm(credential)).promise
-    const retCode = data?.data?.retCode ?? data?.retCode
-    return retCode === 0 || retCode === 80092
+    const result = readWriteResult(node)
+    if (!result.ok) {
+      // 诊断一行：只有请求形状与 QQ 的错误码，凭证/签名（authst、musickey）一律不进日志。
+      // 真机上「点了没反应」时要的就是这一行（票面把它的位置写给用户）。
+      console.log('[tx] 写歌单被拒', {
+        module: SONG_WRITE_MODULE,
+        method,
+        dirId: numericDirId,
+        tid: numericTid,
+        songs: v_songInfo,
+        code: result.code,
+        retCode: result.retCode,
+        msg: result.msg,
+      })
+    }
+    return result
   },
 }
 

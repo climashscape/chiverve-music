@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { favSongIds, favSongIdsLoaded, favSongs } from './state'
-import { toggleFavSongToCloud } from './action'
+import { addFavSongToCloud, removeFavSongFromCloud, toggleFavSongToCloud } from './action'
 
 /**
  * 「我喜欢」一键切换的**动作方向**（ui-polish-3 工单 06）。
@@ -89,5 +89,47 @@ describe('store/user/action 的 toggleFavSongToCloud', () => {
 
     expect(likeSong).not.toHaveBeenCalled()
     expect(unlikeSong).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * 写失败必须**带着 QQ 的错误码**抛出来（工单 09）。
+ *
+ * 真机症状是「点了没加也没移」——旧实现失败只回一个 false，`code`/`retCode`/`msg` 全被丢掉，
+ * 弹窗只剩一句「添加失败」，用户贴回来也看不出是哪一步被拒。判据与文案收在
+ * `isWriteOk` / `writeFailText` 两处（纯函数），这里连同旧形状（布尔）一起钉住。
+ */
+describe('store/user/action 的写失败诊断', () => {
+  it('SDK 回诊断结构且 not ok → 抛出的文案带上 code / retCode / msg', async() => {
+    favSongIdsLoaded.value = true
+    likeSong.mockResolvedValue({ ok: false, code: 10006, retCode: 80092, msg: 'song not exist' })
+
+    await expect(addFavSongToCloud(song('1'))).rejects.toThrow(/code=10006/)
+    await expect(addFavSongToCloud(song('1'))).rejects.toThrow(/retCode=80092/)
+    await expect(addFavSongToCloud(song('1'))).rejects.toThrow(/song not exist/)
+    // 失败不能就地改收藏态（改了就成假成功）
+    expect(favSongIds.includes('1')).toBe(false)
+  })
+
+  it('取消喜欢失败同理（带码抛给调用方）', async() => {
+    favSongIdsLoaded.value = true
+    unlikeSong.mockResolvedValue({ ok: false, code: null, retCode: 80092, msg: '' })
+
+    await expect(removeFavSongFromCloud(song('1'))).rejects.toThrow(/retCode=80092/)
+  })
+
+  it('旧形状（SDK 回布尔 true）仍然算成功——契约没收窄', async() => {
+    likeSong.mockResolvedValue(true)
+
+    await expect(addFavSongToCloud(song('1'))).resolves.toBeUndefined()
+  })
+
+  it('写成功 → 就地改收藏态，界面（行内键 / 菜单）立刻跟着变', async() => {
+    favSongIdsLoaded.value = true
+    likeSong.mockResolvedValue({ ok: true, code: 0, retCode: 0, msg: '' })
+
+    await addFavSongToCloud(song('1'))
+
+    expect(favSongIds.includes('1')).toBe(true)
   })
 })

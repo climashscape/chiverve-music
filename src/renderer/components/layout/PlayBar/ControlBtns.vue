@@ -11,15 +11,20 @@
     </button>
     <!-- 「我喜欢」一键开关（工单 06）：与「+」拆开——收藏当前这首是高频动作，不该先进弹窗再点一次。
          状态问云端（本地收藏已取消）；未登录时点它在 toggleFav 里弹「请先登录 QQ 音乐」；
-         当前这首没有 QQ 歌曲 ID（本地文件）→ 禁用，并在悬停里说明原因 -->
+         当前这首没有 QQ 歌曲 ID（本地文件）→ 禁用，并在悬停里说明原因。
+         空心/实心按状态切（工单 10）；宽度 80%（不是同排的 90%）：心形的 viewBox 贴着墨迹裁、
+         宽高比 1.137，90% 会撑出 21.6px 宽，比准星/加号那一排显大一圈 -->
     <button :class="[$style.titleBtn, { [$style.favOn]: isFav }]" :disabled="!canFav" :aria-label="favActionTitle" :title="favTitle" @click="handleToggleFav">
-      <svg version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" width="90%" viewBox="0 0 444.87 391.18" space="preserve">
-        <use xlink:href="#icon-love" />
+      <svg version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" width="80%" viewBox="0 0 444.87 391.18" space="preserve">
+        <use :xlink:href="favIcon" />
       </svg>
     </button>
     <button :class="$style.titleBtn" :aria-label="$t('player__add_music_to')" :title="$t('player__add_music_to')" @click="addMusicTo">
-      <svg version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" width="90%" viewBox="0 0 512 512" space="preserve">
-        <use xlink:href="#icon-add-2" />
+      <!-- `#icon-list-add`（Material 的 playlist_add：三条目 + 加号）——语义就是「加入歌单」。
+           工单 10 之前这里是 `#icon-add-2`，那是个**心形带加号**的图形，用户看到「添加到…」下面
+           一颗心，报「不要用爱心的图标」 -->
+      <svg version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" width="90%" viewBox="0 0 24 24" space="preserve">
+        <use xlink:href="#icon-list-add" />
       </svg>
     </button>
     <button :class="$style.titleBtn" :aria-label="toggleDesktopLyricBtnTitle" :title="toggleDesktopLyricBtnTitle" @click="toggleDesktopLyric" @contextmenu="toggleLockDesktopLyric">
@@ -37,11 +42,11 @@
 </template>
 
 <script>
-import { ref, computed } from '@common/utils/vueTools'
+import { ref, computed, nextTick, watchEffect } from '@common/utils/vueTools'
 import { useRouter } from '@common/utils/vueRouter'
 import { useI18n } from '@renderer/plugins/i18n'
 import useToggleDesktopLyric from '@renderer/utils/compositions/useToggleDesktopLyric'
-import useFavSong from '@renderer/utils/compositions/useFavSong'
+import useFavSong, { favIconOf } from '@renderer/utils/compositions/useFavSong'
 import { canLocatePlayingRow, findJumpableListId, hasPlayingRowLocator, locatePlayingRow } from '@renderer/utils/playingRowLocate'
 import { canFavSongInCloud, isFavSongInCloud } from '@renderer/store/user/action'
 import { musicInfo, playMusicInfo, playInfo } from '@renderer/store/player/state'
@@ -69,6 +74,8 @@ export default {
       : ('progress' in playMusicInfo.musicInfo ? playMusicInfo.musicInfo.metadata.musicInfo : playMusicInfo.musicInfo))
     const canFav = computed(() => canFavSongInCloud(currentMusic.value))
     const isFav = computed(() => canFav.value && isFavSongInCloud(currentMusic.value))
+    /** 心形按状态取空心/实心（工单 10）：映射在 `favIconOf` 一处，三处入口共用 */
+    const favIcon = computed(() => favIconOf(isFav.value))
     /** 键名（无障碍名）：说了要做什么，与行内/菜单那两处同一套文案 */
     const favActionTitle = computed(() => isFav.value ? t('list__unlove') : t('list_add__cloud_fav'))
     /** 悬停提示：灰掉时改说「为什么灰」（没歌 / 这首不能收藏），与雷达页的跳转键同款处理 */
@@ -86,11 +93,28 @@ export default {
     const locateTitle = computed(() => t('player__locate_playing'))
     /** 这首歌所在的**本地列表** id；没有则空串（在线队列没有可跳的列表页，判定见 `findJumpableListId`） */
     const playingLocalListId = computed(() => findJumpableListId(playMusicInfo.listId, userLists.map(list => list.id)))
-    /** 有没有可定位 / 可跳转的目标：没有就灰掉（同这一排其它键的处理） */
-    const canLocate = computed(() =>
-      canLocatePlayingRow(playInfo.playIndex, playMusicInfo.musicInfo) &&
-      (hasPlayingRowLocator() || !!playingLocalListId.value),
-    )
+    /**
+     * 有没有可定位 / 可跳转的目标：没有就灰掉（同这一排其它键的处理）。
+     *
+     * ⚠️ 不能写成 computed，也不能「算一次就完事」（工单 11 的真机 bug）：`hasPlayingRowLocator()`
+     * 的可见性判据读的是真实 DOM（`offsetParent`），它不在响应式系统里，算一次就定格；而唯一会改
+     * 它的东西——`v-show` 的 display——Vue 是**推迟到 post 队列**才写的（指令的 updated 钩子走
+     * `queuePostRenderEffect`，见 `patchElement`），比播放栏自己的更新更晚。播放栏的组件 uid 比
+     * 路由页小、又排在同一个批次前面，于是列表数据刚到那一批读到的还是「藏起来」的旧值，之后没有
+     * 任何依赖再变化 → 键永远灰着（用户报的「切走页面再切换回来就无法定位了」）。
+     * 所以：依赖照旧在这里订阅，值等**本帧 DOM 落定之后**再读一次。
+     */
+    const canLocate = ref(false)
+    const readCanLocate = () => {
+      canLocate.value = canLocatePlayingRow(playInfo.playIndex, playMusicInfo.musicInfo) &&
+        (hasPlayingRowLocator() || !!playingLocalListId.value)
+    }
+    const syncCanLocate = () => {
+      // 先用当前 DOM 算一次（多数时候是对的，不必等一帧），再在 DOM 落定后补一次（理由见上）
+      readCanLocate()
+      void nextTick(readCanLocate)
+    }
+    watchEffect(syncCanLocate)
 
     /** 点它：能原地定位就原地滚到中间，否则跳到这首歌所在的列表（带 `center=1`，目标列表居中而不是留上边距） */
     const locatePlaying = () => {
@@ -117,6 +141,7 @@ export default {
       playMusicInfo,
       canFav,
       isFav,
+      favIcon,
       favActionTitle,
       favTitle,
       handleToggleFav,
@@ -179,7 +204,8 @@ export default {
   }
 }
 
-// 已在我喜欢里：心形用主色（图标没有实心版本，状态靠颜色区分）
+// 已在我喜欢里：心形换实心（形状，见 favIconOf）+ 主色（颜色）。
+// 颜色是叠加的一层提示，不是唯一判据——灰度/高对比主题下也要能看出状态
 .favOn {
   color: var(--color-primary);
   opacity: .9;

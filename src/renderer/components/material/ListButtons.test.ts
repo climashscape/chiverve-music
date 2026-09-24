@@ -4,13 +4,18 @@ import ListButtons from './ListButtons.vue'
 import { favSongIds } from '@renderer/store/user/state'
 
 /**
- * 行内「我喜欢」键（ui-polish-3 工单 06）。
+ * 行内「我喜欢」键（ui-polish-3 工单 06）与它的空心/实心两态（工单 10）。
  *
  * 真机要求：这个键的**文案与状态要跟着当前状态走**（不在我喜欢里 → 「收藏到…」，
  * 已经在里面 → 「取消喜欢」），点了直接切换、不再开弹窗。用例钉三件事：
  *   1. 文案随状态变（读 store/user 的收藏全量 id 集合，写成功后会就地变）；
  *   2. 点了把 `fav` 交给调用方（行内键只 emit，动作在容器里做——与其它键同一套约定）；
  *   3. 不能收藏的歌（本地文件 / 非 QQ 源）与没开这个键时**不渲染**，不留死键。
+ *
+ * 工单 10 追加两件（用户原话「喜欢和取消的样式区别不大，如果是已经喜欢了的要是实心爱心」、
+ * 「添加歌曲到的按钮不要用爱心的图标」）：
+ *   4. 心形的 href 按状态在空心/实心之间切，同时叠主色类；
+ *   5. 「加入歌单」键用的是歌单图形（`#icon-list-add`），**不是**任何心形。
  *
  * `$t` 用桩（键名即文案），断言的是「用了哪个 key」——文案本身在 i18n 四语里。
  */
@@ -45,6 +50,13 @@ const heartBtn = (wrapper: ReturnType<typeof mountBtns>) => wrapper.find('button
 // 不锁死生成出来的名字（同 components/base/Btn.test.ts 的口径）
 const hasFavOnClass = (wrapper: ReturnType<typeof mountBtns>) =>
   wrapper.find('svg').classes().some(name => name.includes('favOn'))
+// `xlink:href` 落在 xlink 命名空间里，`attributes()` 取不到，只能断言序列化结果
+// （同 plugins/SvgIcon/SvgIcon.test.ts 的口径）
+const favIconHref = (wrapper: ReturnType<typeof mountBtns>) =>
+  wrapper.find('svg use').element.outerHTML
+/** 按无障碍名找键：本文件里同时开着心形键与「加入歌单」键时，`find('button')` 只能拿到第一个 */
+const btnByLabel = (wrapper: ReturnType<typeof mountBtns>, label: string) =>
+  wrapper.findAll('button').find(btn => btn.attributes('aria-label') === label)!
 
 beforeEach(() => {
   favSongIds.splice(0, favSongIds.length)
@@ -56,7 +68,9 @@ describe('components/material/ListButtons.vue 的「我喜欢」键', () => {
 
     expect(heartBtn(wrapper).attributes('aria-label')).toBe('list_add__cloud_fav')
     expect(heartBtn(wrapper).attributes('title')).toBe('list_add__cloud_fav')
-    // 未收藏：心形不上主色
+    // 未收藏：空心 + 不上主色
+    expect(favIconHref(wrapper)).toContain('xlink:href="#icon-love"')
+    expect(favIconHref(wrapper)).not.toContain('love-solid')
     expect(hasFavOnClass(wrapper)).toBe(false)
 
     await heartBtn(wrapper).trigger('click')
@@ -64,7 +78,7 @@ describe('components/material/ListButtons.vue 的「我喜欢」键', () => {
     expect(wrapper.emitted('btn-click')?.[0]?.[0]).toEqual({ action: 'fav', index: 3 })
   })
 
-  it('已在我喜欢里 → 文案变「取消喜欢」、图标上主色（写成功后就地变）', async() => {
+  it('已在我喜欢里 → 文案变「取消喜欢」、图标换实心并上主色（写成功后就地变）', async() => {
     const wrapper = mountBtns({ musicInfo: txSong('1') })
 
     favSongIds.push('1')
@@ -72,7 +86,32 @@ describe('components/material/ListButtons.vue 的「我喜欢」键', () => {
 
     expect(heartBtn(wrapper).attributes('aria-label')).toBe('list__unlove')
     expect(heartBtn(wrapper).attributes('title')).toBe('list__unlove')
+    // 形状与颜色**两处都变**：只靠颜色区分时用户报「喜欢和取消的样式区别不大」
+    expect(favIconHref(wrapper)).toContain('xlink:href="#icon-love-solid"')
     expect(hasFavOnClass(wrapper)).toBe(true)
+  })
+
+  it('取消后图标退回空心：状态是双向的，不留「看起来还收藏着」的实心', async() => {
+    const wrapper = mountBtns({ musicInfo: txSong('1') })
+    favSongIds.push('1')
+    await wrapper.vm.$nextTick()
+    expect(favIconHref(wrapper)).toContain('#icon-love-solid')
+
+    favSongIds.splice(0, favSongIds.length)
+    await wrapper.vm.$nextTick()
+
+    expect(favIconHref(wrapper)).toContain('xlink:href="#icon-love"')
+    expect(favIconHref(wrapper)).not.toContain('love-solid')
+    expect(hasFavOnClass(wrapper)).toBe(false)
+  })
+
+  it('「加入歌单」键用的是歌单图形，不是心形（工单 10 用户原话）', () => {
+    const wrapper = mountBtns({ musicInfo: txSong('1'), listAddBtn: true })
+
+    const addBtn = btnByLabel(wrapper, 'list__add_to')
+    expect(addBtn.find('use').element.outerHTML).toContain('xlink:href="#icon-list-add"')
+    // 「添加到…」下面挂一颗心（原 `#icon-add-2` 就是心形带加号）正是用户报的那条
+    expect(addBtn.find('use').element.outerHTML).not.toContain('love')
   })
 
   it('本地文件（没有 QQ 歌曲 ID）→ 不渲染这个键', () => {

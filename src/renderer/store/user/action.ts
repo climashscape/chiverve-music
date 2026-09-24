@@ -154,11 +154,30 @@ export const loadFavSongs = async(): Promise<void> => {
 }
 
 /**
+ * 写接口的成败判据：SDK 现在给 `{ ok, code, retCode, msg }`（失败时把 QQ 的错误码带出来，
+ * 见 `tx/songList.js` 的 `readWriteResult`）——真机上「点了没反应」时，那两个码是唯一线索。
+ * **布尔 `true` 也认**：旧契约与测试桩给的就是它，别为了收窄类型把桩打回红。
+ */
+export const isWriteOk = (res: any): boolean => res === true || res?.ok === true
+
+/**
+ * 写失败时给用户看的文案：既有那句人话 + QQ 的错误码（`code` / `retCode` / `msg`）。
+ *
+ * 只要诊断（工单 09 的要求）：收藏写不通时，弹窗里必须带上能**原样贴回来**的码——
+ * 旧实现只抛一句「添加失败」，把 `code`/`retCode` 全丢了，真机上无从查起。
+ */
+export const writeFailText = (res: any, fallback: string): string => {
+  const detail = [res?.code != null ? `code=${res.code}` : '', res?.retCode != null ? `retCode=${res.retCode}` : '', res?.msg || '']
+    .filter(Boolean)
+    .join(' ')
+  return detail ? `${fallback}（${detail}）` : fallback
+}
+
+/**
  * 我喜欢 —— **写入云端**（QQ 的 dirId=201 目录）。
  *
  * 与上面那批只读接口不同，写操作**失败必须抛给调用方**（由弹窗用 `dialog` 明确报错，
  * §2.11）——收藏这种用户主动发起的动作，静默失败会让人以为已经加进去了。
- * 这条路径（dirId=201 的写）尚未真机验证过（见 tx/songList.js 的 likeSong 注释）。
  *
  * @param musicInfo 新式在线歌曲对象；QQ 的 songId/songType 在 `meta.id` / `meta.songType`
  *   （见 common/utils/tools.ts 的 toNewMusicInfo）。
@@ -166,10 +185,10 @@ export const loadFavSongs = async(): Promise<void> => {
 export const addFavSongToCloud = async(musicInfo: LX.Music.MusicInfoOnline): Promise<void> => {
   const songId = Number(musicInfo?.meta?.id ?? 0)
   if (!songId) throw new Error(t('list_add__cloud_no_song_id'))
-  const ok = await music.tx.songList.likeSong([
+  const res = await music.tx.songList.likeSong([
     { songId, songType: Number(musicInfo.meta.songType ?? 0) },
   ])
-  if (!ok) throw new Error(t('list_add__cloud_failed'))
+  if (!isWriteOk(res)) throw new Error(writeFailText(res, t('list_add__cloud_failed')))
   // 收藏态集合已加载过就地补上：不补的话这次收藏要等下次重拉才认，
   // 那之前各处按钮仍显示「没收藏」（点第二次又走一遍收藏）
   if (favSongIdsLoaded.value && !favSongIds.includes(String(songId))) favSongIds.unshift(String(songId))
@@ -177,14 +196,14 @@ export const addFavSongToCloud = async(musicInfo: LX.Music.MusicInfoOnline): Pro
   if (favSongs.total > 0) await loadFavSongs()
 }
 
-/** 取消喜欢：从 QQ「我喜欢」移除。失败抛错，由调用方提示。 */
+/** 取消喜欢：从 QQ「我喜欢」移除。失败抛错（带 QQ 的错误码），由调用方提示。 */
 export const removeFavSongFromCloud = async(musicInfo: LX.Music.MusicInfoOnline): Promise<void> => {
   const songId = Number(musicInfo?.meta?.id ?? 0)
   if (!songId) throw new Error(t('list_add__cloud_no_song_id'))
-  const ok = await music.tx.songList.unlikeSong([
+  const res = await music.tx.songList.unlikeSong([
     { songId, songType: Number(musicInfo.meta.songType ?? 0) },
   ])
-  if (!ok) throw new Error(t('list_unlove__failed'))
+  if (!isWriteOk(res)) throw new Error(writeFailText(res, t('list_unlove__failed')))
   if (favSongIdsLoaded.value) {
     const index = favSongIds.indexOf(String(songId))
     if (index > -1) favSongIds.splice(index, 1)
@@ -341,16 +360,16 @@ const toWriteSongs = (list: LX.Music.MusicInfoOnline[]) => list.map(m => {
 
 /** 往云端歌单加歌（多首）。`card` 是 `createdLists` 里的卡片（dirId 写、id=tid 写）。 */
 export const addSongsToCloudList = async(card: PlaylistCard, songs: LX.Music.MusicInfoOnline[]): Promise<void> => {
-  const ok = await music.tx.songList.addSongToList(Number(card.dirId), toWriteSongs(songs), Number(card.id))
-  if (!ok) throw new Error(t('playlists__cloud_add_failed'))
+  const res = await music.tx.songList.addSongToList(Number(card.dirId), toWriteSongs(songs), Number(card.id))
+  if (!isWriteOk(res)) throw new Error(writeFailText(res, t('playlists__cloud_add_failed')))
   // 正在看这个歌单就刷新一下，让新歌立刻出现
   if (String(card.id) === cloudListSongs.listTid) await loadCloudListSongs(String(card.id), 1, false)
 }
 
 /** 从云端歌单删歌（多首）。 */
 export const removeSongsFromCloudList = async(card: PlaylistCard, songs: LX.Music.MusicInfoOnline[]): Promise<void> => {
-  const ok = await music.tx.songList.removeSongFromList(Number(card.dirId), toWriteSongs(songs), Number(card.id))
-  if (!ok) throw new Error(t('playlists__cloud_remove_song_failed'))
+  const res = await music.tx.songList.removeSongFromList(Number(card.dirId), toWriteSongs(songs), Number(card.id))
+  if (!isWriteOk(res)) throw new Error(writeFailText(res, t('playlists__cloud_remove_song_failed')))
   if (String(card.id) === cloudListSongs.listTid) await loadCloudListSongs(String(card.id), 1, false)
 }
 

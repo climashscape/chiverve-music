@@ -112,7 +112,8 @@
 <script lang="ts">
 import { computed, ref, watch } from '@common/utils/vueTools'
 import { playMusicList, togglePlay } from '@renderer/core/player'
-import { musicInfo, isPlay } from '@renderer/store/player/state'
+import { musicInfo, isPlay, playInfo } from '@renderer/store/player/state'
+import { tempListMeta } from '@renderer/store/list/state'
 import { addTempPlayList } from '@renderer/store/player/action'
 import { addFavSongToCloud, removeFavSongFromCloud, loadFavSongIds, isFavSongInCloud, favErrorText } from '@renderer/store/user/action'
 import { addDislikeInfo, hasDislike } from '@renderer/core/dislikeList'
@@ -127,6 +128,7 @@ import { assertApiSupport } from '@renderer/store/utils'
 import useRadar, { RADAR_QUEUE_ID, type RadarBlock } from '../useRadar'
 import { DAILY_30_QUEUE_ID } from '../useDaily30'
 import { DRAG_SLOP, pushSample, resolveSwipeStep, sampleVelocity, type SwipeSample } from '../swipe'
+import { FOLLOW_STAY, resolveFollowCursor } from '../followPlaying'
 
 /**
  * 雷达的「居中轮播」形态（工单 07 的形态迭代，2026-09-23 用户要求：
@@ -141,6 +143,9 @@ import { DRAG_SLOP, pushSample, resolveSwipeStep, sampleVelocity, type SwipeSamp
  *   应用级快捷键的边界见 `handleKeyDown` 的注释（核心是「只认无修饰键 + 只认舞台自己」）。
  * - **触屏手感（工单 18）**：按住拖动时 deck 不过渡（1:1 跟手），松手按「位移优先、甩动其次」
  *   换一张，回落是 deck 的减速过渡。判定规则抽在 `../swipe`，纯函数、有单测。
+ * - **切歌即跟随（工单 12）**：播放曲目变化时（本 tab 的队列在播、且这首歌在本 tab 列表里）
+ *   把游标算到它身上——视觉上就是横滚到中央。判定在 `../followPlaying`；时机与三条边界
+ *   见下面 `isCurrentQueue` / `watch` 两处注释（要点是只认播放曲目的变化，不跟用户的手抢）。
  * - 有意丢掉的能力（表格有、轮播没有）：多选与批量操作、列排序。雷达是「一张一张推给你」的场景。
  * - 两翼只渲染 ±2 张，其余靠滑动到达；到接近末尾时自动请求下一页（`needMore`），失败才露出按钮。
  */
@@ -184,6 +189,48 @@ export default {
 
     // 正在播放的就是「中央这一首」时，大按钮变成暂停键
     const isCurrentPlaying = computed(() => !!current.value && musicInfo.id === current.value.id && isPlay.value)
+
+    // ── 切歌即跟随（工单 12）────────────────────────────────────────────────
+    /**
+     * 本列表此刻是不是「正在播的那个队列」（跟随的身份闸）。
+     *
+     * ⚠️ 刻意写成**普通函数、当场读**，不包成 computed：`tempListMeta` 是普通对象（不可响应），
+     * 而「换一个在线队列」时 `playInfo.playerListId` 恒为 `temp`（值没变 → 缓存的 computed 不会重算），
+     * 于是它会一直拿上一个队列的身份答话。踩中的场景：雷达在播 → 去专辑页点一首**恰好也在雷达
+     * 列表里**的歌 → 缓存答 true → 游标被跟到那张上，而用户这会儿听的是专辑队列。
+     * 口径与 `useRadar.appendToPlayQueue` 一字不差：雷达队列一律灌进临时列表播（票 04 的队列 id）。
+     */
+    const isCurrentQueue = () =>
+      playInfo.playerListId === LIST_IDS.TEMP && tempListMeta.id === queueId
+
+    /**
+     * 「点上下曲记得左右滚动到播放的歌」（用户 2026-09-24）。
+     *
+     * 轮播的滚动就是游标（deck 用 transform 摆位），所以跟随 = 把游标算到正在播放那一张上，
+     * 判定在 `../followPlaying`（纯函数、有单测）。三条边界都是「不跟用户的手抢」的不同侧面：
+     *
+     * 1. **只监听播放曲目**（队列身份 / 队列内下标 / 歌 id），不监听游标——用户滑动、滚轮、←/→
+     *    动的是游标，没有这条依赖就永远不会被改回去；而播放栏上一首/下一首、快捷键、托盘、
+     *    自然播完的自动下一首都必然改这几项，所以一并覆盖。
+     * 2. **没有 `immediate`**：切 tab 会重建本组件（父组件 `:key="tab"`），进来就跟随会把票
+     *    02/04 那句「两个 tab 各自停在原来的位置」顶掉。只有**本组件活着时播放曲目变了**才跟。
+     * 3. **不跟列表变化**：「换一批」后游标按既有设计回第 1 张（`useRadar.setSongs` 的
+     *    `resetCursor`），正在播的那首若恰在新列表里也不回跟——那一刻用户的意图是换内容。
+     */
+    watch(
+      () => [isCurrentQueue(), playInfo.playIndex, musicInfo.id] as const,
+      ([inQueue, playIndex, playingId]) => {
+        const next = resolveFollowCursor({
+          list: list.value,
+          isCurrentQueue: inQueue,
+          playIndex,
+          playingId,
+          cursor: centerIndex.value,
+        })
+        // FOLLOW_STAY（-1）= 判定为「不动」：不在本列表 / 没在播 / 已经在中央
+        if (next !== FOLLOW_STAY) centerIndex.value = next
+      },
+    )
 
     // ── 滑动 / 滚轮：动作都是「换一张」────────────────────────────────────
     /** 舞台 DOM：键盘只在「焦点就在舞台上」时接管（工单 18，判定见 handleKeyDown）。 */
