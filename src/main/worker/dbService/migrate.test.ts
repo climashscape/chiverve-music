@@ -25,12 +25,15 @@ import { musicUrlCount, musicUrlRecycle, musicUrlRemove, musicUrlSave } from './
  * 4. 空目录（没有库文件）：新建的库自带 `created_at` 且直接通过校验。
  * 外加一组「迁移后的库上回收 / 精确删真的能跑通」（验语句绑定的列名对不对，光看结构比不出来）。
  *
- * **真旧库怎么测**（可选，不设环境变量就跳过；需要的是**旧库的副本**，不能拿原件）：
+ * **旧库夹具**：默认用**合成旧库**（v2 结构 + 真实体量的行数，见 `legacyFixture`），所以这组用例
+ * **每次都跑**。要用一份**真库的副本**复验（结构与数据量是真的，合成库只能证明「我按我以为的旧结构
+ * 写对了」）就设环境变量——注意要的是**副本**，不能拿原件：
  * ```bash
  * cp ~/.config/chiverve-music/LxDatas/lx.data.db /tmp/lx-legacy.db   # 应用在跑时这样拷只拿到主文件，够用
  * CHIVERVE_LEGACY_DB=/tmp/lx-legacy.db npx vitest run src/main/worker/dbService/migrate.test.ts
  * ```
- * 这条走的是真实用户库的结构与数据量（合成库只能证明「我按我以为的旧结构写对了」）。
+ * （2026-09-24 起：从「不设环境变量就整组跳过」改成「默认用合成件」——原先那种写法让 CI 永远少两条
+ * 用例，而它们覆盖的正是最要命的路径。）
  */
 
 /**
@@ -295,16 +298,48 @@ describe('迁移后的库上：写入 / 回收 / 精确删真的能跑通（验�
 })
 
 /**
- * 真旧库副本（可选）。不设环境变量时整组跳过 —— 别把某台机器的路径写死进用例。
- * 只断言「结构升级成功 + 老数据还在」，行数如实打印出来当证据（不打印 id / url）。
+ * 旧库夹具：默认**自己造**一份形状一致的 v2 旧库（真实体量：400 首 × 两档音质 + 一条歌词），
+ * 于是下面两条**每次都跑**；设了 `CHIVERVE_LEGACY_DB` 就改用那一份**真库副本**（也不再跳过）。
+ *
+ * 为什么改（2026-09-24 用户问「为什么出现 2 skipped，不能解决吗」）：原写法 `it.runIf(env)` 让这组
+ * 在 CI 里永远是 skipped，而它覆盖的正是最要命的路径——`init` 返回 `null` 会备份改名 + **重建空库**。
+ * 「数据形状不是我手搓的」那条价值属于**一次性真机验证**，不该以「永远少两条用例」为代价。
+ * 合成件与真副本走**同一批断言**（结构升级 + 行数守恒 + 回收口径），只是数据来源不同。
  */
 const legacyDbPath = process.env.CHIVERVE_LEGACY_DB
 
-describe('真旧库副本：dbService.init 返回 true 且老数据一行不少', () => {
-  it.runIf(legacyDbPath)('实测一份真库副本（结构 + 行数）', () => {
+/** 造一份「像真库那样」的旧库：v2 结构（`music_url` 两列、版本号 `'2'`）+ 上量的行数 */
+const legacyFixture = (dir: string) => {
+  const file = dbFileOf(dir)
+  if (legacyDbPath) {
+    fs.copyFileSync(legacyDbPath, file)
+    return file
+  }
+  const db = new Database(file)
+  const sqls = Array.from(tables.entries())
+    .map(([name, sql]) => name == 'music_url' ? LEGACY_MUSIC_URL_SQL : sql)
+  db.exec(sqls.join('\n'))
+  db.prepare('INSERT INTO "main"."db_info" ("field_name", "field_value") VALUES (?, ?)').run('version', '2')
+  const insertUrl = db.prepare('INSERT INTO "main"."music_url" ("id", "url") VALUES (?, ?)')
+  // 一次事务写完：800 行逐条受自动提交会明显拖慢这条用例
+  db.transaction(() => {
+    for (let song = 1; song <= 400; song++) {
+      for (const quality of ['128k', '320k']) {
+        // 刻意不含任何真实 URL（与 LEGACY_ROWS 同口径）
+        insertUrl.run(`${song}_${quality}`, `https://example.invalid/${song}?quality=${quality}`)
+      }
+    }
+  })()
+  db.prepare('INSERT INTO "main"."lyric" ("id", "source", "type", "text") VALUES (?, ?, ?, ?)')
+    .run('2001', 'tx', 'lrc', '[00:00.00]合成旧库里的歌词')
+  db.close()
+  return file
+}
+
+describe('旧库（合成件；设 CHIVERVE_LEGACY_DB 时用真库副本）：dbService.init 返回 true 且老数据一行不少', () => {
+  it('实测一份旧库（结构 + 行数）', () => {
     const dir = newCaseDir()
-    const file = dbFileOf(dir)
-    fs.copyFileSync(legacyDbPath!, file)
+    const file = legacyFixture(dir)
 
     const versionBefore = readVersion(file)
     const columnsBefore = readColumns(file)
@@ -313,7 +348,8 @@ describe('真旧库副本：dbService.init 返回 true 且老数据一行不少'
       .prepare('SELECT "id" FROM "main"."music_url" ORDER BY "rowid"')
       .all() as Array<{ id: string }>).map(row => row.id))
     const bytesBefore = inspect(file, db => (db.prepare('SELECT COALESCE(SUM(LENGTH("id") + LENGTH("url")), 0) AS "bytes" FROM "main"."music_url"').get() as { bytes: number }).bytes)
-    console.log('[migrate.test] 旧库副本：version=%s, music_url 行数=%d, 近似占用=%d 字节, 列=%s', versionBefore, idsBefore.length, bytesBefore, columnsBefore.join('/'))
+    console.log('[migrate.test] 旧库（%s）：version=%s, music_url 行数=%d, 近似占用=%d 字节, 列=%s',
+      legacyDbPath ? '真库副本' : '合成件', versionBefore, idsBefore.length, bytesBefore, columnsBefore.join('/'))
     expect(versionBefore).toBe('2')
     expect(columnsBefore).toEqual(['id', 'url'])
 
@@ -333,20 +369,19 @@ describe('真旧库副本：dbService.init 返回 true 且老数据一行不少'
 })
 
 /**
- * 同一份真库副本上把两个阈值**真跑一遍**（票 08 验收 2 / 3 的数据层等价物）。
+ * 同一份旧库夹具上把两个阈值**真跑一遍**（票 08 验收 2 / 3 的数据层等价物）。
  *
  * 验收原文是「重启应用后看到行数变化」——「重启」那半截是 `main/app.ts` 的 `initAppSetting` →
  * `recycleMusicUrlCache`（读代码 + 看主进程日志），这半截（挑行 / 删行 / 计量）在这里用真数据量跑。
  * 为了让场景与「升级后的稳态」一致，先把所有行的 `created_at` 刷成现在（迁移上来的老行都是 0），
  * 再把一行改成两天前当「过期样本」。
  */
-describe('真旧库副本：保留天数 / 容量上限真跑一遍', () => {
+describe('旧库（合成件；设 CHIVERVE_LEGACY_DB 时用真库副本）：保留天数 / 容量上限真跑一遍', () => {
   const DAY = 24 * 60 * 60 * 1000
 
-  it.runIf(legacyDbPath)('keepDays=1 只删掉两天前那一条；maxSizeMB=1 把占用压到 1 MB 内', () => {
+  it('keepDays=1 只删掉两天前那一条；maxSizeMB=1 把占用压到 1 MB 内', () => {
     const dir = newCaseDir()
-    const file = dbFileOf(dir)
-    fs.copyFileSync(legacyDbPath!, file)
+    const file = legacyFixture(dir)
     expect(init(dir)).toBe(true)
 
     const now = Date.now()
