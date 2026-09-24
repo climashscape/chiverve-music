@@ -3,13 +3,22 @@
 > **Research source only — no binaries, no packaged releases.**
 > Ch'iverve Music is a research fork of [LX Music Desktop](https://github.com/lyswhut/lx-music-desktop) that rebuilds QQ Music as a native desktop client (login, my music, recommendations, multi-quality streaming). It is **not affiliated with Tencent** in any way, and **this repository ships no installers and no build artifacts** — build it yourself from source. All documentation is written in Chinese.
 
+> ### About this repository
+>
+> - **What it is / 是什么**：a QQ Music desktop client for Linux (the official Linux client has been unmaintained for years) — 弥补官方 Linux 版 QQ 音乐年久失修的缺口。Forked from LX Music Desktop `v2.12.6` (`ad95d509`), rebuilt around a single source: QQ Music.
+> - **What you get / 你得到什么**：**source only**. Git tags and Releases mark development milestones and carry **release notes text only** — no installers, no archives, no other build artifacts. 只发源码：tag / Release 只作开发阶段的里程碑与说明，**不附带任何安装包或构建产物**。
+> - **Build it yourself / 自行构建**：see the Chinese section 「自行构建」 below — it lists everything needed (Node ≥ 22, the two `npm i` network pitfalls, the four webpack targets, and how to make your own deb / Windows green build). 想用就自己构建。
+> - **Not affiliated with Tencent / 与腾讯无关联**：built for technical research only; no risk-control evasion, no device-fingerprint spoofing. Please support the official service and clear any copyright data within 24 hours (upstream supplemental terms §2.1).
+> - **License & attribution / 许可与署名**：Apache-2.0, with the upstream supplemental terms kept verbatim in [`licenses/`](./licenses) and at the end of this file. Third-party content is listed in [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md).
+
+
 > ## 关于本仓库
 >
 > > 由于官方 qq 音乐官方 Linux 版年久失修 不得以我们发布本研究仓库 我们十分尊重版权 所以我们的仓库仅供研究 所以我们不对外发布任何打包版 请自行学习建构
 >
 > 本仓库是 [LX Music 桌面版](https://github.com/lyswhut/lx-music-desktop)（作者 [lyswhut](https://github.com/lyswhut)，中文署名「落雪无痕」）的**独立衍生产品**，基于上游 `v2.12.6`（commit `ad95d509`）整树建立，改造目标是在桌面端内置完整的 QQ 音乐能力（登录、我的音乐、发现与推荐、专辑 / 歌手 / MV、评论读写、多音质取流）。**本仓库仅供技术研究与学习交流，不对外发布任何打包版。**
 >
-> - **不提供任何打包版**：不发安装包、不发 Release，**也不对外提供任何构建产物**（CI 只跑测试与 lint）。想用就自行学习建构，方式见下方「自行构建」——这是本仓库的定位，不是待补的缺口。
+> - **不提供任何打包版**：不发安装包、**不提供任何构建产物**（CI 只跑测试与 lint）。**Release 只作开发阶段的成果标记**——附中英双语说明与源码快照，**不带任何二进制**。想用就自行学习建构，方式见下方「自行构建」——这是本仓库的定位，不是待补的缺口。
 > - **与腾讯无关联**：本项目与腾讯及其关联公司**没有任何关系，也未获其授权、认可或支持**；内置能力仅为技术可行性研究。请支持正版，并在 **24 小时内清除**使用过程中产生的版权数据（沿用上游补充条款 §2.1）。
 > - **不做对抗性设计**：不规避风控、不伪造设备指纹；用自己账号、低频、节流。**使用本仓库代码的合规责任由使用者自负。**
 > - **与上游的关系**：本仓库**不跟随上游 rebase**；已配置 `upstream` remote，上游的接口修复按需 `git cherry-pick`（只取接口修复，不合并上游的整体演进）。
