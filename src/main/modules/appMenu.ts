@@ -6,7 +6,9 @@ export default () => {
   if (isMac) {
     const template: Electron.MenuItemConstructorOptions[] = [
       {
-        label: app.getName(),
+        // 不能用 app.getName()：打包后它返回机器标识 `chiverve-music`，而 macOS 首菜单该显示展示名
+        // （全名形态 `Ch'iverve Music`）。机器标识与展示名的分工见 README 的「关于本仓库」。
+        label: 'Ch\'iverve Music',
         submenu: [
           { label: '关于 Ch\'iverve Music', role: 'about' },
           { type: 'separator' },

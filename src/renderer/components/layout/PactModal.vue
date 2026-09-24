@@ -2,6 +2,11 @@
   <material-modal :show="!isAgreePact || isShowPact" max-width="70%" :bg-close="isAgreePact" :close-btn="isAgreePact" @close="handleClose(false)">
     <main :class="$style.main">
       <h2>许可协议</h2>
+      <!-- 下面这段是本仓库加的**导言**，不属于协议正文——正文一字未改（改动许可原文等于篡改许可）。
+           加它的原因：协议里的「本项目」指上游 LX Music 桌面版项目，而首次启动的读者容易把它读成
+           本产品的名字。导言把「本软件是衍生产品、正文字面是上游原文」说清，正文再原样呈现。
+           （本文件的文案历来是硬编码的许可文本、不走 i18n，与上游形态一致。） -->
+      <p class="select">本软件（Ch'iverve Music）是 <strong>LX Music 桌面版项目的衍生产品</strong>，因此沿用并需向你呈现上游的许可协议。以下协议为<strong>上游原文、逐字保留</strong>，其中「本项目」指 <strong>上游 LX Music 桌面版项目</strong>——本软件作为其衍生产品一并受其约束。</p><br>
       <div class="select scroll" :class="$style.content">
         <template v-if="!isAgreePact"><p><strong>在使用本软件前，你（使用者）需签署本协议才可继续使用！</strong></p><br></template>
         <p>本项目基于&nbsp;<strong class="hover underline" @click="openUrl('http://www.apache.org/licenses/LICENSE-2.0')">Apache License 2.0</strong>&nbsp;许可证发行。以下协议是对于 Apache License 2.0 的补充，如有冲突，以以下协议为准。</p><br>

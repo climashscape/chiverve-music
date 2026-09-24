@@ -57,6 +57,7 @@ npm i
 
 > 若你的网络需要代理才能访问 `github.com`，而 git 又走 `ssh://git@github.com` 拉那 5 个 fork 依赖，可以一次性改成 https（**未在本仓库实跑，仅作兜底**）：
 > `git config --global url."https://github.com/".insteadOf ssh://git@github.com/`
+> （2026-09-24 实测有效：加上这条后 `git ls-remote git@github.com:lyswhut/needle.git` 正常返回。）
 
 ### 跑开发版
 
