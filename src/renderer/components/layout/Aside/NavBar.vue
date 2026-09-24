@@ -170,6 +170,15 @@ export default {
   // 「设置」组贴底（容器是 flex 列，吃掉剩余空间即可）
   &.bottom {
     margin-top: auto;
+    // 这一项的高度 = **播放条的高度**（2026-09-24 用户：「入口的高度和播放条的高度对齐」）。
+    // 其余项是「宽度 84%」的方形（靠 padding-bottom 撑高），到这一项恰好比播放条矮 4.84px
+    // （实测入口 61.16 / 播放条 66，底边本来就齐——左栏与播放条在同一个 flex 行里——
+    // 差的是顶边）。用 @height-player 而不是写死 66：它正是播放条 `.player` 的高度来源，
+    // 三种进度条样式（迷你/中等/全宽）都用同一个变量，所以跟着它走才不会哪天改了播放条又错位
+    .navItem:before {
+      padding-bottom: 0;
+      height: @height-player;
+    }
   }
 }
 .navItem {

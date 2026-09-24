@@ -22,6 +22,8 @@ div(:class="$style.footerLeftControlBtns")
   // 状态问云端；未登录时点了会弹「请先登录 QQ 音乐」；本地文件没有 QQ 歌曲 ID → 禁用并说明原因。
   // 空心/实心按状态切（工单 10）；宽度 80%（不是同排的 95%）：心形的 viewBox 贴着墨迹裁、
   // 宽高比 1.137，95% 会撑出 19px 宽，比同排的频谱/评论键（墨迹 15.8）大一圈
+  // ⚠️ 这一排**不要**跟着播放栏一起改小（2026-09-24 用户：本页「本来是合适的」）：
+  // 两排的按钮盒尺寸不同（本排 btnH≈19-20、播放栏 21.6-24），同一百分比在两边不是一个观感
   button(:class="[$style.footerLeftControlBtn, { [$style.active]: isFav }]" :disabled="!canFav" :aria-label="favActionTitle" :title="favTitle" @click="handleToggleFav")
     svg(version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" width="80%" viewBox="0 0 444.87 391.18" space="preserve")
       use(:xlink:href="favIcon")
