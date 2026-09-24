@@ -18,8 +18,10 @@ import { LIST_IDS } from '@common/constants'
 import { filterList } from './utils'
 import { requestMsg } from '@renderer/utils/message'
 import { getRandom } from '@renderer/utils/index'
-import { addListMusics, removeListMusics, setTempList } from '@renderer/store/list/action'
-import { loveList, tempListMeta } from '@renderer/store/list/state'
+import { setTempList } from '@renderer/store/list/action'
+import { tempListMeta } from '@renderer/store/list/state'
+import { addFavSongToCloud, removeFavSongFromCloud, favErrorText } from '@renderer/store/user/action'
+import { dialog } from '@renderer/plugins/Dialog'
 import { addDislikeInfo } from '@renderer/core/dislikeList'
 // import { checkMusicFileAvailable } from '@renderer/utils/music'
 
@@ -639,19 +641,34 @@ export const togglePlay = () => {
 }
 
 /**
- * 收藏当前播放的歌曲
+ * 收藏当前播放的歌曲（QQ 音乐「我喜欢」，云端 dirId=201）。
+ *
+ * 本地收藏已取消（2026-09-24）：这一路以前写本地 love 列表，界面退场后写进去也看不见，
+ * 现在只写云端。快捷键 / 托盘 / 任务栏 / deeplink 四个入口都走这里，**失败必须弹出来**——
+ * 收藏是用户主动动作，静默失败会让人以为已经收藏了。
  */
-export const collectMusic = () => {
+export const collectMusic = async() => {
   if (!playMusicInfo.musicInfo) return
-  void addListMusics(loveList.id, ['progress' in playMusicInfo.musicInfo ? playMusicInfo.musicInfo.metadata.musicInfo : playMusicInfo.musicInfo])
+  const minfo = 'progress' in playMusicInfo.musicInfo ? playMusicInfo.musicInfo.metadata.musicInfo : playMusicInfo.musicInfo
+  try {
+    // 本地歌曲没有 meta.id，会落 list_add__cloud_no_song_id 的提示（不静默）
+    await addFavSongToCloud(minfo as LX.Music.MusicInfoOnline)
+  } catch (err) {
+    void dialog({ message: favErrorText(err) })
+  }
 }
 
 /**
- * 取消收藏当前播放的歌曲
+ * 取消收藏当前播放的歌曲（从 QQ「我喜欢」移除）。失败同样弹出来。
  */
-export const uncollectMusic = () => {
+export const uncollectMusic = async() => {
   if (!playMusicInfo.musicInfo) return
-  void removeListMusics({ listId: loveList.id, ids: ['progress' in playMusicInfo.musicInfo ? playMusicInfo.musicInfo.metadata.musicInfo.id : playMusicInfo.musicInfo.id] })
+  const minfo = 'progress' in playMusicInfo.musicInfo ? playMusicInfo.musicInfo.metadata.musicInfo : playMusicInfo.musicInfo
+  try {
+    await removeFavSongFromCloud(minfo as LX.Music.MusicInfoOnline)
+  } catch (err) {
+    void dialog({ message: favErrorText(err) })
+  }
 }
 
 /**

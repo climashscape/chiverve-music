@@ -240,7 +240,12 @@ export default {
   overflow-y: auto;
 }
 
+// 返回键靠右：与歌手页（`.actions` 是 header 的最后一个 flex 子项）、专辑页（动作条里 返回 在末尾）
+// 保持同一个位置——用户报「歌曲详情页的返回键位置和歌手主页不一致」就是这里（票 14）
 .header {
+  display: flex;
+  flex-flow: row nowrap;
+  justify-content: flex-end;
   padding-bottom: 8px;
 }
 .back {

@@ -2,7 +2,7 @@ import { markRawList } from '@common/utils/vueTools'
 import { deduplicationList, toNewMusicInfo } from '@renderer/utils'
 import music from '@renderer/utils/musicSdk'
 import {
-  cloudListSongs, createdLists, favAlbumIds, favAlbums, favLists, favPlaylistIds, favSongs, followSingers, isInited, isLoading, labels,
+  cloudListSongs, createdLists, favAlbumIds, favAlbums, favLists, favPlaylistIds, favSongIds, favSongIdsLoaded, favSongs, followSingers, isInited, isLoading, labels,
   musicGene, pagers, CLOUD_LIST_PAGE_SIZE, PAGE_SIZE, profile, vip, type PlaylistCard,
 } from './state'
 
@@ -164,6 +164,9 @@ export const addFavSongToCloud = async(musicInfo: LX.Music.MusicInfoOnline): Pro
     { songId, songType: Number(musicInfo.meta.songType ?? 0) },
   ])
   if (!ok) throw new Error(t('list_add__cloud_failed'))
+  // 收藏态集合已加载过就地补上：不补的话这次收藏要等下次重拉才认，
+  // 那之前各处按钮仍显示「没收藏」（点第二次又走一遍收藏）
+  if (favSongIdsLoaded.value && !favSongIds.includes(String(songId))) favSongIds.unshift(String(songId))
   // 列表已经加载过才刷新（没加载过的话，进「我的收藏」页时自然会是最新的，不必多打一次请求）
   if (favSongs.total > 0) await loadFavSongs()
 }
@@ -176,8 +179,37 @@ export const removeFavSongFromCloud = async(musicInfo: LX.Music.MusicInfoOnline)
     { songId, songType: Number(musicInfo.meta.songType ?? 0) },
   ])
   if (!ok) throw new Error(t('list_unlove__failed'))
+  if (favSongIdsLoaded.value) {
+    const index = favSongIds.indexOf(String(songId))
+    if (index > -1) favSongIds.splice(index, 1)
+  }
   if (favSongs.total > 0) await loadFavSongs()
 }
+
+// ── 收藏态（「这一首喜欢了没」）────────────────────────────────────────────
+// 本地收藏取消后（2026-09-24），各处的收藏按钮只能问云端。读接口没有按 id 单查的形态，
+// 所以照 favAlbumIds / favPlaylistIds 的做法（工单 08）拉一份全量 id 集合缓存住。
+
+/** 拉我喜欢的全量 id 集合（已加载过直接返回，`force` 重拉）。失败抛给调用方。 */
+export const loadFavSongIds = async(force = false): Promise<void> => {
+  if (favSongIdsLoaded.value && !force) return
+  setList(favSongIds, await user().getFavSongIds())
+  favSongIdsLoaded.value = true
+}
+
+/** 这一首在 QQ「我喜欢」里吗（先 `loadFavSongIds` 才有准确答案）。 */
+export const isFavSongInCloud = (musicInfo: LX.Music.MusicInfoOnline | null | undefined): boolean => {
+  const id = String(musicInfo?.meta?.id ?? '')
+  return !!id && favSongIds.includes(id)
+}
+
+/**
+ * 收藏类写操作的失败文案：写接口抛的是内部串 `QQ 音乐未登录`（`requireCredential`），
+ * 界面上要说人话；其它错误原样透出，兜底用 `list_add__cloud_failed`。
+ * 四个入口（收藏弹窗 / 雷达 / 快捷键与托盘 / 任务栏）共用，别各写一份。
+ */
+export const favErrorText = (err: any): string =>
+  err?.message == 'QQ 音乐未登录' ? t('user_center__need_login') : (err?.message || t('list_add__cloud_failed'))
 
 export const loadMoreFavLists = async(): Promise<void> => {
   if (!pagers.favLists.hasMore) return

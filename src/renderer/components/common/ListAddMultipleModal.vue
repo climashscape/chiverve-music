@@ -18,10 +18,9 @@
 
 <script>
 import { computed } from '@common/utils/vueTools'
-import { loveList, userLists } from '@renderer/store/list/state'
+import { userLists } from '@renderer/store/list/state'
 import { addListMusics, moveListMusics, createUserList } from '@renderer/store/list/action'
 import useKeyDown from '@renderer/utils/compositions/useKeyDown'
-import { useI18n } from '@root/lang'
 import { dialog } from '@renderer/plugins/Dialog'
 
 export default {
@@ -66,15 +65,11 @@ export default {
   emits: ['update:show', 'confirm'],
   setup(props) {
     const keyModDown = useKeyDown('mod')
-    const t = useI18n()
 
     const lists = computed(() => {
-      // 候选里没有「试听列表」（工单 07 / ADR 0006）：它已从界面退场，若还留在这里，
-      // 用户仍能往它写歌，退场就只是表面功夫
-      return [
-        { ...loveList, name: t(loveList.name) },
-        ...userLists,
-      ].filter(l => !props.excludeListId.includes(l.id))
+      // 候选只有本地自建列表：试听列表已从界面退场（工单 07 / ADR 0006）、「我的收藏」也
+      // 不再是本地去处（收藏只写 QQ 的我喜欢，2026-09-24）——留着它们，用户仍能往那两处写歌
+      return userLists.filter(l => !props.excludeListId.includes(l.id))
     })
     return {
       keyModDown,

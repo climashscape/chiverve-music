@@ -57,7 +57,7 @@ export default {
     ]
 
     const handleTabChange = (id: TabId) => {
-      // 切 Tab 时清掉别的 Tab 的参数（favSource 只对歌曲 Tab 有意义）
+      // 切 Tab 只留 tab 这一个参数：旧书签里的 `favSource` 等键顺带清掉（歌曲 Tab 已无内层来源）
       void router.replace({ path: route.path, query: { tab: id } })
     }
 

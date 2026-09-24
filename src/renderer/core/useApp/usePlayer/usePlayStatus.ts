@@ -2,8 +2,9 @@ import { onBeforeUnmount, watch } from '@common/utils/vueTools'
 import { sendPlayerStatus, onPlayerAction } from '@renderer/utils/ipc'
 // import store from '@renderer/store'
 
-import { loveList } from '@renderer/store/list/state'
-import { addListMusics, removeListMusics, checkListExistMusic } from '@renderer/store/list/action'
+import { favSongIds } from '@renderer/store/user/state'
+import { loadFavSongIds, isFavSongInCloud, addFavSongToCloud, removeFavSongFromCloud, favErrorText } from '@renderer/store/user/action'
+import { dialog } from '@renderer/plugins/Dialog'
 import { playMusicInfo, musicInfo } from '@renderer/store/player/state'
 import { throttle } from '@common/utils'
 import { pause, play, playNext, playPrev } from '@renderer/core/player'
@@ -16,11 +17,44 @@ export default () => {
   // const setLockDesktopLyric = useCommit('setLockDesktopLyric')
   let collect = false
 
+  /** 当前播放的这一首（`progress` 包装时取里面的歌）；没在播返回 null。 */
+  const getPlayMusic = () => playMusicInfo.musicInfo == null
+    ? null
+    : ('progress' in playMusicInfo.musicInfo ? playMusicInfo.musicInfo.metadata.musicInfo : playMusicInfo.musicInfo)
+
+  /**
+   * 收藏态（托盘 / 任务栏的图标与「取消收藏」项）现在问**云端**：本地收藏已取消
+   * （2026-09-24），收藏只写 QQ「我喜欢」。
+   *
+   * 全量 id 集合第一次用到才拉（`loadFavSongIds` 自带缓存）；未登录/拉不动按「没收藏」
+   * 处理——托盘图标不该因为取不到收藏态而影响播放链路。
+   */
   const updateCollectStatus = async() => {
-    let status = !!playMusicInfo.musicInfo && await checkListExistMusic(loveList.id, playMusicInfo.musicInfo.id)
+    const minfo = getPlayMusic()
+    if (minfo != null) {
+      try {
+        await loadFavSongIds()
+      } catch (err) {
+        console.log('[collect] fav song ids', err)
+      }
+    }
+    const status = minfo != null && isFavSongInCloud(minfo as LX.Music.MusicInfoOnline)
     if (collect == status) return false
     collect = status
     return true
+  }
+
+  /** 托盘 / 任务栏的收藏与取消收藏：写云端，失败弹出来（用户主动动作，不静默）。 */
+  const handleToggleCollect = async(toCollect: boolean) => {
+    const minfo = getPlayMusic()
+    if (minfo == null) return
+    try {
+      if (toCollect) await addFavSongToCloud(minfo as LX.Music.MusicInfoOnline)
+      else await removeFavSongFromCloud(minfo as LX.Music.MusicInfoOnline)
+    } catch (err) {
+      void dialog({ message: favErrorText(err) })
+    }
+    if (await updateCollectStatus()) sendPlayerStatus({ collect })
   }
 
   const handlePlay = () => {
@@ -74,8 +108,10 @@ export default () => {
   // const handleSetTaskbarThumbnailClip = (clip) => {
   //   setTaskbarThumbnailClip(clip)
   // }
-  const throttleListChange = throttle(async listIds => {
-    if (!listIds.includes(loveList.id)) return
+  // 云端「我喜欢」变了（任一入口写入/移除都会就地改 favSongIds）就把收藏态同步给托盘/任务栏。
+  // 监听源要 `slice()`：favSongIds 是 shallowReactive 数组，就地增删要读一次才收得到依赖
+  // （同 LocalRail.vue 监听 userLists 的写法）
+  const throttleFavChange = throttle(async() => {
     if (await updateCollectStatus()) sendPlayerStatus({ collect })
   })
   // const updateSetting = () => {
@@ -99,14 +135,10 @@ export default () => {
         void playNext()
         break
       case 'collect':
-        if (!playMusicInfo.musicInfo) return
-        void addListMusics(loveList.id, ['progress' in playMusicInfo.musicInfo ? playMusicInfo.musicInfo.metadata.musicInfo : playMusicInfo.musicInfo])
-        if (await updateCollectStatus()) sendPlayerStatus({ collect })
+        void handleToggleCollect(true)
         break
       case 'unCollect':
-        if (!playMusicInfo.musicInfo) return
-        void removeListMusics({ listId: loveList.id, ids: ['progress' in playMusicInfo.musicInfo ? playMusicInfo.musicInfo.metadata.musicInfo.id : playMusicInfo.musicInfo.id] })
-        if (await updateCollectStatus()) sendPlayerStatus({ collect })
+        void handleToggleCollect(false)
         break
       case 'seek': {
         let progress = data as number
@@ -151,6 +183,7 @@ export default () => {
   watch(() => appSetting['player.playbackRate'], rate => {
     sendPlayerStatus({ playbackRate: rate })
   })
+  watch(() => favSongIds.slice(), throttleFavChange)
 
   window.app_event.on('play', handlePlay)
   window.app_event.on('pause', handlePause)
@@ -161,7 +194,6 @@ export default () => {
   window.app_event.on('picUpdated', handleSetPic)
   window.app_event.on('lyricLinePlay', handleSetLyricLine)
   // window.app_event.on(eventTaskbarNames.setTaskbarThumbnailClip, handleSetTaskbarThumbnailClip)
-  window.app_event.on('myListUpdate', throttleListChange)
 
   onBeforeUnmount(() => {
     rTaskbarThumbarClick()
@@ -174,7 +206,6 @@ export default () => {
     window.app_event.off('picUpdated', handleSetPic)
     window.app_event.off('lyricLinePlay', handleSetLyricLine)
     // window.app_event.off(eventTaskbarNames.setTaskbarThumbnailClip, handleSetTaskbarThumbnailClip)
-    window.app_event.off('myListUpdate', throttleListChange)
   })
 
   return async() => {

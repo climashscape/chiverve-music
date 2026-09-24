@@ -1,17 +1,8 @@
 <template>
   <div :class="$style.container">
-    <!-- 「我的收藏」有两个来源：本地收藏（本地库的 love 列表）与 QQ 音乐的「我喜欢」
-         （云端 dirId=201，切到才加载）。两者是**两套数据**，这里只做并列展示。 -->
-    <base-tab v-model="favSource" :list="sourceTabs" :class="$style.sourceTabs" />
-
-    <!-- 本地：我的收藏（本地收藏）的歌曲表 -->
-    <list-music-table v-if="!isShowCloudFav" :list-id="listId" />
-    <!--
-      QQ 我喜欢那一栏。这里必须用 v-if 而不是 v-show：base-virtualized-list 在 onMounted
-      的 rAF 里按容器 clientHeight 算渲染区间，挂载时若还是 display:none 就只渲染一行。
-    -->
+    <!-- 只有一路：QQ 音乐的「我喜欢」（云端 dirId=201）。本地收藏已取消——收藏只写云端，
+         所以这里不再有本地/云端来源切换，`?favSource=` 也不再被读取（2026-09-24）。 -->
     <qq-fav-list
-      v-else
       :list="favSongs.list"
       :no-item="cloudFavNoItem"
       :page="favSongs.page"
@@ -25,53 +16,28 @@
 </template>
 
 <script lang="ts">
-import { computed, ref, watch } from '@common/utils/vueTools'
-import { useRouter, useRoute } from '@common/utils/vueRouter'
-import { loveList } from '@renderer/store/list/state'
+import { computed, ref } from '@common/utils/vueTools'
 import { favSongs, labels as userLabels } from '@renderer/store/user/state'
 import { loadFavSongs, loadMoreFavSongs, removeFavSongFromCloud } from '@renderer/store/user/action'
 import { dialog } from '@renderer/plugins/Dialog'
 import useOnlinePlay from '@renderer/components/material/OnlineList/usePlay'
-import ListMusicTable from '@renderer/components/common/ListMusicTable/index.vue'
 import QqFavList from '@renderer/components/common/QqFavList.vue'
 
 /**
  * 我的收藏 → 我收藏的歌曲。
  *
- * 只有「我的收藏」（本地库的 love 列表）一个列表；「试听列表」已从界面退场
- * （工单 07 / ADR 0006），这里不再有左栏，`?list=` 参数也不再被读取。
- * 列表内再多一层来源切换：本地收藏（本地库）与 QQ 音乐·我喜欢（云端 201）。
- *
- * 来源写在 query 上（`favSource`）：从歌曲详情/其它页面返回、刷新页面都还在原位。
+ * 内容就是 QQ 音乐的「我喜欢」（云端 dirId=201）：2026-09-24 起本地收藏取消，
+ * 这一块不再并列展示本地 love 列表（它的数据行仍在，只是界面不再有入口）。
+ * 「试听列表」更早退场（工单 07 / ADR 0006）——所以本页没有左栏，`?list=` 也不被读取。
  */
 
 export default {
   name: 'FavoritesSongsPanel',
   components: {
-    ListMusicTable,
     QqFavList,
   },
   setup() {
-    const router = useRouter()
-    const route = useRoute()
     const t = (key: string, params?: any) => window.i18n.t(key as any, params)
-
-    // 本页只有一个列表：恒为「我的收藏」（工单 07）。写死而不是读 `route.query.list`，
-    // 免得旧书签里的 `?list=default` 又把试听列表带回来。
-    const listId = loveList.id
-
-    // ── 「我的收藏」的双来源切换（本地收藏 / QQ 音乐的我喜欢）─────────────────
-    const favSource = computed({
-      get: () => (route.query.favSource === 'cloud' ? 'cloud' : 'local'),
-      set: (value: string) => {
-        void router.replace({ path: route.path, query: { ...route.query, favSource: value === 'cloud' ? 'cloud' : undefined } })
-      },
-    })
-    const sourceTabs = computed(() => ([
-      { id: 'local', label: t('list__source_local') },
-      { id: 'cloud', label: t('list__source_qq_fav') },
-    ]))
-    const isShowCloudFav = computed(() => favSource.value === 'cloud')
 
     // 未登录时 loadFavSongs 会落「请先登录 QQ 音乐」文案（它认的就是凭证层抛的
     // `QQ 音乐未登录`），所以这里不自己判登录态——那个状态目前只在「设置」页初始化过。
@@ -79,11 +45,9 @@ export default {
     // 所以「一切正常」时必须给空串；恒给非空值会让列表永远被藏起来。
     const cloudFavNoItem = computed(() => userLabels.favSongs || (favSongs.list.length ? '' : t('no_item')))
 
-    // 切到云端来源才拉数据（懒加载）：重复进页面就重拉，loadFavSongs 不受 initUserCenter 的守卫约束
-    watch(isShowCloudFav, (show) => {
-      if (!show) return
-      void loadFavSongs()
-    }, { immediate: true })
+    // 进页面就拉（切 tab 会重建本组件，所以每次回来都是新的一份）：
+    // 重复进页面就重拉，loadFavSongs 不受 initUserCenter 的 isInited 守卫约束
+    void loadFavSongs()
 
     const selectedCloudList = ref<LX.Music.MusicInfoOnline[]>([])
     const { handlePlayMusic: handlePlayCloudMusic } = useOnlinePlay({
@@ -118,10 +82,6 @@ export default {
     }
 
     return {
-      listId,
-      favSource,
-      sourceTabs,
-      isShowCloudFav,
       cloudFavNoItem,
       favSongs,
       handlePlayFav,
@@ -139,10 +99,5 @@ export default {
   height: 100%;
   display: flex;
   flex-flow: column nowrap;
-}
-
-// base-tab 自带下划线指示器
-.sourceTabs {
-  flex: none;
 }
 </style>

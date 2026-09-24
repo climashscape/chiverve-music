@@ -112,8 +112,7 @@ import { computed, ref, watch } from '@common/utils/vueTools'
 import { playMusicList, togglePlay } from '@renderer/core/player'
 import { musicInfo, isPlay } from '@renderer/store/player/state'
 import { addTempPlayList } from '@renderer/store/player/action'
-import { addListMusics, getListMusics, removeListMusics } from '@renderer/store/list/action'
-import { loveList } from '@renderer/store/list/state'
+import { addFavSongToCloud, removeFavSongFromCloud, loadFavSongIds, isFavSongInCloud, favErrorText } from '@renderer/store/user/action'
 import { addDislikeInfo, hasDislike } from '@renderer/core/dislikeList'
 import { dialog } from '@renderer/plugins/Dialog'
 import { useI18n } from '@renderer/plugins/i18n'
@@ -391,28 +390,21 @@ export default {
     // ── 底部按键都作用于「中央这一首」────────────────────────────────────
     const t = useI18n()
 
-    // 收藏 = 收进本地「我的收藏」（与播放栏的收藏键、快捷键 music_love 同一套语义）。
-    // 「是否已收藏」要拿整张列表比：本地收藏是个真实列表，走 getListMusics 读（命中缓存就不发请求）
-    const lovedIds = ref<Set<string>>(new Set())
-    const refreshLoved = async() => {
-      const loved = await getListMusics(loveList.id)
-      lovedIds.value = new Set(loved.map(item => item.id))
-    }
-    void refreshLoved()
-    const isLoved = computed(() => !!current.value && lovedIds.value.has(current.value.id))
+    // 收藏 = 收藏到 QQ 音乐的「我喜欢」（与播放栏收藏键、快捷键 music_love 同一套语义）。
+    // 本地收藏已取消（2026-09-24），所以「已收藏没」问云端：全量 id 集合在 store/user 里缓存，
+    // 收藏/取消后就地更新（isFavSongInCloud 读的是 shallowReactive 数组，computed 会跟着变）。
+    const isLoved = computed(() => !!current.value && isFavSongInCloud(current.value))
+    // 只影响按钮状态，拉不到（未登录等）按「没收藏」处理，不让雷达页报错
+    void loadFavSongIds().catch(err => { console.log('[radar] fav song ids', err) })
     const handleToggleLove = async() => {
       const song = current.value
       if (!song) return
-      if (isLoved.value) {
-        await removeListMusics({ listId: loveList.id, ids: [song.id] })
-      } else {
-        await addListMusics(loveList.id, [song])
+      try {
+        if (isLoved.value) await removeFavSongFromCloud(song)
+        else await addFavSongToCloud(song)
+      } catch (err) {
+        void dialog({ message: favErrorText(err) })
       }
-      // Set 原地改不会触发 computed，替换成新 Set
-      const next = new Set(lovedIds.value)
-      if (isLoved.value) next.delete(song.id)
-      else next.add(song.id)
-      lovedIds.value = next
     }
 
     /**

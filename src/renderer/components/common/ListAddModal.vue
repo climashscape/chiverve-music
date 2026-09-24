@@ -2,14 +2,12 @@
   <material-modal :show="show" :bg-close="bgClose" :teleport="teleport" max-width="70%" min-width="200px" @close="handleClose">
     <main :class="$style.main">
       <h2>{{ $t('list_add__' + (isMove ? 'title_first_move' : 'title_first_add')) }}&nbsp;<span :class="$style.name">{{ currentMusicInfo.name }}</span>&nbsp;{{ $t('list_add__title_last') }}</h2>
-      <!-- 登录态下的在线歌曲：收藏有两个去处（QQ 的「我喜欢」/ 仅本地），先让用户选一个。
-           未登录、本地歌曲、移动模式都不显示，行为与以前完全一致（只写本地）。 -->
+      <!-- 收藏只有一个去处：QQ 音乐的「我喜欢」（本地收藏已取消，2026-09-24）。
+           不限登录态：未登录时按下会走接口报错并弹出「请先登录 QQ 音乐」（有可见反馈，
+           比藏掉按钮好）；本地歌曲没有 QQ 歌曲 ID、移动模式不是收藏，这两种不显示。 -->
       <div v-if="canAddToCloud" :class="$style.sourceRow">
         <base-btn :class="$style.sourceBtn" :disabled="isAddingCloud" @click="handleAddToCloud">
           {{ $t('list_add__cloud_fav') }}
-        </base-btn>
-        <base-btn :class="$style.sourceBtn" :disabled="isAddingCloud" @click="handleAddToLocalLove">
-          {{ $t('list_add__local_fav') }}
         </base-btn>
       </div>
       <div class="scroll" :class="$style.btnContent">
@@ -29,12 +27,10 @@
 <script>
 // import { mapMutations } from 'vuex'
 import { watch, ref, computed, onBeforeUnmount } from '@common/utils/vueTools'
-import { loveList, userLists } from '@renderer/store/list/state'
+import { userLists } from '@renderer/store/list/state'
 import { addListMusics, moveListMusics, createUserList, getMusicExistListIds } from '@renderer/store/list/action'
-import { addFavSongToCloud } from '@renderer/store/user/action'
-import { getQQCredential } from '@renderer/utils/ipc'
+import { addFavSongToCloud, favErrorText } from '@renderer/store/user/action'
 import useKeyDown from '@renderer/utils/compositions/useKeyDown'
-import { useI18n } from '@root/lang'
 import { dialog } from '@renderer/plugins/Dialog'
 
 export default {
@@ -77,35 +73,15 @@ export default {
   emits: ['update:show'],
   setup(props) {
     const keyModDown = useKeyDown('mod')
-    const t = useI18n()
     const lists = ref([])
 
     const currentMusicInfo = ref({})
 
-    /**
-     * 是否已登录 QQ 音乐。
-     *
-     * **直接问凭证，不用 store/qqAuth 的 `status.isLogin`**——那个状态目前只在「设置」页
-     * 初始化过（`SettingQQAuth.vue` 的 onMounted），在别处读会恒为 false（同一坑见
-     * `PlayDetail/components/MusicComment`）。判据与数据层写接口一致：有凭证就能写。
-     */
-    const isQQLogin = ref(false)
-    const refreshQQLogin = async() => {
-      try {
-        isQQLogin.value = (await getQQCredential()) != null
-      } catch (err) {
-        // 取不到凭证按未登录处理：只影响「加到云端」这个入口是否出现
-        console.log('[listAdd] credential', err)
-        isQQLogin.value = false
-      }
-    }
-
-    // 能加到 QQ「我喜欢」的条件：已登录 + 不是移动模式 + 确实是 QQ 在线歌曲
-    // （本地歌曲没有 meta.id/songType，写接口拿不到 songId）。注意「已登录」只是
-    // 必要条件——凭证过期等失败由 handleAddToCloud 报错，不静默。
+    // 能加到 QQ「我喜欢」的条件：不是移动模式 + 确实是 QQ 在线歌曲
+    // （本地歌曲没有 meta.id/songType，写接口拿不到 songId）。不看登录态——未登录时
+    // 写接口会抛「QQ 音乐未登录」，由 handleAddToCloud 弹出来（有可见反馈，不静默）。
     const canAddToCloud = computed(() => (
       !props.isMove &&
-      isQQLogin.value &&
       currentMusicInfo.value.source == 'tx' &&
       currentMusicInfo.value.meta?.id != null
     ))
@@ -123,20 +99,16 @@ export default {
     let stopWatchUserList = null
 
     const getList = () => {
-      // 候选里没有「试听列表」（工单 07 / ADR 0006）：它已从界面退场，若还留在这里，
-      // 用户仍能往它写歌，退场就只是表面功夫
-      lists.value = [
-        { ...loveList, name: t(loveList.name) },
-        ...userLists,
-      ]
+      // 候选只有本地自建列表：试听列表已从界面退场（工单 07 / ADR 0006）、
+      // 「我的收藏」也不再是本地去处（收藏只写 QQ 的我喜欢，2026-09-24），
+      // 留着它们用户仍能往那两处写歌，退场就只是表面功夫
+      lists.value = userLists
         .filter(l => !props.excludeListId.includes(l.id))
-        // 登录态下「我的收藏」由上面的两个来源按钮承担，网格里不再重复出现同一个去处
-        .filter(l => !(canAddToCloud.value && l.id == loveList.id))
         .map(l => ({ ...l, isExist: false }))
       checkMusicExist(currentMusicInfo.value)
     }
 
-    watch(() => props.show, async show => {
+    watch(() => props.show, show => {
       if (!show) {
         if (stopWatchUserList) {
           stopWatchUserList()
@@ -147,10 +119,6 @@ export default {
       if (!props.musicInfo) return lists.value = []
 
       currentMusicInfo.value = 'progress' in props.musicInfo ? props.musicInfo.metadata.musicInfo : props.musicInfo
-
-      // 先问一次登录态再建列表：登录后「我的收藏」会被上面那两个来源按钮顶掉，
-      // 两者必须一起决定，否则会短暂出现两个「我的收藏」
-      await refreshQQLogin()
       getList()
 
       stopWatchUserList = watch(userLists, getList)
@@ -213,8 +181,8 @@ export default {
     handleClose() {
       this.$emit('update:show', false)
     },
-    /** 收藏到 QQ 音乐的「我喜欢」（云端 dirId=201）。写云端这条路径未做过真机验证，
-     *  所以失败必须弹出来让用户知道，不能像只读接口那样只落一段文案。 */
+    /** 收藏到 QQ 音乐的「我喜欢」（云端 dirId=201）——**唯一**的收藏去处（本地收藏已取消）。
+     *  写云端这条路径未做过真机验证，所以失败必须弹出来让用户知道，不能像只读接口那样只落一段文案。 */
     async handleAddToCloud() {
       if (this.isAddingCloud) return
       this.isAddingCloud = true
@@ -224,21 +192,10 @@ export default {
           this.handleClose()
         })
       } catch (err) {
-        void dialog({
-          message: err?.message == 'QQ 音乐未登录'
-            ? window.i18n.t('user_center__need_login')
-            : (err?.message || window.i18n.t('list_add__cloud_failed')),
-        })
+        void dialog({ message: favErrorText(err) })
       } finally {
         this.isAddingCloud = false
       }
-    },
-    /** 只加到本地的「我的收藏」（与网格里那个按钮同一条路径） */
-    handleAddToLocalLove() {
-      void addListMusics(loveList.id, [this.currentMusicInfo])
-      void this.$nextTick(() => {
-        this.handleClose()
-      })
     },
     handleEditing(event) {
       if (this.isEditing) return
@@ -286,7 +243,7 @@ export default {
   color: var(--color-primary);
 }
 
-// 收藏来源二选一（QQ 音乐「我喜欢」/ 仅本地）
+// 收藏按钮那一条（只剩 QQ 音乐「我喜欢」一个去处，本地收藏已取消）
 .sourceRow {
   flex: none;
   display: flex;

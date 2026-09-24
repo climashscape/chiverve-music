@@ -1,8 +1,8 @@
 <template>
   <div :class="$style.list">
     <!-- 本地列表的歌曲表（试听列表 / 我的收藏 / 本地自建列表共用同一份实现）。
-         「我的收藏」的两个来源（本地收藏 / QQ 音乐·我喜欢）不在这里——那是
-         「我的收藏」页的展示逻辑，见 views/Favorites/components/SongsPanel.vue。 -->
+         「我的收藏」页的歌曲表不在这里——它只有一路 QQ「我喜欢」，见
+         views/Favorites/components/SongsPanel.vue。 -->
     <div class="thead">
       <table>
         <thead>

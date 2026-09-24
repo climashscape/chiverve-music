@@ -198,6 +198,16 @@ export const followSingers = shallowReactive<FollowSinger[]>([])
 export const favAlbumIds = shallowReactive<string[]>([])
 export const favPlaylistIds = shallowReactive<string[]>([])
 
+/**
+ * 「我喜欢」的全量**歌曲 id 集合**（QQ 数字 songId 的字符串形态）——给「这一首喜欢了没」用。
+ *
+ * 同一套路（工单 08）：`getFavSong` 没有按 id 单查的形态，只能拉全量在本地比对。
+ * `favSongs` 那份是**分页展示用**的（一页 50），不能拿它当收藏态判据。
+ * 加载成功才置 `favSongIdsLoaded`（未登录拉不动，下次用到还要再试）。
+ */
+export const favSongIds = shallowReactive<string[]>([])
+export const favSongIdsLoaded = ref(false)
+
 /** 每页条数：QQ 这几个接口都按 offset/size 分页。 */
 export const PAGE_SIZE = 50
 

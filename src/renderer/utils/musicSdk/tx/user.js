@@ -112,6 +112,29 @@ export default {
     }
   },
 
+  /**
+   * 我喜欢的**歌曲 id 集合**（数字 songId）——给「这一首喜欢了没」用（本地收藏取消后的收藏态）。
+   *
+   * 同 `getFavAlbumIds`：这条读接口没有按 id 单查的形态，只能拉全量在本地比对。
+   * 两处与那两口不同，改这里前先看：
+   *   1. 页长用 `PAGE_SIZE`（50，正是「我喜欢」列表分页用的值），**不给大值**——
+   *      `song_begin = num * (page - 1)` 是按请求页长算的，服务端一旦按更小的页长截断，
+   *      大页长就会跳过中间没拿到的歌（`getFavAlbumIds` 敢给 600 是因为那两口实测过）。
+   *      代价是该账号 922 首要 19 次请求，但只在**会话内第一次需要收藏态**时拉一次（缓存住）。
+   *   2. 结束判据是 `total_song_num`（`songlist_size` 是**本页条数**，别取错），
+   *      页数上限只是防 total 异常时的死循环。
+   */
+  async getFavSongIds() {
+    const ids = []
+    for (let page = 1; page <= 40; page++) {
+      const res = await this.getFavSong(page, PAGE_SIZE)
+      if (!res.list.length) break
+      res.list.forEach(item => { if (item.songId) ids.push(String(item.songId)) })
+      if (res.total && ids.length >= res.total) break
+    }
+    return ids
+  },
+
   /** 自建歌单列表。注意"我喜欢"也在这个列表里（它的 dirId 是 201）。 */
   async getCreatedSonglist() {
     const credential = await requireCredential()
