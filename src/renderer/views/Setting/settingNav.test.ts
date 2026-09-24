@@ -39,22 +39,25 @@ const readComponentSources = (): string[] => {
   return walk(componentsDir)
 }
 
+/** 取某个节的组件目录（`components/sections/<节 id>/`）下所有 .vue 的文本。 */
+const readSectionSources = (sectionId: string): string[] => {
+  const dir = path.join(componentsDir, 'sections', sectionId)
+  const walk = (current: string): string[] => fs.readdirSync(current, { withFileTypes: true }).flatMap(entry => {
+    const full = path.join(current, entry.name)
+    if (entry.isDirectory()) return walk(full)
+    return entry.name.endsWith('.vue') ? [fs.readFileSync(full, 'utf8')] : []
+  })
+  return fs.existsSync(dir) ? walk(dir) : []
+}
+
 /**
  * 内容区里**还没有锚点**的分组：它们的项要么只在浮层里（音量 / 倍速 / 音效），要么是票 06/08/09
- * 才补的新设置，要么内容还在别的旧节里（托盘图标在 SettingOther，归位见票 03）。
+ * 才补的新设置。
  * 目录只列有锚点的分组（见 useSettingToc.ts），所以这份名单就是「目录里暂时少的那些」。
  */
 const PENDING_ANCHOR_GROUPS = [
-  'appearance_tray',
   'play_defaults',
   'play_stability',
-  'play_timeout',
-  'my_music_favorite',
-  'data_lyric_offset',
-  'data_cache_policy',
-  'network_timeout',
-  'advanced_sound_effect',
-  'advanced_experimental',
 ]
 
 const ALL_SECTION_IDS = SETTING_SECTIONS.map(section => section.id)
@@ -102,18 +105,31 @@ describe('旧深链 ?name= 的兼容映射', () => {
   })
 })
 
-describe('节 → 旧组件桥（票 03 归位前不许丢入口）', () => {
-  it('每个节都有内容组件，且键就是元数据的节 id', () => {
+describe('节 → 内容组件（票 03 归位后：一节 = 一个组件）', () => {
+  it('每个节都有且只有一个内容组件，键就是元数据的节 id', () => {
     expect(sorted(Object.keys(SECTION_CONTENT))).toEqual(sorted(ALL_SECTION_IDS))
     for (const [sectionId, components] of Object.entries(SECTION_CONTENT)) {
-      expect(components.length, sectionId).toBeGreaterThan(0)
+      expect(components.length, sectionId).toBe(1)
     }
   })
 
-  it('17 个旧组件一个不少、也不重复挂到多个节', () => {
-    const bridged = Object.values(SECTION_CONTENT).flat()
-    expect(new Set(bridged).size, '同一个组件挂了两次').toBe(bridged.length)
-    expect(sorted(bridged)).toEqual(sorted(Object.keys(LEGACY_SECTION_MAP)))
+  it('组件文件真的存在，且 `name:` 与表里登记的一致', () => {
+    const names = Object.values(SECTION_CONTENT).flat()
+    expect(new Set(names).size, '同一个组件挂了两次').toBe(names.length)
+    for (const [sectionId, components] of Object.entries(SECTION_CONTENT)) {
+      const sources = readSectionSources(sectionId)
+      expect(sources.length, `${sectionId} 没有组件文件`).toBeGreaterThan(0)
+      for (const name of components) {
+        expect(sources.some(source => source.includes(`name: '${name}'`)), `${sectionId} 里没有 name: '${name}'`).toBe(true)
+      }
+    }
+  })
+
+  it('17 个旧节组件不再挂在任何节上（内容已归位，入口不再靠它们）', () => {
+    const bridged = new Set(Object.values(SECTION_CONTENT).flat())
+    for (const legacyName of Object.keys(LEGACY_SECTION_MAP)) {
+      expect(bridged.has(legacyName), `${legacyName} 还挂在内容区`).toBe(false)
+    }
   })
 })
 

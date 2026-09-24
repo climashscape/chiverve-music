@@ -37,48 +37,34 @@ import { useSettingToc } from './useSettingToc'
 import SettingNav from './components/SettingNav.vue'
 import SettingSearchBox from './components/SettingSearchBox.vue'
 
-// 各节内容的旧组件：票 03 归位前，一节可能由多个旧组件拼（对照 settingNav.ts 的 SECTION_CONTENT）。
-// 这张 import 清单就是那个「17 个旧组件一个都不许丢」的载体，`<component :is="名字">` 从注册表里取。
-import SettingBasic from './components/SettingBasic.vue'
-import SettingQQAuth from './components/SettingQQAuth.vue'
-import SettingPlay from './components/SettingPlay.vue'
-import SettingPlayDetail from './components/SettingPlayDetail.vue'
-import SettingDesktopLyric from './components/SettingDesktopLyric.vue'
-import SettingSearch from './components/SettingSearch.vue'
-import SettingList from './components/SettingList.vue'
-import SettingDownload from './components/SettingDownload.vue'
-import SettingSync from './components/SettingSync/index.vue'
-import SettingOpenAPI from './components/SettingOpenAPI.vue'
-import SettingHotKey from './components/SettingHotKey.vue'
-import SettingNetwork from './components/SettingNetwork.vue'
-import SettingOdc from './components/SettingOdc.vue'
-import SettingBackup from './components/SettingBackup.vue'
-import SettingOther from './components/SettingOther.vue'
-import SettingUpdate from './components/SettingUpdate.vue'
-import SettingAbout from './components/SettingAbout.vue'
+// 各节内容：票 03 归位后「一节 = 一个组件」（`components/sections/<节 id>/index.vue`），
+// 名字与 `settingNav.ts` 的 `SECTION_CONTENT` 一一对应（表里存名字、这里注册，改一边会被单测抓住）。
+import SettingSectionAppearance from './components/sections/appearance/index.vue'
+import SettingSectionPlay from './components/sections/play/index.vue'
+import SettingSectionDesktopLyric from './components/sections/desktop_lyric/index.vue'
+import SettingSectionDownload from './components/sections/download/index.vue'
+import SettingSectionMyMusic from './components/sections/my_music/index.vue'
+import SettingSectionHotKey from './components/sections/hot_key/index.vue'
+import SettingSectionData from './components/sections/data/index.vue'
+import SettingSectionNetwork from './components/sections/network/index.vue'
+import SettingSectionAbout from './components/sections/about/index.vue'
+import SettingSectionAdvanced from './components/sections/advanced/index.vue'
 
 export default {
   name: 'Setting',
   components: {
     SettingNav,
     SettingSearchBox,
-    SettingBasic,
-    SettingQQAuth,
-    SettingPlay,
-    SettingPlayDetail,
-    SettingDesktopLyric,
-    SettingSearch,
-    SettingList,
-    SettingDownload,
-    SettingSync,
-    SettingOpenAPI,
-    SettingHotKey,
-    SettingNetwork,
-    SettingOdc,
-    SettingBackup,
-    SettingOther,
-    SettingUpdate,
-    SettingAbout,
+    SettingSectionAppearance,
+    SettingSectionPlay,
+    SettingSectionDesktopLyric,
+    SettingSectionDownload,
+    SettingSectionMyMusic,
+    SettingSectionHotKey,
+    SettingSectionData,
+    SettingSectionNetwork,
+    SettingSectionAbout,
+    SettingSectionAdvanced,
   },
   setup() {
     const t = useI18n()

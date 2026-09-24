@@ -1,0 +1,51 @@
+<template lang="pug">
+dd
+  h3#play_lyric_main {{ $t('setting__play_lyric_main_title') }}
+  div
+    //- 下面 4 项（翻译 / 罗马音 / 调换 / 逐字）的 key 与桌面歌词窗是**同一个值**（附 B12 有意不拆）
+    .gap-top(data-setting-key="player.isShowLyricTranslation")
+      base-checkbox(id="setting_player_lyric_transition" :model-value="appSetting['player.isShowLyricTranslation']" :label="$t('setting__play_lyric_transition')" @update:model-value="updateSetting({'player.isShowLyricTranslation': $event})")
+    .gap-top(data-setting-key="player.isShowLyricRoma")
+      base-checkbox(id="setting_player_lyric_roma" :model-value="appSetting['player.isShowLyricRoma']" :label="$t('setting__play_lyric_roma')" @update:model-value="updateSetting({'player.isShowLyricRoma': $event})")
+    .gap-top(data-setting-key="player.isSwapLyricTranslationAndRoma")
+      base-checkbox(id="setting_player_awap_lyric_trans_roma" :model-value="appSetting['player.isSwapLyricTranslationAndRoma']" :label="$t('setting__player_swap_lyric_trans_roma')" @update:model-value="updateSetting({'player.isSwapLyricTranslationAndRoma': $event})")
+    .gap-top(data-setting-key="player.isPlayLxlrc")
+      base-checkbox(id="setting_player_lyric_play_lxlrc" :model-value="appSetting['player.isPlayLxlrc']" :label="$t('setting__play_lyric_lxlrc')" @update:model-value="updateSetting({'player.isPlayLxlrc': $event})")
+      svg-icon(class="help-icon" name="help-circle-outline" :aria-label="$t('setting__play_lyric_lxlrc_tip')" :title="$t('setting__play_lyric_lxlrc_tip')")
+    //- 是转换不是显示开关：它同时影响**下载的歌词**（文案由票 11 注明）
+    .gap-top(data-setting-key="player.isS2t")
+      base-checkbox(id="setting_player_lyric_s2t" :model-value="appSetting['player.isS2t']" :label="$t('setting__play_lyric_s2t')" @update:model-value="updateSetting({'player.isS2t': $event})")
+    //- 主窗「当前行放大」；与桌面歌词的 desktopLyric.style.isZoomActiveLrc 是两个独立开关
+    .gap-top(data-setting-key="playDetail.isZoomActiveLrc")
+      base-checkbox(id="setting_play_detail_font_zoom_enable" :model-value="appSetting['playDetail.isZoomActiveLrc']" :label="$t('setting__play_detail_font_zoom')" @update:model-value="updateSetting({'playDetail.isZoomActiveLrc': $event})")
+    //- 逐行滚动延迟 600ms；与桌面歌词的 desktopLyric.isDelayScroll 同名不同物
+    .gap-top(data-setting-key="playDetail.isDelayScroll")
+      base-checkbox(id="setting_play_detail_lyric_delayScroll" :model-value="appSetting['playDetail.isDelayScroll']" :label="$t('setting__play_detail_lyric_delay_scroll')" @update:model-value="updateSetting({ 'playDetail.isDelayScroll': $event })")
+    //- 主窗歌词对齐；歌词右键菜单里有同一项的入口（改的是同一个值），与桌面歌词那份独立
+    div.gap-top(data-setting-key="playDetail.style.align")
+      .p.small {{ $t('setting__play_detail_align') }}
+      div
+        base-checkbox.gap-left(id="setting_play_detail_align_left" :model-value="appSetting['playDetail.style.align']" need value="left" :label="$t('setting__play_detail_align_left')" @update:model-value="updateSetting({ 'playDetail.style.align': $event })")
+        base-checkbox.gap-left(id="setting_play_detail_align_center" :model-value="appSetting['playDetail.style.align']" need value="center" :label="$t('setting__play_detail_align_center')" @update:model-value="updateSetting({ 'playDetail.style.align': $event })")
+        base-checkbox.gap-left(id="setting_play_detail_align_right" :model-value="appSetting['playDetail.style.align']" need value="right" :label="$t('setting__play_detail_align_right')" @update:model-value="updateSetting({ 'playDetail.style.align': $event })")
+    //- 允许拖拽歌词 seek（误拖会跳歌位，关掉可防手滑）
+    .gap-top(data-setting-key="playDetail.isShowLyricProgressSetting")
+      base-checkbox(id="setting_play_detail_lyric_progress_enable" :model-value="appSetting['playDetail.isShowLyricProgressSetting']" :label="$t('setting__play_detail_lyric_progress')" @update:model-value="updateSetting({'playDetail.isShowLyricProgressSetting': $event})")
+    //- `playDetail.style.fontSize`（主窗歌词字号，只在歌词右键菜单里能改）按元数据属本组第 10 项，
+    //- 浮层入口由票 05 补，本票不放占位控件（会多出一个点不动的死项）
+</template>
+
+<script>
+import { appSetting, updateSetting } from '@renderer/store/setting'
+
+/** 播放 → 歌词显示（主窗）（`play_lyric_main`）：SettingPlay.vue 的 5 个歌词开关 + SettingPlayDetail.vue 全部。 */
+export default {
+  name: 'PlayLyricMain',
+  setup() {
+    return {
+      appSetting,
+      updateSetting,
+    }
+  },
+}
+</script>

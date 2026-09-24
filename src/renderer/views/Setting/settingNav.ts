@@ -79,26 +79,22 @@ export const SETTING_NAV_TREE: readonly NavTreeNode[] = SETTING_NAV_GROUPS.map(g
 }))
 
 /**
- * 每节的内容由哪些**旧节组件**渲染（值就是 `index.vue` 的 `components:` 里注册的组件名）。
+ * 每节的内容由哪个组件渲染（值就是 `index.vue` 的 `components:` 里注册的组件名，一个节一个组件）。
  *
- * ⚠️ 这是**票 03 逐节归位前的临时桥**，不是新结构：票 03 会让「一节 = 一个组件文件」，
- * 那时这张表删掉、`<component :is>` 直接用节 id。之所以现在就要一张表，是因为左栏已经换成
- * 元数据的 10 节（`my_music` / `data` / `about` / `advanced` 是四个新节、旧仓里没有对应组件），
- * 没有这张表就有内容在中途不可达。
- *
- * 表的覆盖性由单测钉住：值的并集必须**等于**旧节全集（`LEGACY_SECTION_MAP` 的键），
- * 谁被漏掉就失败——中间态也不许丢入口。
+ * 票 03 已完成逐节归位：内容在 `components/sections/<节 id>/index.vue`，按元数据的分组顺序摆好，
+ * 分组锚点 id = `group.id`、每个设置项带 `data-setting-key`。旧的 17 个节组件**已从内容区退场**
+ * （文件仍在 `components/` 下，票 04 收尾时删），所以这张表不再背「旧组件不许丢」的约束——
+ * 单测改为钉「每个节都有组件文件、且旧组件不再挂在任何节上」。
  */
 export const SECTION_CONTENT: Readonly<Record<string, readonly string[]>> = {
-  appearance: ['SettingBasic'],
-  play: ['SettingPlay', 'SettingPlayDetail'],
-  desktop_lyric: ['SettingDesktopLyric'],
-  download: ['SettingDownload'],
-  // 旧仓里 QQ 账号 / 列表 / 搜索 / 强迫症是四个独立节，按元数据的分组顺序叠在这里
-  my_music: ['SettingQQAuth', 'SettingList', 'SettingSearch', 'SettingOdc'],
-  hot_key: ['SettingHotKey'],
-  data: ['SettingOther', 'SettingBackup'],
-  network: ['SettingNetwork'],
-  about: ['SettingUpdate', 'SettingAbout'],
-  advanced: ['SettingOpenAPI', 'SettingSync'],
+  appearance: ['SettingSectionAppearance'],
+  play: ['SettingSectionPlay'],
+  desktop_lyric: ['SettingSectionDesktopLyric'],
+  download: ['SettingSectionDownload'],
+  my_music: ['SettingSectionMyMusic'],
+  hot_key: ['SettingSectionHotKey'],
+  data: ['SettingSectionData'],
+  network: ['SettingSectionNetwork'],
+  about: ['SettingSectionAbout'],
+  advanced: ['SettingSectionAdvanced'],
 }
