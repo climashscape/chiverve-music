@@ -28,7 +28,7 @@ import songList, { readWriteResult } from './songList'
  * 真实接口不在测试里打（本机约定：不伪造凭证、不打真接口）；A/B 的原始记录见票 09 的验证节。
  */
 
-const { txCgi, getFavDirTid } = vi.hoisted(() => ({ txCgi: vi.fn(), getFavDirTid: vi.fn() }))
+const { txCgi, getFavDirTid, httpFetch } = vi.hoisted(() => ({ txCgi: vi.fn(), getFavDirTid: vi.fn(), httpFetch: vi.fn() }))
 
 // `buildComm` 保留 profile 入参并把档案名带进 comm：本文件的第一条钉子就是「dirId=201 必须走
 // 安卓档案」（真实现见 `utils/request.js` 的 `buildComm(credential, profile)`）。
@@ -38,8 +38,8 @@ vi.mock('./utils/request', () => ({
   requireCredential: async() => ({ musicid: '10000', encryptUin: 'e' }),
 }))
 // 读取侧用的渲染侧请求层（needle 的 `httpFetch`）：它一 import 就拉 `@renderer/store`
-// ——node 环境没有 `window`。本文件只碰写侧（走 txCgi），给个空实现即可。
-vi.mock('../../request', () => ({ httpFetch: vi.fn() }))
+// ——node 环境没有 `window`。写侧不碰它；分享链接那组用例靠它钉「有没有真的发请求」。
+vi.mock('../../request', () => ({ httpFetch }))
 // tx/user.js 整块换掉：本文件只验「写侧怎么用 tid」，取 tid 本身（读侧）在 user.test.ts 钉
 vi.mock('./user', () => ({ default: { getFavDirTid }, FAV_DIR_ID: 201 }))
 // `../../index` 是渲染侧 utils 总入口，模块顶层就 `document.getElementsByTagName('title')`
@@ -71,6 +71,36 @@ beforeEach(() => {
   vi.clearAllMocks()
   getFavDirTid.mockResolvedValue(3802852742)
   txCgi.mockReturnValue(node({ code: 0, data: { retCode: 0, result: {} } }))
+})
+
+describe('tx/songList 的分享链接解析（handleParseId 的域名白名单）', () => {
+  it('非 QQ 域的链接一律拒绝，且**一个请求都不发**（深链能把任意 URL 送到这里 = 盲 SSRF）', async() => {
+    for (const link of [
+      'http://127.0.0.1:23330/collect', // 本应用自己的 OpenAPI（改状态端点）
+      'http://192.168.1.1/admin', // 内网
+      'http://evil.example/x/playlist/1',
+      'http://notqq.com/playlist/1', // 锚定正则：不能被 endsWith('qq.com') 放过
+      'file:///etc/passwd', // 非 http(s)
+    ]) {
+      await expect(songList.handleParseId(link)).rejects.toThrow()
+    }
+    expect(httpFetch).not.toHaveBeenCalled()
+  })
+
+  it('QQ 域的分享链接照常解析：跟随跳转拿回带 id 的地址', async() => {
+    httpFetch.mockReturnValue(node({ headers: { location: 'https://y.qq.com/n/ryqq/playlist/12345' }, statusCode: 302 }))
+
+    await expect(songList.handleParseId('https://c6.y.qq.com/base/fcgi-bin/u?__=abc123'))
+      .resolves.toBe('https://y.qq.com/n/ryqq/playlist/12345')
+    expect(httpFetch).toHaveBeenCalledWith('https://c6.y.qq.com/base/fcgi-bin/u?__=abc123')
+  })
+
+  it('没有跳转时原样返回链接（原有行为不变）', async() => {
+    httpFetch.mockReturnValue(node({ headers: {}, statusCode: 200 }))
+
+    await expect(songList.handleParseId('https://i.y.qq.com/n2/m/share/details/taoge.html?id=1'))
+      .resolves.toBe('https://i.y.qq.com/n2/m/share/details/taoge.html?id=1')
+  })
 })
 
 describe('tx/songList 的「我喜欢」写入', () => {

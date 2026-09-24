@@ -10,6 +10,26 @@ import user, { FAV_DIR_ID } from './user'
 const SONG_WRITE_MODULE = 'music.musicasset.PlaylistDetailWrite'
 
 /**
+ * 分享链接的**域名白名单**（`handleParseId` 的闸）。
+ *
+ * 为什么必须有：`handleParseId` 直接拿外部串去 `httpFetch`，而它的入口之一是「贴一条分享链接」——
+ * 深链 `chiverve-music://songlist/open?url=…`（以及 `page/open?songlist=…`）也能把**任意 URL**
+ * 送到这里。不设闸就是一条**盲 SSRF**：请求不带凭证、响应也不回传，但足以让本机去 GET 内网 /
+ * 本机 localhost 的任意端点（例如本应用自己的 OpenAPI `127.0.0.1:23330` 的 `/collect`、`/skip-next`）。
+ *
+ * 真链接都是 QQ 域的分享页（`y.qq.com` / `c6.y.qq.com` / `i.y.qq.com` …），所以按「`qq.com` 及其
+ * 子域」放行。⚠️ 用锚定的正则而不是 `endsWith('qq.com')`：后者会放过 `notqq.com` 这种域。
+ */
+const isAllowedShareLink = (link) => {
+  try {
+    const url = new URL(link)
+    return (url.protocol === 'http:' || url.protocol === 'https:') && /(^|\.)qq\.com$/.test(url.hostname)
+  } catch {
+    return false
+  }
+}
+
+/**
  * 写接口要带的「我喜欢」tid——**拿不到就回 0**（= 旧行为）。
  *
  * 真机 A/B（2026-09-24）已证 **tid 不是成败变量**：给 0 时服务端会自己解析成真实 tid
@@ -276,6 +296,8 @@ export default {
   },
 
   async handleParseId(link, retryNum = 0) {
+    // 闸装在 sink 上：只在深链入口做动作白名单挡不住已知之外的向量（理由见 isAllowedShareLink）
+    if (!isAllowedShareLink(link)) throw new Error('link not allowed')
     if (retryNum > 2) return Promise.reject(new Error('link try max num'))
 
     const requestObj_listDetailLink = httpFetch(link)
