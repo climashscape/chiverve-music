@@ -841,7 +841,6 @@
   "theme_selector_modal__title": "Follow System Theme Options",
   "theme_selector_modal__title_tip": "NOTE: You can set a light theme and a dark theme in advance, and then it will automatically switch to the corresponding theme you set in advance according to the light and dark theme colors of the system.",
   "toggle_source_failed": "Can't play this song: no playable link was found. Please try again from the search page later.",
-  "user_api__allow_show_update_alert": "Allow update popup to show",
   "user_api__btn_export": "Export",
   "user_api__btn_import": "Import from Local File",
   "user_api__btn_import_online": "Import from Network",

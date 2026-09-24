@@ -841,7 +841,6 @@
   "theme_selector_modal__title": "跟随系统主题设置",
   "theme_selector_modal__title_tip": "注：你可以预先设置一个亮色主题及暗色主题，此后将根据系统的亮、暗主题色自动切换为你预先设置的相应主题。",
   "toggle_source_failed": "无法播放该歌曲：未找到可用的播放链接，请稍后在搜索页重试",
-  "user_api__allow_show_update_alert": "允许显示更新弹窗",
   "user_api__btn_export": "导出",
   "user_api__btn_import": "本地导入",
   "user_api__btn_import_online": "在线导入",

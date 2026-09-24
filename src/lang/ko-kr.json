@@ -841,7 +841,6 @@
   "theme_selector_modal__title": "시스템 테마 따르기 옵션",
   "theme_selector_modal__title_tip": "참고: 라이트 테마와 다크 테마를 미리 설정해 두면 시스템의 라이트/다크 모드에 따라 자동으로 미리 설정한 테마로 전환됩니다.",
   "toggle_source_failed": "이 곡을 재생할 수 없습니다: 재생 가능한 링크를 찾지 못했습니다. 잠시 후 검색 페이지에서 다시 시도하세요.",
-  "user_api__allow_show_update_alert": "업데이트 팝업 표시 허용",
   "user_api__btn_export": "내보내기",
   "user_api__btn_import": "로컬 파일에서 가져오기",
   "user_api__btn_import_online": "네트워크에서 가져오기",
