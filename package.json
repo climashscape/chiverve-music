@@ -45,9 +45,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "postinstall": "node build-config/postinstall.js",
-    "dp": "cross-env ELECTRON_GET_USE_PROXY=true GLOBAL_AGENT_HTTPS_PROXY=http://127.0.0.1:2081 npm run pack",
-    "up": "cross-env ELECTRON_GET_USE_PROXY=true GLOBAL_AGENT_HTTPS_PROXY=http://127.0.0.1:2081 npm i"
+    "postinstall": "node build-config/postinstall.js"
   },
   "browserslist": [
     "Electron 22.3.0"
