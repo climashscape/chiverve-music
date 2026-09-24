@@ -85,7 +85,9 @@ npm run lint     # eslint（TS 文件在 build 期不跑 lint，改了 TS 要单
 npm run build && npm run pack:linux:deb:amd64   # → build/chiverve-music_<版本>_amd64.deb
 ```
 
-**平台约束**：macOS 的 dmg 只能在 macOS 上构建（且需要 `icon.icns` 与签名相关工具）；Windows 目标在 Linux 上构建还要 wine 与 winCodeSign；deb / rpm / pacman / AppImage 可在 Linux 本机构建。`pack:linux:*` 这类脚本**不含** `npm run build`，必须先构建再打包。
+**平台约束**：macOS 的 dmg 只能在 macOS 上构建；deb / rpm / pacman / AppImage **以及 Windows 的绿色版（`npm run pack:win:7z:x64`）** 都可在 Linux 本机构建；**Windows 的 NSIS 安装包**（`pack:win:setup:*` / `pack:win:portable:*`）额外需要一份能跑起来的 wine（宿主装的，或 electron-builder 自带的 wine 工具链）。`pack:*` 这类脚本**不含** `npm run build`，必须先构建再打包。
+
+在 Linux 上构建 Windows 目标时有两处坑，**本仓库的构建配置已经处理好**（不用你手动折腾）：`@electron/rebuild` 会去拉 Windows 的预编译件（受限网络下必中断）——已对 win 目标关掉；`better_sqlite3.node` 必须是 Windows 的那份——已按**目标平台**自动换入（`build-config/lib/` 里备了各平台的预编译件）。
 
 装机与卸载（Debian / Ubuntu / Mint）：
 

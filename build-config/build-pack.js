@@ -68,6 +68,14 @@ const options = {
  * @see https://www.electron.build/configuration/configuration
  */
 const winOptions = {
+  // Windows 目标**关掉 @electron/rebuild**（2026-09-24 实测加的）：
+  // 默认它会为本机的原生模块去拉「Windows 预编译件」，而在受限网络下这一步必中断
+  // （`ReadError: The server aborted pending request`，卡在 `preparing moduleName=bufferutil`）。
+  // 本仓库本来就不需要它：`deps.copyLib()` / `build-config/lib/` 里已备好各平台的
+  // better-sqlite3 预编译件（含 `better_sqlite3_win32-x64.node`），打包前换进去即可。
+  // ⚠️ 所以打 Windows 包**必须在打包前把 win32 的原生件换进 node_modules**（见
+  // `docs/agents/build-and-pack.md` §7.3 的 Windows 一节）；关掉 rebuild 不会替你换。
+  npmRebuild: false,
   win: {
     icon: './resources/icons/icon.ico',
     legalTrademarks: 'climashscape',

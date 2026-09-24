@@ -35,6 +35,23 @@ module.exports = async(context) => {
   const { arch } = context
   const electronVersion = context.packager?.info?._framework?.version ?? require('../package.json').devDependencies.electron.replace(/^[^\d]*?(\d+)/, '$1')
   await copyLib(archMap[arch], parseInt(electronVersion) == 22)
+  // 在 Linux 上打 **Windows** 包时，上面的 copyLib 会按**本机**平台把 better_sqlite3 覆盖成 ELF
+  // （`replaceSqliteLib` 里写的是 `process.platform`），打进 win 包里上机必崩。
+  // 这里按**目标平台**再覆盖一次——仓库已备好各平台的预编译件（`build-config/lib/`）。
+  // 打法与其余坑见 docs/agents/build-and-pack.md §7.3 的 Windows 一节。
+  if (context.electronPlatformName === 'win32') {
+    const fsp = require('node:fs/promises')
+    const nodePath = require('node:path')
+    const winLib = nodePath.join(__dirname, `lib/better_sqlite3_win32-${archMap[arch]}.node`)
+    const target = nodePath.join(__dirname, '../node_modules/better-sqlite3/build/Release/better_sqlite3.node')
+    try {
+      await fsp.copyFile(winLib, target)
+      console.log(`[before-pack] 目标 win32：已换入 ${nodePath.basename(winLib)}`)
+    } catch (err) {
+      console.error('[before-pack] 换入 win32 原生件失败', err)
+      throw err
+    }
+  }
   // const electronNodeAbi = nodeAbi.getAbi(electronVersion, 'electron')
   // if (electronPlatformName !== 'linux' || process.env.FORCE) return
   // // const bindingFilePath = path.join(__dirname, '../node_modules/better-sqlite3/binding.gyp')
