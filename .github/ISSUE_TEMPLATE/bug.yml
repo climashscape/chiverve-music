@@ -1,0 +1,50 @@
+name: Bug report
+description: 报告一个可复现的问题
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ⚠️ 本仓库**仅研究用途，不对外发布任何打包版**（见 `docs/adr/0008-research-only-no-packaged-releases.md`）：
+        请先按 `README.md` 自行构建，再用**你自己构建的版本**复现。
+
+        🔴 **不要在 issue 里粘贴凭证**（token / cookie / musickey / refreshKey）、QQ 号或本机绝对路径。
+        日志请先删掉这些信息再贴。
+  - type: textarea
+    id: what
+    attributes:
+      label: 现象
+      description: 实际发生了什么？你期望的是什么？
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. …
+        2. …
+        3. …
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: 版本
+      description: 「设置 → 关于 → 当前版本」显示的值，以及你是 `npm run dev` 还是自己打的包
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: 系统与 Node 版本
+      description: 例如 Linux Mint 22.3 / Node 22.19.0
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志（可选，记得先脱敏）
+      description: '`~/.config/chiverve-music/logs/main.log`（开发版在 `chiverve-music-dev`）；`grep -a` 读，因为日志带 ANSI 颜色码'
+      render: text
+    validations:
+      required: false

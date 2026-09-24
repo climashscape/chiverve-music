@@ -1,7 +1,7 @@
 {
   "name": "chiverve-music",
   "version": "2.12.6",
-  "description": "基于 LX Music 改造的 QQ 音乐桌面客户端",
+  "description": "A QQ Music desktop client, forked from LX Music (source-only, research use)",
   "main": "./dist/main.js",
   "scripts": {
     "pack": "node build-config/pack.js && npm run pack:win:setup:x64",

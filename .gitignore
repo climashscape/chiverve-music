@@ -79,3 +79,11 @@ src/**/*-internal.js
 
 # 本地工单与探索笔记：只留本机，不入公开历史（2026-09-24 用户定；历史已用 git filter 重写去掉）
 .scratch/
+
+# 编辑器 / 操作系统杂项（公开仓库的第一个 macOS 贡献者最容易带上 .DS_Store）
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+*.swp
+*~

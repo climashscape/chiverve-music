@@ -5,7 +5,10 @@ import fs from 'node:fs/promises'
 import { checkPath } from '@common/utils/nodejs'
 
 const getTempDir = async() => {
-  const tempDir = path.join(os.tmpdir(), 'lxmusic_temp')
+  // 解出的歌词/封面中转目录。名字 2026-09-24 从上游的 `lxmusic_temp` 换成本产品的——
+  // 它是全仓唯一拿上游名字当**文件系统路径**的地方，装过上游版时两边会共用同一个 /tmp 子目录。
+  // 换名只影响中转：老目录里残留的临时文件不会被清理，但也没有别的引用方。
+  const tempDir = path.join(os.tmpdir(), 'chiverve-music_temp')
   if (!await checkPath(tempDir)) {
     await fs.mkdir(tempDir, { recursive: true })
   }

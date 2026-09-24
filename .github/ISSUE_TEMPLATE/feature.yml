@@ -1,0 +1,36 @@
+name: Feature request
+description: 提一个功能或改造建议
+body:
+  - type: markdown
+    attributes:
+      value: |
+        本仓库是**单源 QQ 音乐客户端**（`docs/adr/0003-single-source-qq-music-only.md`）：不做多源选择器，
+        加源属于要改 ADR 的事。另外**只发源码、不发打包版**（ADR-0008），所以「出个安装包」之类的请求不会被接受。
+
+        提之前可以先看一眼 `docs/agents/status.md` 的「功能边界」表与 `CONTEXT.md` 的术语表——
+        有些能力是**有意不做**的（那里写了理由）。
+  - type: textarea
+    id: want
+    attributes:
+      label: 想要什么
+      description: 一句话说清你要的那个能力；如果涉及 QQ 侧端点，写明你验证过的端点现状（module / method / 读还是写）
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: 使用场景
+      description: 你现在怎么绕过它？这个能力解决了什么？
+    validations:
+      required: true
+  - type: dropdown
+    id: scope
+    attributes:
+      label: 属于哪一类
+      options:
+        - 新页面 / 新入口
+        - 现有页面改造
+        - 能力缺口（需要新端点，可能要先用真账号探）
+        - 文档 / 构建 / 其他
+    validations:
+      required: true
