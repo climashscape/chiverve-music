@@ -15,7 +15,7 @@
 > - **与上游的关系**：本仓库**不跟随上游 rebase**；已配置 `upstream` remote，上游的接口修复按需 `git cherry-pick`（见 `docs/agents/upstream.md`）。
 > - **版权**：代码沿用上游 Apache-2.0 许可证。**上游署名与协议全文完整保留**（`LICENSE` 与 `licenses/`；后者含上游补充条款：禁止违法使用、非商业性质、版权数据 24 小时内清除）。
 > - **第三方内容与署名**：随本仓库入库的第三方内容（Agent Skills、better-sqlite3 预编译二进制、上游打过补丁的 fork 依赖、上游本体）的出处、许可类型与落点，汇总在 [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md)。
-> - **协作口径**：**欢迎在 [Issues](https://github.com/climashscape/chiverve-music/issues) 报问题**（bug、构建失败、文档错漏都收）；但本仓库是单人业余维护的研究项目，**不承诺接受外部 PR，也不承诺响应时限**。安全问题请走 `SECURITY.md`。
+> - **协作口径**：**欢迎报 Issues，也欢迎提 PR**——bug、构建失败、文档错漏、改进都收（[Issues](https://github.com/climashscape/chiverve-music/issues)）。但本仓库是单人业余维护的研究项目，**不承诺响应时限**；提 PR 前请先扫一眼 `AGENTS.md`（代码风格、验证阶梯与红线都在那里），并在 PR 里写清**你是怎么验证的**。安全问题请走 `SECURITY.md`。
 
 ## 自行构建
 
