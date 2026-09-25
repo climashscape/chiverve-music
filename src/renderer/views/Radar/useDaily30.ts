@@ -2,6 +2,7 @@ import { markRawList, reactive, ref } from '@common/utils/vueTools'
 import { deduplicationList, toNewMusicInfo } from '@renderer/utils'
 import music from '@renderer/utils/musicSdk'
 import type { RadarBlock } from './useRadar'
+import { refillPlayQueueForBatch } from './queueBatch'
 
 /**
  * 雷达页 →「每日30首」Tab 的取数（2026-09-23 交互与 IA 修复批次 2 / 票 04）。
@@ -70,6 +71,8 @@ const loadDaily30 = async() => {
     daily.page = 1
     daily.hasMore = false
     daily.noItemLabel = daily.list.length ? '' : t('no_item')
+    // 「换一批」= 换队列（票 02 的语义 A，两个 tab 同一套）：本 tab 的重拉同样要同步队列
+    await refillPlayQueueForBatch(songs, DAILY_30_QUEUE_ID)
   } catch (err: any) {
     if (dailyKey !== key) return
     console.log('[radar] loadDaily30', err)

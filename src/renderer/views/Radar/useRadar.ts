@@ -5,6 +5,7 @@ import { addListMusics, getListMusicsFromCache } from '@renderer/store/list/acti
 import { tempListMeta } from '@renderer/store/list/state'
 import { playInfo } from '@renderer/store/player/state'
 import music from '@renderer/utils/musicSdk'
+import { refillPlayQueueForBatch } from './queueBatch'
 
 /**
  * 雷达页（`/radar`）取数。数据来自 `GetRadarSong`（`tx/recommend.js` 的 getRadarRecommend），
@@ -136,7 +137,11 @@ const loadRadar = async(page = 1, more = false) => {
     if (more) {
       appendSongs(songs)
       await appendToPlayQueue(songs)
-    } else setSongs(songs)
+    } else {
+      setSongs(songs)
+      // 「换一批」= 换队列（票 02 的语义 A）：正在播雷达队列时把新一屏灌进去，当前这首继续播
+      await refillPlayQueueForBatch(songs, RADAR_QUEUE_ID)
+    }
     radar.page = page
     radar.hasMore = res?.hasMore === true
     radar.noItemLabel = radar.list.length ? '' : t('no_item')
