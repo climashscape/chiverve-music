@@ -212,3 +212,59 @@ describe('tx/songList 的 readWriteResult 判读表', () => {
     expect(readWriteResult({ code: '', data: { retCode: 0 } }).ok).toBe(false)
   })
 })
+
+/**
+ * 歌单详情的「总数」**接线**（ui-polish-followups 票 17 接缝 1 的调用点侧）。
+ *
+ * 解析本身在 `utils/songlistTotal.test.ts` 钉；这里钉的是本文件确实用它、且**兜底值是本页条数**
+ * （`list.length`）——`tx/user.js` 的 `getFavSong` 那一侧兜底 0，两处不同，别在重构时被「统一」掉。
+ *
+ * 期望值来源：真机读数（「我喜欢」`total_song_num=928`、每页 30 条；见 `user.test.ts` 头部记录），
+ * 原始响应形状按 `qq-music-native.md` 的 `CgiGetDiss` 记录（`data.dirinfo` + `data.songlist` +
+ * `data.total_song_num` + `data.songlist_size`）。
+ */
+describe('tx/songList 的歌单详情总数（getListDetailByCgi）', () => {
+  /** `createSong` 要读的字段（`tx/utils/song.js`）：id / mid / title / singer / album / file */
+  const RAW_SONG = {
+    id: 280251533,
+    mid: '001Qu4J42yg8uu',
+    type: 0,
+    title: '歌名',
+    interval: 180,
+    singer: [{ name: '歌手', mid: 'singer1' }],
+    album: { mid: 'album1', name: '专辑' },
+    file: { media_mid: 'media1', size_128mp3: 1024 },
+  }
+
+  it('总数取 total_song_num，不取 songlist_size（本页 30 条时总数不是 30）', async() => {
+    txCgi.mockReturnValue(node({
+      code: 0,
+      data: {
+        dirinfo: { title: '我喜欢', picurl: '', desc: '', listennum: 0 },
+        songlist: [RAW_SONG],
+        total_song_num: 928,
+        songlist_size: 30,
+      },
+    }))
+
+    const res = await songList.getListDetailByCgi('3802852742')
+
+    expect(res.total).toBe(928)
+    // 本页只有 1 条（只造了 1 条）——928 只能来自 total_song_num
+    expect(res.list).toHaveLength(1)
+  })
+
+  it('total_song_num 缺失 → 兜底本页条数（本文件传的是 list.length，不是 0）', async() => {
+    txCgi.mockReturnValue(node({
+      code: 0,
+      data: {
+        dirinfo: { title: '歌单' },
+        songlist: [RAW_SONG, { ...RAW_SONG, id: 280251534, mid: 'mid2' }],
+      },
+    }))
+
+    const res = await songList.getListDetailByCgi('123')
+
+    expect(res.total).toBe(2)
+  })
+})

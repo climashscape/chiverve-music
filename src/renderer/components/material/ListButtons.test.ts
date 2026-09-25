@@ -126,3 +126,33 @@ describe('components/material/ListButtons.vue 的「我喜欢」键', () => {
     expect(heartBtn(wrapper).exists()).toBe(false)
   })
 })
+
+/**
+ * 行内**移除键**的可用性（ui-polish-followups 票 17 接缝 3 的「移除」那一半）。
+ *
+ * 契约：这一键**不自己判来源**——可用性完全由宿主给的 `removeBtn` 决定，语义由 `removeLabel` 给。
+ * 现场（「本地 vs 在线」就是在这里分的）：
+ *   - 在线表（`OnlineList/index.vue:117-119`）由宿主的 `show-remove-btn` 决定：收藏页传
+ *     「取消喜欢」（`QqFavList.vue`）、云端歌单传「移除歌曲」（`CloudListPane.vue`）；
+ *   - 本地表（`ListMusicTable`）**不给**这个键，移除走右键菜单的 `list__remove`。
+ * 所以「哪些歌/哪个列表能移除」在宿主那层，本组件只保证「不给就不渲染死键」。
+ *
+ * 期望值来源：`ListButtons.vue:54` 的 `v-if="removeBtn"` 与
+ * `:aria-label="removeLabel || $t('list__remove')"`；使用现场见上面两个宿主的模板。
+ */
+describe('components/material/ListButtons.vue 的「移除」键', () => {
+  it('宿主开了 removeBtn 才渲染：文案优先用 removeLabel（取消喜欢 / 移除歌曲），空则落 list__remove', () => {
+    const withLabel = mountBtns({ musicInfo: txSong('1'), removeBtn: true, removeLabel: 'list__unlove' })
+    expect(btnByLabel(withLabel, 'list__unlove')).toBeTruthy()
+
+    const withoutLabel = mountBtns({ musicInfo: txSong('1'), removeBtn: true })
+    expect(btnByLabel(withoutLabel, 'list__remove')).toBeTruthy()
+  })
+
+  it('宿主没开（本地表那一侧）→ 不渲染这个键', () => {
+    // favBtn 关掉：本组件其余键默认也关（download 还要 appSetting 打开），此时按钮排应为空
+    const wrapper = mountBtns({ musicInfo: txSong('1'), favBtn: false })
+
+    expect(wrapper.findAll('button')).toHaveLength(0)
+  })
+})

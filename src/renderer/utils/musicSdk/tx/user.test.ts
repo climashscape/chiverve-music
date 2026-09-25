@@ -32,7 +32,13 @@ vi.mock('./musicSearch', () => ({ default: { musicSearch: vi.fn() } }))
 // 两者解析到的是同一个模块，这里按前者的写法注册即可。
 vi.mock('../../index', async() => {
   const common = await import('@common/utils/common')
-  return { ...common, formatPlayCount: (num: unknown) => String(num) }
+  return {
+    ...common,
+    formatPlayCount: (num: unknown) => String(num),
+    // `musicSdk/utils.js` 的 formatSingerName 会用它（`createSong` 的歌手名走那条路）——
+    // 本文件新加的 getFavSong 用例会真的造出歌曲对象，所以给个同名实现（同 songList.test.ts）
+    decodeName: (str: unknown) => str,
+  }
 })
 
 const node = (payload: Record<string, unknown>) => ({
@@ -143,5 +149,58 @@ describe('tx/user 的 getFavSongIds（收藏态全量 id 集合）', () => {
     expect(ids).toHaveLength(1800)
     expect(log).toHaveBeenCalledWith('[tx] 我喜欢的 id 集合撞到页数上限，可能截断', expect.objectContaining({ ids: 1800 }))
     spy.mockRestore()
+  })
+})
+
+/**
+ * 「我喜欢」的**总数接线**（ui-polish-followups 票 17 接缝 1 的调用点侧）。
+ *
+ * 解析本身在 `utils/songlistTotal.test.ts` 钉；这里钉本文件确实用它、且**兜底值是 0**
+ * （`tx/songList.js` 的 `getListDetailByCgi` 那一侧兜底本页条数，两处不同，别被「统一」掉）。
+ * 这条不是纸上推演：`getFavSongIds` 的翻页结束判据就是它——取成本页条数会让 id 集合
+ * 只拉到第一页（收藏态误判 → 点「取消喜欢」反而去收藏）。
+ *
+ * 期望值来源：真机读数（「我喜欢」`total_song_num=928`、每页 30 条，见本文件头部记录），
+ * 响应形状按 `CgiGetDiss` 的记录（`data.dirinfo` + `data.songlist` + 总数字段）。
+ */
+describe('tx/user 的「我喜欢」总数（getFavSong）', () => {
+  /** `createSong` 要读的字段（`tx/utils/song.js`）：id / mid / title / singer / album / file */
+  const RAW_SONG = {
+    id: 280251533,
+    mid: '001Qu4J42yg8uu',
+    type: 0,
+    title: '歌名',
+    interval: 180,
+    singer: [{ name: '歌手', mid: 'singer1' }],
+    album: { mid: 'album1', name: '专辑' },
+    file: { media_mid: 'media1', size_128mp3: 1024 },
+  }
+
+  it('总数取 total_song_num，不取 songlist_size（本页 30 条时总数不是 30）', async() => {
+    txCgi.mockReturnValue(node({
+      code: 0,
+      data: {
+        dirinfo: { title: '我喜欢', picurl: '', desc: '', listennum: 0 },
+        songlist: [RAW_SONG],
+        total_song_num: 928,
+        songlist_size: 30,
+      },
+    }))
+
+    const res = await user.getFavSong(1, 30)
+
+    expect(res.total).toBe(928)
+    expect(res.list).toHaveLength(1)
+  })
+
+  it('total_song_num 缺失 → 兜底 0（本文件不拿本页条数当总数）', async() => {
+    txCgi.mockReturnValue(node({
+      code: 0,
+      data: { dirinfo: {}, songlist: [RAW_SONG] },
+    }))
+
+    const res = await user.getFavSong(1, 30)
+
+    expect(res.total).toBe(0)
   })
 })

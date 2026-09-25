@@ -1,5 +1,6 @@
 import { txCgi, buildComm, requireCredential } from './utils/request'
 import { createSong } from './utils/song'
+import { pickSonglistTotal } from './utils/songlistTotal'
 import musicSearch from './musicSearch'
 import { mapMusicGene, pickGeneSingerMid } from './utils/gene'
 
@@ -155,8 +156,8 @@ export default {
     return {
       list: (d.songlist ?? []).map(createSong),
       // 总数只能取 total_song_num：songlist_size 是**本页返回条数**（参考实现 models/songlist.py:55,63），
-      // 取错会让「我喜欢」永远显示成每页条数（50），后面的歌也翻不到
-      total: Number(d.total_song_num ?? d.songlist_size ?? 0),
+      // 取错会让「我喜欢」永远显示成每页条数（50），后面的歌也翻不到。口径与兜底实现在 utils/songlistTotal.js
+      total: pickSonglistTotal(d, 0),
       page,
       limit: num,
       source: 'tx',

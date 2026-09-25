@@ -2,6 +2,7 @@ import { httpFetch } from '../../request'
 import { decodeName, dateFormat, formatPlayCount } from '../../index'
 import { createSong } from './utils/song'
 import { txCgi, buildComm, requireCredential } from './utils/request'
+import { pickSonglistTotal } from './utils/songlistTotal'
 // 「我喜欢」的 dirId（201）与它的**真实 tid** 的解析都在 tx/user.js：读取侧（`getFavSong` 的
 // `dirid`）与写侧（本文件的 `likeSong`）必须用同一个目录，常量只留一份。
 import user, { FAV_DIR_ID } from './user'
@@ -461,8 +462,8 @@ export default {
       page,
       limit: num,
       // 总数只能取 total_song_num：songlist_size 是**本页返回条数**（参考实现 models/songlist.py:55,63），
-      // 取错会让分页永远停在第 1 页（每页 30 条时总数就显示 30）
-      total: Number(d.total_song_num ?? d.songlist_size ?? list.length),
+      // 取错会让分页永远停在第 1 页（每页 30 条时总数就显示 30）。口径与兜底实现在 utils/songlistTotal.js
+      total: pickSonglistTotal(d, list.length),
       source: 'tx',
       info: {
         name: dir.title ?? '',
