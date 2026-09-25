@@ -8,6 +8,7 @@
         :page="page"
         :limit="limit"
         :total="total"
+        :list-id="listId"
         check-api-source
         show-remove-btn
         :remove-label="$t('list__unlove')"
@@ -46,6 +47,12 @@ defineProps({
   total: {
     type: Number,
     required: true,
+  },
+  // 播放队列的身份（ui-polish-followups 工单 09）：由宿主传进来，与宿主自己那份 usePlay 用同一个
+  // 标识（`views/Favorites/components/SongsPanel.vue` 的 FAV_LIST_ID）——两条播放入口才落到一串队列上
+  listId: {
+    type: String,
+    default: '',
   },
 })
 defineEmits(['play-list', 'load-more', 'unlove'])

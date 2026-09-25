@@ -1,17 +1,17 @@
 import { useRouter } from '@common/utils/vueRouter'
-import musicSdk from '@renderer/utils/musicSdk'
-import { openUrl } from '@common/utils/electron'
 import { checkPath } from '@common/utils/nodejs'
 // import { dialog } from '@renderer/plugins/Dialog'
 // import { useI18n } from '@renderer/plugins/i18n'
 // import { appSetting } from '@renderer/store/setting'
-import { toOldMusicInfo } from '@renderer/utils/index'
+import useMusicJump from '@renderer/utils/compositions/useMusicJump'
 import { startDownloadTasks, pauseDownloadTasks, removeDownloadTasks } from '@renderer/store/download/action'
 import { openDirInExplorer } from '@renderer/utils/ipc'
 
 export default ({ list, selectedList, removeAllSelect }) => {
   const router = useRouter()
   // const t = useI18n()
+  // 「歌曲详情」与两个歌曲表共用一份（工单 03，见 useMusicJump 的 toSongDetail）
+  const { toSongDetail } = useMusicJump()
 
   const handleSearch = index => {
     const info = list.value[index].metadata.musicInfo
@@ -23,12 +23,15 @@ export default ({ list, selectedList, removeAllSelect }) => {
     })
   }
 
+  /**
+   * 「歌曲详情」：进本仓的歌曲详情页（工单 03）。
+   *
+   * 原来这里是 `getMusicDetailPageUrl` + `openUrl`——**打开 QQ 网页**，与两个歌曲表漂移成了两套行为。
+   * 现在共用 `useMusicJump` 的 `toSongDetail`（`task.metadata.musicInfo` 本来就是要的那个新式对象，
+   * 不必再过 `toOldMusicInfo`）；菜单项的显隐仍由 `useMenu.js` 的 sourceDetail 判据管。
+   */
   const handleOpenMusicDetail = index => {
-    const task = list.value[index]
-    const mInfo = toOldMusicInfo(task.metadata.musicInfo)
-    const url = musicSdk[mInfo.source]?.getMusicDetailPageUrl?.(mInfo)
-    if (!url) return
-    openUrl(url)
+    toSongDetail(list.value[index].metadata.musicInfo)
   }
 
   const handleStartTask = async(index, single) => {

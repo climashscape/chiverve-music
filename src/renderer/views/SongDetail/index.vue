@@ -24,7 +24,14 @@
           <p v-if="detail.albumMid" :class="[$style.meta, $style.link]" @click="toAlbum">{{ detail.albumName }}</p>
           <p v-else-if="detail.albumName" :class="$style.meta">{{ detail.albumName }}</p>
           <p :class="$style.meta">{{ detail.interval }}</p>
-          <p :class="[$style.meta, $style.link]" @click="handleOpenPlayDetail">{{ $t('song_detail__open_play_detail') }}</p>
+          <!--
+            「打开播放详情页」只在**正在播放的就是本页这首**时出现（ui-polish-followups 工单 05）。
+            播放详情是覆盖层，显示的永远是播放器里那首：什么都没在播时点开是空壳层，在播另一首时点开看到的是
+            别人（入口文案「打开播放详情页」会让人以为是自己这首）——两种都不给入口。
+            「在播的是另一首」也走隐藏、不做提示态：这条入口只有「回到正在播的那首」一种含义，
+            再加第二种语义就要另造一条文案（i18n 四语），收益不成比例。
+          -->
+          <p v-if="isPlayingThisSong" :class="[$style.meta, $style.link]" @click="handleOpenPlayDetail">{{ $t('song_detail__open_play_detail') }}</p>
         </div>
       </div>
 
@@ -40,7 +47,7 @@
         <p v-if="detail.desc" :class="$style.desc">{{ detail.desc }}</p>
       </section>
 
-      <!-- 相似歌曲：可播（加入试听列表并从该位置播放，与在线列表同一套） -->
+      <!-- 相似歌曲：可播（点单曲 = 从这首开始连播本列表，与在线列表同一套） -->
       <section :class="$style.section">
         <h3 :class="$style.title">{{ $t('song_detail__similar') }}</h3>
         <div :class="$style.songList">
@@ -50,6 +57,7 @@
             :limit="similar.limit"
             :total="similar.total"
             :no-item="similar.noItemLabel"
+            :list-id="`songDetail__similar__${mid}`"
             check-api-source
             @play-list="handlePlaySimilar"
           />
@@ -94,6 +102,7 @@
             :limit="otherVersions.limit"
             :total="otherVersions.total"
             :no-item="otherVersions.noItemLabel"
+            :list-id="`songDetail__versions__${mid}`"
             check-api-source
             @play-list="handlePlayOther"
           />
@@ -123,6 +132,7 @@ import { useRoute, useRouter } from '@common/utils/vueRouter'
 import usePlay from '@renderer/components/material/OnlineList/usePlay'
 import MvPlayerModal from '@renderer/components/common/MvPlayerModal.vue'
 import { player, openMv as openMvPlayer, closePlayer, retryUrl, type MvInfo } from '@renderer/store/mv'
+import { playMusicInfo } from '@renderer/store/player/state'
 import { setShowPlayerDetail } from '@renderer/store/player/action'
 import useMusicJump from '@renderer/utils/compositions/useMusicJump'
 import useSongDetail, { relatedMvs, relatedPlaylists } from './useSongDetail'
@@ -177,10 +187,26 @@ export default {
       jumpToSingerList(detail.singers, event)
     }
     // 回到播放详情（工单 02 的互跳；这一页原来整页没有可点元素）。
-    // 播放详情是覆盖层（不是路由），打开它即可——它显示的永远是「正在播放的那首」。
+    // 播放详情是覆盖层（不是路由），打开它即可——它显示的永远是「正在播放的那首」，
+    // 所以入口的显隐由 isPlayingThisSong 把关（工单 05），不在这里兜。
     const handleOpenPlayDetail = () => {
       setShowPlayerDetail(true)
     }
+    /**
+     * 「打开播放详情页」入口的判据（ui-polish-followups 工单 05）：**正在播放的就是本页这首**才显示。
+     * 判据读既有 store 值 `playMusicInfo.musicInfo`（不另造状态）；`meta.songId` 存的才是 songmid
+     * （见 `@common/utils/tools` 的 toNewMusicInfo），本地文件的 `songId` 是文件路径，所以还要比 source。
+     *
+     * ⚠️ `playMusicInfo.musicInfo` 的类型是 `ListItem | MusicInfo`（下载列表项 / 歌曲），
+     * 先按仓库既有写法用 `'progress' in` 把前者判掉（同 `core/music/index.ts:35`），
+     * 否则 `.source` / `.meta` 在这条联合上不存在（TS2339，构建期就报）。
+     */
+    const isPlayingThisSong = computed(() => {
+      const musicInfo = playMusicInfo.musicInfo
+      if (!musicInfo || 'progress' in musicInfo) return false
+      if (musicInfo.source != 'tx') return false
+      return !!detail.mid && musicInfo.meta.songId == detail.mid
+    })
     const toAlbum = () => {
       if (detail.albumMid) void router.push({ path: '/album', query: { mid: detail.albumMid } })
     }
@@ -206,6 +232,8 @@ export default {
     }
 
     return {
+      // 两个在线列表的 `:list-id` 要它（队列身份带 songmid，ui-polish-followups 工单 09）
+      mid,
       detail,
       similar,
       otherVersions,
@@ -223,6 +251,7 @@ export default {
       retryUrl,
       handleSingerClick,
       handleOpenPlayDetail,
+      isPlayingThisSong,
       isShowSingerPicker,
       singerPickerXy,
       singerPickerMenus,

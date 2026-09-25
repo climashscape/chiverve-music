@@ -9,6 +9,7 @@
         :limit="songs.limit"
         :total="songs.list.length"
         :no-item="songs.noItemLabel"
+        :list-id="queueListId()"
         check-api-source
         @play-list="handlePlaySongs"
       />
@@ -45,13 +46,32 @@ export default {
     // 懒加载入口：切进本 tab（含换歌手）时判一次要不要取；切回来已有缓存则不重复拉
     watch(() => props.mid, (mid) => { ensureSongsTab(mid) }, { immediate: true })
 
-    // 播放复用在线列表的同一套逻辑（加入试听列表并从该位置播放）。
-    // ⚠️ 传歌曲区块对象本身（不是 `{ list: songs.list }`）：usePlay 存的是 props.list 的数组
-    // 引用，区块内写回全部走 splice/push，所以引用一直有效（与 /album 同样的处理）。
+    /**
+     * 队列身份（ui-polish-followups 工单 09）：本 tab 的列表 = 这个歌手的歌，
+     * 所以用歌手的 mid（真实 id）。
+     *
+     * 写成函数、`listId` 用 getter，是因为这两个值都会在组件存活期间变：
+     * 面板不按 mid 重建（`Singer/index.vue` 的 `songs-panel` 没有 key，换歌手只换 prop），
+     * setup 时快照一个 id 会让第二个歌手仍用第一个歌手的队列身份。
+     */
+    const queueListId = () => `singer__songs__${props.mid}`
+    /**
+     * 交给 usePlay 的「列表 + 队列身份」。
+     *
+     * - `list` 存的是**数组引用**（usePlay 播放时现读 `props.list`）：本块的写回一律
+     *   `splice` / `push`（`useSinger.ts` 文件头第 2 条），引用一直有效；
+     * - `listId` 用 getter 现算，理由见 `queueListId`。
+     */
+    const playProps = {
+      list: songs.list,
+      get listId() { return queueListId() },
+    }
+
+    // 播放复用在线列表的同一套逻辑（点单曲 = 从这首开始连播本列表，工单 06 方案 B）
     const selectedList = ref<LX.Music.MusicInfoOnline[]>([])
     const { handlePlayMusic } = usePlay({
       selectedList,
-      props: songs,
+      props: playProps,
       removeAllSelect: () => { selectedList.value = [] },
       emit: () => {},
     })
@@ -59,6 +79,7 @@ export default {
 
     return {
       songs,
+      queueListId,
       handlePlaySongs,
       loadMoreSongs,
     }

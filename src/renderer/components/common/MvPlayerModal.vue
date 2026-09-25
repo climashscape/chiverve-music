@@ -138,7 +138,18 @@ export default {
     }
     // 点歌手名进歌手页：每一位自带 mid（详情/列表数据里就有），不用再请求
     const { jumpToSingerList } = useMusicJump()
-    const handleSingerJump = (item: JumpSinger) => { jumpToSingerList([item]) }
+    /**
+     * 点歌手名先关弹窗，再跳（ui-polish-followups 工单 04）。
+     *
+     * 不关的话它会**悬在歌手页上挡屏**：弹窗状态是 `store/mv` 的 `player.show`（四个调用方共用），
+     * 而 `material-modal` 是 `teleport="#view"`——路由切换不会卸载它，只有 `player.show` 变 false 才会关。
+     * 所以由弹窗自己 `emit('close')`（四个调用方都接了 `@close="closePlayer"`，一处改全部覆盖），
+     * 而不是去四个视图里各加一遍；顺带也停掉了正在播的 MV（`closePlayer` 会清 url）。
+     */
+    const handleSingerJump = (item: JumpSinger) => {
+      emit('close')
+      jumpToSingerList([item])
+    }
     // 「用系统播放器打开」= 交给系统默认处理程序：这里复用仓库的 openUrl 包装
     // （内部就是 `shell.openExternal`，另外带 http(s) 校验，@common/utils/electron.ts:19）。
     // ⚠️ https 直链在 Linux 上是由默认浏览器接管，不一定是桌面播放器。

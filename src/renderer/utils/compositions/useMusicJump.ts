@@ -15,6 +15,7 @@ import { useI18n } from '@renderer/plugins/i18n'
  * - 链接：歌曲用 `tx.getMusicDetailPageUrl`（原有），专辑用 `tx.getAlbumDetailPageUrl`（本票新补）
  * - 外链：`@common/utils/electron` 的 `openUrl`（与「我的歌单」页的「歌单详情页」同一套）
  * - 多位歌手让用户挑：仓库既有的 `base-menu`，不自造弹窗
+ * - 「歌曲详情」进**本仓**的 `/songDetail`（`toSongDetail`，工单 03）：三个列表共用，不再开 QQ 网页
  */
 export default () => {
   const router = useRouter()
@@ -22,6 +23,23 @@ export default () => {
 
   const toAlbum = (mid: string) => router.push({ path: '/album', query: { mid } })
   const toSinger = (mid: string) => router.push({ path: '/singer', query: { mid } })
+
+  /**
+   * 「歌曲详情」：进本仓的歌曲详情页 `/songDetail`（**不是 QQ 网页**）。
+   *
+   * 在线歌曲表、本地列表歌曲表、下载列表三处的同名菜单项（`list__source_detail`）都走这里：
+   * 这三处原来各写一套，于是漂移出「一处进本仓页面、一处开 QQ 网页」（ui-polish-followups 工单 03）。
+   *
+   * 判据：mid 取 `meta.songId`（新式模型里它存的才是 songmid，见 `@common/utils/tools` 的 toOldMusicInfo /
+   * toNewMusicInfo），本地文件那里存的是**文件路径**——没有在线 mid 就什么都不做，
+   * 菜单项由同一判据（`getMusicDetailPageUrl` 对 local 不存在）隐藏（见两个 useMenu 的 sourceDetail）。
+   */
+  const toSongDetail = (minfo: LX.Music.MusicInfo | null | undefined) => {
+    if (!minfo || minfo.source == 'local') return
+    const mid = minfo.meta?.songId
+    if (!mid) return
+    router.push({ path: '/songDetail', query: { source: minfo.source, mid } })
+  }
 
   // 歌曲详情的适配器：`track_info.singer[]` 每位都带 mid 与 name（见 qq-music-native.md §5.10）
   const fetchSingers = (mid: string) => music.tx.songDetail.getDetail(mid).then(detail => detail.trackRaw?.singer)
@@ -176,6 +194,7 @@ export default () => {
     jumpToAlbum,
     jumpToSinger,
     jumpToSingerList,
+    toSongDetail,
     copyMusicLink,
     openMusicInQqMusic,
     copyAlbumLink,

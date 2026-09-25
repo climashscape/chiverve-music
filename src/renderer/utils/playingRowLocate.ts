@@ -8,8 +8,8 @@
  * ⚠️ 为什么「当前页能不能原地定位」必须由**列表自己登记**，播放栏看路由算不出来：
  * - 本地歌曲表在 `/playlists?id=…`，队列身份恰好等于该 id，路由还能推；
  * - 在线歌曲表的宿主页却千差万别：`/album?mid=…` 的队列是 `album__<mid>`、`/musicHall` 的榜单是
- *   `board__<id>`、`/favorites` 与搜索页**共用** `online_list__temp`（`OnlineList/usePlay.ts` 的
- *   `queueId()`），而 `/album` 页根本不在 `/list` 这条路由上。
+ *   `board__<id>`、`/favorites` 是 `fav__songs`、歌手页是 `singer__songs__<mid>`（各宿主的
+ *   `:list-id`），而 `/album` 页根本不在 `/list` 这条路由上。
  * 只有列表组件同时握着「本列表的内容」与「真实容器几何」，所以由它回答，播放栏问一次。
  */
 import { ref } from '@common/utils/vueTools'
@@ -91,8 +91,8 @@ export const findJumpableListId = (listId: string | null, userListIds: string[])
  *
  * `isPlayingList`（本列表就是当前播放队列）这道闸必须有：不同列表可能含同一首歌，
  * 只有队列自己的列表里那一行才是「正在播放」的语义。
- * `playingMusicId` 的比对是第二道闸，因为**没有真实 id 的在线列表共用同一个队列身份**
- * （`online_list__temp`：搜索页、发现页、收藏页的「我喜欢」都是它）——身份相等不代表内容相等，
+ * `playingMusicId` 的比对是第二道闸：没有传 `listId` 的宿主页共用同一个兜底身份
+ * （`online_list__temp`，见 `OnlineList/usePlay.ts` 的 `getQueueId`），而身份相等不代表内容相等，
  * 那时 `playIndex` 指的是**另一个列表**的行号，按 id 找回来才不会点错行。
  * 第一道闸过了但 `playIndex` 对不上（列表在播放之后被编辑过）时同样按 id 兜底找一遍。
  */

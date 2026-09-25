@@ -11,12 +11,15 @@ import MvPlayerModal from './MvPlayerModal.vue'
  *      本机就是前者，而旧实现一律提示「播放地址已失效，可重新获取」，把人往错方向带。
  *
  * 只测本组件的模板与逻辑：`material-modal` / `base-btn` 是全局注册的（`components/index.ts`），
- * 这里用桩替掉，`useMusicJump` 也只用到跳歌手（本用例不测跳转，桩掉以免引入 router）。
+ * 这里用桩替掉，`useMusicJump` 也只用到跳歌手（本用例不测真实的跳转行为，桩掉以免引入 router，
+ * 但要断言「跳之前先关弹窗」，所以桩函数被提升出来供断言）。
  */
 // import 写在前面、vi.mock 在后面：vitest 会把 vi.mock 提到顶部（hoist），顺序不影响生效，
 // 但这样过得了 lint 的 import/first
+const jumpMocks = vi.hoisted(() => ({ jumpToSingerList: vi.fn() }))
+
 vi.mock('@renderer/utils/compositions/useMusicJump', () => ({
-  default: () => ({ jumpToSingerList: vi.fn() }),
+  default: () => ({ jumpToSingerList: jumpMocks.jumpToSingerList }),
 }))
 
 const URL = 'http://aqqmusic.tc.qq.com/amobile.music.tc.qq.com/M500.f40.264.mp4?vkey=v'
@@ -101,5 +104,23 @@ describe('components/common/MvPlayerModal.vue', () => {
     const buttons = wrapper.findAll('button')
     expect(buttons[0].attributes('disabled')).toBeUndefined()
     expect(buttons[1].attributes('disabled')).toBeUndefined()
+  })
+
+  it('点歌手名：先关弹窗再跳歌手页（ui-polish-followups 工单 04）', async() => {
+    const singer = { mid: 's1', name: '歌手甲' }
+    const wrapper = mountModal({ mv: { singers: [singer] } })
+    // 记录「跳转那一刻关闭是否已经 emit」——只断言两者都发生的话，顺序反了（弹窗悬在新页面上）也能过
+    let closedWhenJumped: boolean | null = null
+    jumpMocks.jumpToSingerList.mockReset()
+    jumpMocks.jumpToSingerList.mockImplementation(() => {
+      closedWhenJumped = !!wrapper.emitted('close')
+    })
+
+    // CSS Modules 的类名带哈希（`_singerLink_xxx`），按子串选（同 songList/Detail/index.test.ts 的口径）
+    await wrapper.get('[class*="singerLink"]').trigger('click')
+
+    expect(jumpMocks.jumpToSingerList).toHaveBeenCalledWith([singer])
+    expect(wrapper.emitted('close')).toHaveLength(1)
+    expect(closedWhenJumped).toBe(true)
   })
 })

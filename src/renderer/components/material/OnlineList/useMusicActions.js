@@ -20,6 +20,7 @@ export default ({ props }) => {
     handleAlbumNameClick,
     jumpToAlbum,
     jumpToSinger,
+    toSongDetail,
     copyMusicLink,
     openMusicInQqMusic,
     isShowSingerPicker,
@@ -39,19 +40,14 @@ export default ({ props }) => {
   }
 
   /**
-   * 「歌曲详情」：进本仓的歌曲详情页（`/songDetail?source=…&mid=…`）。
+   * 「歌曲详情」：进本仓的歌曲详情页（`/songDetail?source=…&mid=…`，工单 09）。
    *
-   * 原来这一项是 `getMusicDetailPageUrl` + `openUrl`——**打开 QQ 的网页**，等于把用户送出应用
-   * （工单 09 的验收写的是「不再跳搜索页」，实际代码当时是这样，已按工单意图改成进本页）。
-   * mid 取 `meta.songId`（新式模型里它存的才是 songmid，见 tools.ts 的 toOldMusicInfo），
-   * 本地文件没有 mid → 保持「什么都不做」。
+   * 原来这一项是 `getMusicDetailPageUrl` + `openUrl`——**打开 QQ 的网页**，等于把用户送出应用。
+   * 工单 03 起本地列表与下载列表也走 `useMusicJump` 的同一个 `toSongDetail`，
+   * 这里只负责「当前是哪一首」（`props.list`）；mid / 本地源判定都在那边。
    */
   const handleOpenMusicDetail = index => {
-    const minfo = props.list[index]
-    if (minfo.source == 'local') return
-    const mid = minfo.meta?.songId
-    if (!mid) return
-    router.push({ path: '/songDetail', query: { source: minfo.source, mid } })
+    toSongDetail(props.list[index])
   }
 
   const handleDislikeMusic = async(index) => {

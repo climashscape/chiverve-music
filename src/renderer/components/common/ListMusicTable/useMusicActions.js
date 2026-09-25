@@ -1,11 +1,10 @@
 import { useRouter } from '@common/utils/vueRouter'
-import musicSdk from '@renderer/utils/musicSdk'
-import { openUrl, clipboardWriteText } from '@common/utils/electron'
+import { clipboardWriteText } from '@common/utils/electron'
 import { dialog } from '@renderer/plugins/Dialog'
 import { useI18n } from '@renderer/plugins/i18n'
 import { removeListMusics } from '@renderer/store/list/action'
 import { appSetting } from '@renderer/store/setting'
-import { formatMusicName, toOldMusicInfo } from '@renderer/utils/index'
+import { formatMusicName } from '@renderer/utils/index'
 import { addDislikeInfo, hasDislike } from '@renderer/core/dislikeList'
 import { playNext } from '@renderer/core/player'
 import { playMusicInfo } from '@renderer/store/player/state'
@@ -24,6 +23,7 @@ export default ({ props, list, selectedList, removeAllSelect }) => {
     handleAlbumNameClick,
     jumpToAlbum,
     jumpToSinger,
+    toSongDetail,
     copyMusicLink,
     openMusicInQqMusic,
     isShowSingerPicker,
@@ -55,11 +55,15 @@ export default ({ props, list, selectedList, removeAllSelect }) => {
     })
   }
 
+  /**
+   * 「歌曲详情」：进本仓的歌曲详情页（工单 03）。
+   *
+   * 原来这里与在线表格不同——它用 `getMusicDetailPageUrl` + `openUrl` **打开 QQ 网页**，
+   * 把用户送出应用。现在与在线表格 / 下载列表共用 `useMusicJump` 的 `toSongDetail`，
+   * 判据（本地文件没有在线 mid → 不进本页）与菜单项显隐（`useMenu.js` 的 sourceDetail）同源。
+   */
   const handleOpenMusicDetail = index => {
-    const minfo = list.value[index]
-    const url = musicSdk[minfo.source]?.getMusicDetailPageUrl(toOldMusicInfo(minfo))
-    if (!url) return
-    openUrl(url)
+    toSongDetail(list.value[index])
   }
 
   const handleCopyName = index => {

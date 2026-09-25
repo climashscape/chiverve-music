@@ -99,7 +99,9 @@ export default ({
       {
         name: t('list__source_detail'),
         action: 'sourceDetail',
-        disabled: !itemMenuControl.sourceDetail,
+        // 本地文件不出现（工单 03）：判据是「源有 getMusicDetailPageUrl」——本地源没有，
+        // 而本仓详情页同样进不去（没有在线 mid）。原先这里是显示成灰的，点了没反应
+        hide: !itemMenuControl.sourceDetail,
       },
       // 跳转 / 分享：本地文件**不显示**（没有在线 mid，显示出来就是点了没反应的项）
       {
