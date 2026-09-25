@@ -1,6 +1,6 @@
 <template>
   <div :class="$style.container">
-    <cloud-rail :cloud-dir-id="dirId" />
+    <cloud-rail :cloud-dir-id="dirId" :tab="tab" />
     <div :class="$style.pane">
       <!-- 卡片没到（createdLists 还在取 / dirId 已失效）就不挂右栏：CloudListPane 取歌要用卡片的
            tid（不是 dirId），提前挂会拿 dirId 当 tid 打一次注定拿不到东西的请求 -->
@@ -29,6 +29,13 @@ export default {
   components: {
     CloudRail,
     CloudListPane,
+  },
+  props: {
+    // 页面壳传下来的当前 tab：左栏写 `cloud` 时要把它一起写回 query（理由见 `../tabs.ts` 的 withTab）
+    tab: {
+      type: String,
+      required: true,
+    },
   },
   setup() {
     const route = useRoute()

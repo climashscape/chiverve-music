@@ -1,6 +1,6 @@
 <template>
   <div :class="$style.container">
-    <local-rail :list-id="listId" />
+    <local-rail :list-id="listId" :tab="tab" />
     <!-- 一个自建列表都没有：右栏明说没得选，而不是把别的列表（试听列表 / 我的收藏）塞进来
          （工单 07 / ADR 0006；左栏另有自己的提示条） -->
     <div v-if="!listId" :class="$style.empty">{{ $t('playlists__local_empty') }}</div>
@@ -13,6 +13,7 @@ import { computed } from '@common/utils/vueTools'
 import { useRouter, useRoute } from '@common/utils/vueRouter'
 import { LIST_IDS } from '@common/constants'
 import { userLists } from '@renderer/store/list/state'
+import { type TabId, withTab } from '../tabs'
 import LocalRail from './PlaylistRail/LocalRail.vue'
 import ListMusicTable from '@renderer/components/common/ListMusicTable/index.vue'
 
@@ -31,7 +32,14 @@ export default {
     LocalRail,
     ListMusicTable,
   },
-  setup() {
+  props: {
+    // 页面壳传下来的当前 tab：本面板写 `id` 时要把它一起写回 query（理由见 `../tabs.ts` 的 withTab）
+    tab: {
+      type: String,
+      required: true,
+    },
+  },
+  setup(props: { tab: TabId }) {
     const router = useRouter()
     const route = useRoute()
 
@@ -42,9 +50,11 @@ export default {
     })
 
     // 归一：本地 tab 里没有 id 且有可选的本地列表时补一个（地址栏里能看出当前选的是哪一个）。
-    // 保留其它键——`tab` 属于页面壳，`cloud` 属于云端 tab（切回去时它的选中项还在）
+    // 保留其它键——`cloud` 属于云端 tab（切回去时它的选中项还在）；`tab` 必须**显式带**：
+    // 这次写入可能发生在「切 tab 的导航还没落地」的窗口里，那时 route.query 里根本没有 tab，
+    // 靠 spread 保留就会把 tab 写丢、被 tabFromQuery 判回云端（工单 02）
     if (route.query.id == null && listId.value) {
-      void router.replace({ path: route.path, query: { ...route.query, id: listId.value } })
+      void router.replace({ path: route.path, query: withTab(route.query, props.tab, { id: listId.value }) })
     }
 
     return {

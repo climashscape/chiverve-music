@@ -51,6 +51,7 @@
 
 <script lang="ts">
 import { toRef } from '@common/utils/vueTools'
+import { type TabId } from '../../tabs'
 import PlaylistCover from './PlaylistCover.vue'
 import useCloudLists from './useCloudLists'
 
@@ -71,10 +72,15 @@ export default {
       type: String,
       default: '',
     },
+    // 页面壳传下来的当前 tab（经面板中转）：写 `cloud` 时一起写回 query，别把 tab 写丢（工单 02）
+    tab: {
+      type: String,
+      required: true,
+    },
   },
-  setup(props: { cloudDirId: string }) {
+  setup(props: { cloudDirId: string, tab: TabId }) {
     return {
-      ...useCloudLists({ cloudDirId: toRef(props, 'cloudDirId') }),
+      ...useCloudLists({ cloudDirId: toRef(props, 'cloudDirId'), tab: toRef(props, 'tab') }),
     }
   },
 }

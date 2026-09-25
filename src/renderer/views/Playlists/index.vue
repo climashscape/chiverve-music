@@ -4,9 +4,10 @@
       <base-tab v-model="tab" :class="$style.tabs" :list="tabs" item-key="tab" @change="handleTabChange" />
     </div>
     <!-- Tab 懒加载：v-if（不是 v-show）——切进来才挂载；云端那组因此只在切到该 tab 时才取 createdLists -->
+    <!-- `:tab` 必须传下去：面板写自己的 id / cloud 时要**带上当前 tab**，否则会把 `tab` 键写丢（工单 02） -->
     <div :class="$style.content">
-      <local-lists-panel v-if="tab === 'local'" />
-      <cloud-lists-panel v-else-if="tab === 'cloud'" />
+      <local-lists-panel v-if="tab === 'local'" :tab="tab" />
+      <cloud-lists-panel v-else-if="tab === 'cloud'" :tab="tab" />
     </div>
   </div>
 </template>
@@ -14,7 +15,7 @@
 <script lang="ts">
 import { ref, watch } from '@common/utils/vueTools'
 import { useRouter, useRoute } from '@common/utils/vueRouter'
-import { type TabId, tabFromQuery } from './tabs'
+import { type TabId, tabFromQuery, withTab } from './tabs'
 import LocalListsPanel from './components/LocalListsPanel.vue'
 import CloudListsPanel from './components/CloudListsPanel.vue'
 
@@ -32,6 +33,11 @@ import CloudListsPanel from './components/CloudListsPanel.vue'
  * 切 tab **不丢**另外两个键：那是各自 tab 内部的选择，切回去还在原位（与收藏页把参数清掉不同——
  * 那边的参数只对一个 tab 有意义）。老地址因此照旧可用：`?id=…` 落本地 tab、`?cloud=…` 落云端 tab，
  * 两者都缺时默认 `cloud`（推断规则见 `./tabs.ts`，单测在 `tabs.test.ts`）。
+ *
+ * ⚠️ 三个键**每个写入方都要带全**：`id` / `cloud` 的写入方（两个面板与左栏）必须用
+ * `withTab(route.query, props.tab, …)` 把 tab 一起写回去，`tab` 的写入方（本文件）用
+ * `withTab`。理由见 `./tabs.ts` 里 `withTab` 的注释（工单 02：路由器异步期间读到旧 query，
+ * 「顺带保留」靠不住）。因此当前 tab 要按 props 往下传。
  *
  * ⚠️ 默认 tab 是云端：进页面就会挂 `CloudListsPanel` → 跑一次 `initUserCenter()`（未登录时
  * 云端那组落「未登录」文案）。这是「默认看 QQ 歌单」的既定代价，不是漏懒加载。
@@ -57,7 +63,9 @@ export default {
     ]
 
     const handleTabChange = (id: TabId) => {
-      void router.replace({ path: route.path, query: { ...route.query, tab: id } })
+      // 另一个 tab 的选中参数（`id` / `cloud`）**故意保留**：切回去还在原位（见文件头的口径）。
+      // tab 由 `withTab` 显式带上——本文件是唯一写它的地方。
+      void router.replace({ path: route.path, query: withTab(route.query, id) })
     }
 
     // 地址栏被外部改（老地址重定向进来、外部链接）时跟上；两个面板自己写的 id / cloud 也在这里

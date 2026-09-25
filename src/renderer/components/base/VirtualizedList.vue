@@ -129,6 +129,11 @@ export default {
   setup(props, { emit }) {
     const views = ref([])
     const dom_scrollContainer = ref(null)
+    // 卸载标志：模板 ref 在卸载后是 null，而排进队列的回调（rAF / ResizeObserver / setTimeout）
+    // 仍会跑——只判 ref 也行，多这个标志是为了让「卸载后不该重算」这件事一眼可见（工单 04）
+    let isUnmounted = false
+    // handleResize 排的定时器：卸载时清掉，别让它带着已失效的 ref 跑到卸载之后（工单 04）
+    let resizeTimer = null
     let isListScrolling = false
     const isListScrollingRef = ref(false)
     let startIndex = -1
@@ -156,11 +161,24 @@ export default {
       return list
     }
 
-    const updateView = (currentScrollTop = dom_scrollContainer.value.scrollTop) => {
+    /**
+     * 重算渲染区间。
+     *
+     * 参数与 dom 都**不能在默认参数里取**（工单 04）：默认参数是在**调用时**求值的，
+     * 而 `nextTick → requestAnimationFrame`、`ResizeObserver`、`window.setTimeout` 的回调
+     * 都可能在组件**卸载之后**才跑——那时模板 ref 已是 null，`dom_scrollContainer.value.scrollTop`
+     * 直接抛 `Cannot read properties of null (reading 'scrollTop')`。dev 下这条未捕获异常会弹出
+     * webpack-dev-server 的全屏 overlay（`position:fixed; inset:0`），把整个窗口的鼠标事件吞掉，
+     * 症状看起来像「界面点不动」。所以这里显式早退，别抛。
+     */
+    const updateView = (top) => {
+      const el = dom_scrollContainer.value
+      if (isUnmounted || !el) return
       // const currentScrollTop = this.$refs.dom_scrollContainer.scrollTop
+      const currentScrollTop = top ?? el.scrollTop
       const itemHeight = props.itemHeight
       const currentStartIndex = Math.floor(currentScrollTop / itemHeight)
-      const scrollContainerHeight = dom_scrollContainer.value.clientHeight
+      const scrollContainerHeight = el.clientHeight
       const currentEndIndex = currentStartIndex + Math.ceil(scrollContainerHeight / itemHeight)
       const continuous = currentStartIndex <= endIndex && currentEndIndex >= startIndex
       const currentStartRenderIndex = Math.max(currentStartIndex, 0)
@@ -254,7 +272,8 @@ export default {
     }
 
     const handleResize = () => {
-      window.setTimeout(updateView)
+      // 记下句柄，卸载时清掉（updateView 自己也有守卫，这里是别让回调白跑一趟）
+      resizeTimer = window.setTimeout(updateView)
     }
 
     const contentStyle = computed(() => {
@@ -323,6 +342,13 @@ export default {
       }
     })
     onBeforeUnmount(() => {
+      // 先立标志再干活：rAF / ResizeObserver 里**已经排进队列**的回调没法取消（只能靠标志早退），
+      // 定时器与 ResizeObserver 这两个能取消的顺手取消掉（工单 04）
+      isUnmounted = true
+      if (resizeTimer) {
+        window.clearTimeout(resizeTimer)
+        resizeTimer = null
+      }
       dom_scrollContainer.value.removeEventListener('scroll', onScroll)
       window.removeEventListener('resize', handleResize)
       resizeObserver?.disconnect()

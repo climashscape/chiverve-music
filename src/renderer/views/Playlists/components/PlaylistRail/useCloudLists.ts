@@ -5,6 +5,7 @@ import { createCloudList, initUserCenter, removeCloudList } from '@renderer/stor
 import { dialog } from '@renderer/plugins/Dialog'
 import { useI18n } from '@renderer/plugins/i18n'
 import type { PlaylistCard } from '@renderer/store/user/state'
+import { type TabId, withTab } from '../../tabs'
 import { resolveCloudSelection } from './cloudSelection'
 
 /** 「我喜欢」在「我的收藏」页里，不在这里重复（与原来的注释同口径）。 */
@@ -17,9 +18,10 @@ const I_LIKE_DIR_ID = '201'
  * 导入导出不出现——点了没反应比没有更糟。加歌 / 删歌 / 刷新在右栏的 `CloudListPane`。
  *
  * 懒加载：本 hook 只在云端面板挂载时跑（`initUserCenter` 自带 isInited 守卫，一个会话一次）。
- * 选中项写在 `route.query.cloud`（dirId），保留其它键。
+ * 选中项写在 `route.query.cloud`（dirId），保留其它键——**`tab` 要显式带**（工单 02：
+ * 归一可能发生在「切 tab 的导航还没落地」的窗口里，靠 `{ ...route.query }` 保留会把 tab 写丢）。
  */
-export default ({ cloudDirId }: { cloudDirId: Ref<string> }) => {
+export default ({ cloudDirId, tab }: { cloudDirId: Ref<string>, tab: Ref<TabId> }) => {
   const router = useRouter()
   const route = useRoute()
   const t = useI18n()
@@ -38,7 +40,7 @@ export default ({ cloudDirId }: { cloudDirId: Ref<string> }) => {
     if (dirId === cloudDirId.value) return
     void router.replace({
       path: route.path,
-      query: { ...route.query, cloud: dirId || undefined },
+      query: withTab(route.query, tab.value, { cloud: dirId || undefined }),
     })
   }
 

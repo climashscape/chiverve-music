@@ -71,6 +71,7 @@ import { removeUserList } from '@renderer/store/list/action'
 
 import { ref, watch } from '@common/utils/vueTools'
 import { useRoute, useRouter } from '@common/utils/vueRouter'
+import { withTab } from '../../tabs'
 
 import { dialog } from '@renderer/plugins/Dialog'
 
@@ -94,7 +95,8 @@ import useDuplicate from './useDuplicate'
  * （新建/重命名/删除、拖拽排序、排序与查重、导入导出），全部逻辑仍由同目录的 useXxx 提供。
  * 云端那一组在 `CloudRail.vue`——两组的样式共用 `rail.less`。
  *
- * 选中项写在 `route.query.id` 上（保留其它键：`tab` 属于页面壳、`cloud` 属于云端 tab）。
+ * 选中项写在 `route.query.id` 上（保留其它键：`cloud` 属于云端 tab；**`tab` 由页面壳经面板传进来，
+ * 每次写入都要显式带上**——理由见 `../../tabs.ts` 的 withTab，工单 02）。
  */
 export default {
   name: 'PlaylistRailLocal',
@@ -106,6 +108,10 @@ export default {
   },
   props: {
     listId: {
+      type: String,
+      required: true,
+    },
+    tab: {
       type: String,
       required: true,
     },
@@ -162,7 +168,7 @@ export default {
           // 删掉的正是当前选中的那个 → 落到剩下的第一个自建列表；一个都不剩就清掉参数显示空态
           // （这里不等 userLists 更新，直接按 id 排除；也不再回落到试听列表——它已从界面退场，工单 07 / ADR 0006）
           const nextList = userLists.find(l => l.id != listInfo.id)
-          void router.replace({ path: route.path, query: { ...route.query, id: nextList?.id } })
+          void router.replace({ path: route.path, query: withTab(route.query, props.tab, { id: nextList?.id }) })
         }
       })
     }
@@ -196,7 +202,7 @@ export default {
       if (id == props.listId) return
       void router.replace({
         path: route.path,
-        query: { ...route.query, id },
+        query: withTab(route.query, props.tab, { id }),
       })
     }
 
@@ -221,7 +227,7 @@ export default {
       // 一个自建列表都没有就清掉参数（页面显示空态），不回落到试听列表（工单 07 / ADR 0006）
       void router.replace({
         path: route.path,
-        query: { ...route.query, id: lists[0]?.id },
+        query: withTab(route.query, props.tab, { id: lists[0]?.id }),
       })
     })
 

@@ -1,3 +1,5 @@
+import type { LocationQuery, LocationQueryRaw } from 'vue-router'
+
 /**
  * 我的歌单两个 tab 的 id / 顺序，以及「从 query 推断 tab」的规则（工单 09；默认 tab 改云端见工单 07）。
  *
@@ -31,3 +33,14 @@ export const tabFromQuery = (query: Record<string, unknown>): TabId => {
   if (query.cloud) return 'cloud'
   return query.id ? 'local' : TABS[0]
 }
+
+/**
+ * 本页写 query 的统一载荷：**把当前 tab 显式带上**，并放在最后合并（patch 想盖也盖不掉）。
+ *
+ * 为什么不能只靠 `{ ...route.query }` 把它「顺带保留」（工单 02 的真机复现，2/2 命中）：
+ * `router.replace` 是**异步**的——切 tab 的那次导航还没落地时挂载起来的面板，读到的
+ * `route.query` 里**还没有 `tab` 键**；照旧原样写回就把 `tab` 丢了，`tabFromQuery` 随即按
+ * 残留的 `cloud` / `id` 把 tab 判回另一侧，表现就是「点『本地歌单』又弹回『QQ 音乐·歌单』」。
+ * 所以每个写入方都自己带 tab（谁写的谁负责），别指望 route 里还留着。
+ */
+export const withTab = (query: LocationQuery, tab: TabId, patch: LocationQueryRaw = {}): LocationQueryRaw => ({ ...query, ...patch, tab })
