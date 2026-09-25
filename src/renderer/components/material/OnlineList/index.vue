@@ -28,7 +28,8 @@
           <base-virtualized-list v-if="actionButtonsVisible" ref="listRef" :list="list" key-name="id" :item-height="listItemHeight" container-class="scroll" content-class="list" @contextmenu.capture="handleListRightClick">
             <template #default="{ item, index }">
               <div
-                class="list-item" :class="[{ [$style.active]: playingRowIndex === index }, { selected: rightClickSelectedIndex == index }, { active: selectedList.includes(item) }]"
+                class="list-item" :class="[{ [$style.active]: playingRowIndex === index }, { selected: rightClickSelectedIndex == index }, { active: selectedList.includes(item) }, { disabled: isUnavailableRow(item) }]"
+                :title="isUnavailableRow(item) ? $t('list__unavailable_song') : null"
                 @click="handleListItemClick($event, index)" @contextmenu="handleListItemRightClick($event, index)"
               >
                 <div class="list-item-cell no-select num" :class="$style.num" style="flex: 0 0 5%;" @click.stop>
@@ -77,7 +78,8 @@
           <base-virtualized-list v-else ref="listRef" :list="list" key-name="id" :item-height="listItemHeight" container-class="scroll" content-class="list" @contextmenu.capture="handleListRightClick">
             <template #default="{ item, index }">
               <div
-                class="list-item" :class="[{ [$style.active]: playingRowIndex === index }, { selected: rightClickSelectedIndex == index }, { active: selectedList.includes(item) }]"
+                class="list-item" :class="[{ [$style.active]: playingRowIndex === index }, { selected: rightClickSelectedIndex == index }, { active: selectedList.includes(item) }, { disabled: isUnavailableRow(item) }]"
+                :title="isUnavailableRow(item) ? $t('list__unavailable_song') : null"
                 @click="handleListItemClick($event, index)" @contextmenu="handleListItemRightClick($event, index)"
               >
                 <div class="list-item-cell no-select num" :class="$style.num" style="flex: 0 0 5%;" @click.stop>
@@ -168,6 +170,7 @@ import useMusicAdd from './useMusicAdd'
 import useMusicActions from './useMusicActions'
 import useFavSong from '@renderer/utils/compositions/useFavSong'
 import { appSetting } from '@renderer/store/setting'
+import { isUnavailableMusic } from '@renderer/core/music/unavailable'
 export default {
   name: 'MaterialOnlineList',
   props: {
@@ -206,8 +209,9 @@ export default {
       type: String,
       default: '',
     },
-    // 播放队列的身份（ui-polish 工单 06）：有真实列表 id 的宿主页传进来（专辑 / 歌单 / 榜单…），
-    // 没有的不传——点单曲一律「从这首开始连播这个列表」，见 usePlay.ts 的 handlePlayMusic
+    // 播放队列的身份（ui-polish 工单 06）：宿主页传进来，与宿主自己那份 usePlay 用同一个值
+    // （专辑 / 歌单 / 榜单 / 云端歌单有真实 id，搜索 / 新歌 / 收藏 / 歌手用自造的稳定标识，见各宿主）；
+    // 不传则由 `usePlay.getQueueId` 兜底，见 usePlay.ts 的 handlePlayMusic
     listId: {
       type: String,
       default: '',
@@ -241,7 +245,7 @@ export default {
      * ⚠️ 队列身份要认 `tempListMeta.id`，**不是** `playMusicInfo.listId`：在线队列一律灌进临时列表
      * 播放，`playMusicList` 把 `playMusicInfo.listId` 置为 `temp`（`core/player/action.ts`），
      * 真正的「播的是哪个列表」记在 `tempListMeta.id` 上（同「雷达」「歌单详情」的判法）。
-     * 没传 `listId` 的宿主页（搜索 / 发现 / 收藏页的「我喜欢」）共用 `online_list__temp`，
+     * 没传 `listId` 的宿主页共用 `online_list__temp` 这个兜底身份，
      * 光比身份不够，`findPlayingRowIndex` 还会按歌 id 认一遍行。
      */
     const playingRowIndex = computed(() => findPlayingRowIndex({
@@ -371,9 +375,17 @@ export default {
       listRef.value.scrollTo(0, true)
     }
 
+    /**
+     * 这一行是不是失效曲（无版权 / 已下架，工单 01）：置灰 + 悬停说明（原生 `title`）。
+     * 登记表在 `core/music/unavailable.ts`（会话级、只在真播到过且取流结论不可播时才登记），
+     * 点播入口在 `usePlay` 里统一拦——本地文件不走这条路，永远不算失效。
+     */
+    const isUnavailableRow = item => isUnavailableMusic(item)
+
     return {
       listItemHeight,
       playingRowIndex,
+      isUnavailableRow,
       handleListItemClick,
       selectedList,
       handleListItemRightClick,

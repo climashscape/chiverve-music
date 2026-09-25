@@ -37,6 +37,20 @@ const buildFilename = (songInfo, { prefix, ext }) => {
     : `${prefix}${songInfo.songmid}${songInfo.songmid}${ext}`
 }
 
+/**
+ * `midurlinfo[].result` 的业务结果码（参考实现 `docs/tutorial/download.md`）：
+ * `0` 成功、`104003` 无权限（未登录或等级不够）、`104004` VKey 获取失败、`104013` 播放设备受限。
+ */
+const RESULT_NO_PERMISSION = 104003
+
+/**
+ * 网关级限流码。探针 2026-09-25 实测：对 vkey 连刷约 150 次后，服务端按**本机 IP** 返回
+ * `code=104009` + `msg='<ip>;invalidq;'`，`midurlinfo[].purl` 全空（静置 5 分钟未恢复），
+ * 与具体是哪首歌无关。它必须与「这首歌没有直链」分开判——拿限流当失效判据会把一大批
+ * 能播的歌标成失效，而且应用自己的取流也在同一 IP 上（见 `core/music/unavailable.ts`）。
+ */
+const GATEWAY_RATE_LIMITED = 104009
+
 const requestQuality = (songInfo, type, credential) => {
   return txCgi({
     module: 'vkey.GetVkeyServer',
@@ -61,6 +75,14 @@ const requestQuality = (songInfo, type, credential) => {
  * 降级策略：`purl` 为空 = 该档无权限（VIP/绿钻不足，result 常见 104003），
  * 依次往下试更低档；**resolve 的 `type` 必须是实际拿到的档位**——URL 缓存
  * key 是 `${id}_${type}`，谎报会把低档 URL 存进高档（§2.6 硬约束 2）。
+ *
+ * 失败形态分档（**别把它们的错误文案合并**，工单 01 靠这个区分「失效曲」与「暂时播不了」）：
+ * | 形态 | 抛什么 |
+ * |---|---|
+ * | 所有档位都问过、码 0 且响应形状正常、就是没有直链 | `requestMsg.noPlayableUrl` + `txNoPlayableUrl` 标记（= 无版权/已下架） |
+ * | 服务端说无权限（`result=104003`，含会员/等级/数字专辑未购买） | `requestMsg.noPermission` |
+ * | 网关限流（`code=104009`） | `requestMsg.tooManyRequests`（上层按延迟重试，见 `core/player/action.ts`） |
+ * | 请求级失败（网络/超时）或网关码非 0 / 响应形状不对 | 原样抛（网络错误本身，或 `QQ 接口错误（码）`） |
  */
 export const getMusicUrl = (songInfo, type) => {
   let current = null
@@ -82,14 +104,34 @@ export const getMusicUrl = (songInfo, type) => {
     // 请求档已知 → 从它往低找；未知档（理论上不会出现）→ 从最高档往低找
     const tryList = (idx >= 0 ? QUALITY_ORDER.slice(0, idx + 1) : QUALITY_ORDER).slice().reverse()
 
-    let lastError = null
+    let lastError = null // 请求级失败：真实原因，优先原样抛出
+    let gatewayError = null // 网关级失败：这一轮没拿到可信结论，不能当「没有直链」
+    let noPermission = false // 出现过「无权限」业务码
+    let rateLimited = false
+    const purlEmptyResults = []
+
     for (const quality of tryList) {
       if (cancelled) throw new Error(requestMsg.cancelRequest)
       current = requestQuality(songInfo, quality, credential)
       try {
         const node = await current.promise
+        // 数值串 "0" 也认（网关偶尔回字符串），故用宽松比较
+        if (node?.code != null && node.code != 0) {
+          // 限流对所有档位一视同仁，再往下试只是白刷接口（还会延长限流），立刻交给上层延迟重试
+          if (node.code == GATEWAY_RATE_LIMITED) {
+            rateLimited = true
+            break
+          }
+          gatewayError ??= new Error(`QQ 接口错误（${node.code}）`)
+          continue
+        }
         const info = node?.data?.midurlinfo?.[0]
-        const purl = info?.purl ?? ''
+        // 没有 midurlinfo：响应形状与预期不符，**不能**当成「这首歌没有直链」的结论
+        if (info == null) {
+          gatewayError ??= new Error('QQ 接口响应异常')
+          continue
+        }
+        const purl = info.purl ?? ''
         if (purl !== '') {
           const sip = node?.data?.sip?.[0] ?? DEFAULT_SIP
           return {
@@ -98,14 +140,26 @@ export const getMusicUrl = (songInfo, type) => {
           }
         }
         // purl 为空：多半是权限不足，降级重试（而非直接失败）
-        console.log(`[tx] ${quality} 无直链（result=${info?.result ?? '-'}），降级重试`)
+        if (info.result == RESULT_NO_PERMISSION) noPermission = true
+        purlEmptyResults.push(info.result)
+        console.log(`[tx] ${quality} 无直链（result=${info.result ?? '-'}），降级重试`)
       } catch (err) {
         if (err?.message === requestMsg.cancelRequest) throw err
         lastError = err
       }
     }
 
-    throw lastError ?? new Error('获取播放链接失败')
+    // 判性质：**只有最后那一条**才是「这首歌不可播」（判据见 `core/music/unavailable.ts`）
+    if (rateLimited) throw new Error(requestMsg.tooManyRequests)
+    if (lastError != null) throw lastError
+    if (gatewayError != null) throw gatewayError
+    // 服务端说无权限：会员 / 等级 / 数字专辑未购买都能落到这里，按「需要会员」处理，不标失效
+    if (noPermission) throw new Error(requestMsg.noPermission)
+    throw Object.assign(new Error(requestMsg.noPlayableUrl), {
+      txNoPlayableUrl: true,
+      // 各档的 result 原样带出，真机排查「到底哪种码算失效」时不用再改代码打日志
+      txResults: purlEmptyResults,
+    })
   })()
 
   return requestObj

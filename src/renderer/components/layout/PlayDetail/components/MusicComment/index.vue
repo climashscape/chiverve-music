@@ -1,7 +1,11 @@
 <template lang="pug">
 div.comment(ref="dom_container" :class="$style.comment")
   div(:class="$style.commentHeader")
-    h3 {{ $t('comment__title', { name: currentMusicInfo.name }) }}
+    h3(:class="$style.commentHeaderTitle")
+      span(:class="$style.commentHeaderName") {{ $t('comment__title', { name: currentMusicInfo.name }) }}
+      //- 评论总数：搭「最新评论」那次列表响应一起回来（`commenttotal`），不为它多发请求；
+      //- 取不到（null）就不渲染这一段——不留 0 / - 之类的占位噪音（票 03 的验收）
+      span(v-if="commentTotal != null" :class="$style.commentHeaderCount") ({{ commentTotal }})
     div(:class="$style.commentHeaderBtns")
       div(:class="$style.commentHeaderBtn" :aria-label="$t('comment__refresh')" :title="$t('comment__refresh')" @click="handleShowComment")
         svg(version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" style="transform: rotate(45deg);" viewBox="0 0 24 24" space="preserve")
@@ -97,6 +101,15 @@ export default {
        * 没必要留在组件状态里（列表项的 `userId` 就是加密 uin，用来判断哪些评论能删）。
        */
       myEuin: '',
+      /**
+       * 歌曲总评论条数（标题上的「(N)」）。
+       *
+       * 来源是「最新评论」那次列表响应的 `commenttotal`（`tx/comment.js` 的 `pickCommentTotal`），
+       * **跟着列表请求一起回来，不为它多发一次请求**。
+       * `null` = 还没拿到 / 这次响应里没有这个数 → 标题不显示计数（不留 0 或 `-` 这类噪音）；
+       * `0` 是有效值（真的没有评论），照常显示。
+       */
+      commentTotal: null,
       newComment: {
         isLoading: false,
         isLoadError: false,
@@ -210,6 +223,9 @@ export default {
         this.newComment.maxPage = comment.maxPage
         this.newComment.page = page
         this.newComment.list = comment.comments
+        // 标题上的计数用同一个响应（成功才更新：失败时保留上一次的合法值，切歌时已由
+        // handleShowComment 清成 null）
+        this.commentTotal = comment.total ?? null
         this.$nextTick(() => {
           this.$refs.dom_commentNew.scrollTo(0, 0)
         })
@@ -350,6 +366,9 @@ export default {
       this.hotComment.maxPage = 1
       this.hotComment.nextPage = 1
 
+      // 计数归零到「未拿到」：否则换歌时会先显示上一首的条数
+      this.commentTotal = null
+
       this.newComment.page = 1
       this.newComment.total = 0
       this.newComment.maxPage = 1
@@ -402,11 +421,25 @@ export default {
   flex-flow: row nowrap;
   align-items: center;
   // border-bottom: 1px solid #eee;
-  h3 {
-    font-size: 14px;
-    .mixin-ellipsis-1();
-    line-height: 1.2;
-  }
+}
+.commentHeaderTitle {
+  // 标题拆成「歌名」+「(计数)」两段：省略号只吃歌名，歌名再长也不会把条数挤掉
+  display: flex;
+  flex-flow: row nowrap;
+  align-items: center;
+  min-width: 0;
+  font-size: 14px;
+  line-height: 1.2;
+}
+.commentHeaderName {
+  .mixin-ellipsis-1();
+  // flex 项要 min-width: 0 才能收缩到内容宽度以下（否则省略号不生效）
+  min-width: 0;
+}
+// 计数不参与省略，也不跟着标题变窄（`flex: none`）
+.commentHeaderCount {
+  flex: none;
+  margin-left: 4px;
 }
 .commentHeaderBtns {
   flex: 1 0 auto;

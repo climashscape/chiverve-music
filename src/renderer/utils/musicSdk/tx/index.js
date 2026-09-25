@@ -12,6 +12,7 @@ import mv from './mv'
 import singer from './singer'
 import songDetail from './songDetail'
 import tipSearch from './tipSearch'
+import dislike from './dislike'
 
 const tx = {
   tipSearch,
@@ -26,6 +27,7 @@ const tx = {
   mv,
   singer,
   songDetail,
+  dislike,
 
   getMusicUrl(songInfo, type) {
     return apis('tx').getMusicUrl(songInfo, type)

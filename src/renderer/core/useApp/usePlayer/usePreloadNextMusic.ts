@@ -5,6 +5,7 @@ import { musicInfo } from '@renderer/store/player/state'
 // import { getList } from '@renderer/store/utils'
 import { getNextPlayMusicInfo, resetRandomNextMusicInfo } from '@renderer/core/player'
 import { getMusicUrl } from '@renderer/core/music'
+import { isUnavailableMusic } from '@renderer/core/music/unavailable'
 import { appSetting } from '@renderer/store/setting'
 
 let audio: HTMLAudioElement
@@ -63,7 +64,11 @@ const preloadNextMusicUrl = async(curTime: number) => {
   const info = await getNextPlayMusicInfo()
   if (info) {
     preloadMusicInfo.info = info
-    const url = await getMusicUrl({ musicInfo: info.musicInfo }).catch(() => '')
+    // 已知失效的曲（无版权 / 已下架，工单 01）不预取：结论不会变，白刷一轮 vkey
+    // （批量取流会触发服务端限流，见 core/music/unavailable.ts）。真播到它会立刻跳过。
+    const url = isUnavailableMusic(info.musicInfo)
+      ? ''
+      : await getMusicUrl({ musicInfo: info.musicInfo }).catch(() => '')
     if (url) {
       console.log('preload url', url)
       const result = await checkMusicUrl(url)

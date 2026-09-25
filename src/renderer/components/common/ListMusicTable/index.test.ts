@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h } from 'vue'
 import type * as listAction from '@renderer/store/list/action'
 import ListButtons from '@renderer/components/material/ListButtons.vue'
+import { qualityList } from '@renderer/store'
 import { appSetting } from '@renderer/store/setting'
 import { favSongIds, favSongIdsLoaded, favSongs } from '@renderer/store/user/state'
 import ListMusicTable from './index.vue'
@@ -114,6 +115,13 @@ const heartIn = (row: any) => row.findAll('button')
 const hasFavOn = (row: any) =>
   heartIn(row).find('svg').classes().some((name: string) => name.includes('favOn'))
 
+/** 行内那颗下载键（`$t` 是桩，键名即 aria-label/title） */
+const downloadIn = (row: any) => row.findAll('button')
+  .find((btn: any) => btn.attributes('aria-label') === 'list__download')
+/** 行内那颗播放键（`ListButtons` 的 playBtn 默认开，本地文件也该能播） */
+const playIn = (row: any) => row.findAll('button')
+  .find((btn: any) => btn.attributes('aria-label') === 'list__play')
+
 let mountedWrappers: Array<ReturnType<typeof mountTable>> = []
 
 beforeEach(() => {
@@ -133,6 +141,8 @@ afterEach(() => {
   mountedWrappers = []
   // 还原成 `defaultSetting` 里的默认值，别把这次改动漏给同文件之后的用例
   appSetting['list.actionButtonsVisible'] = false
+  appSetting['download.enable'] = false
+  qualityList.value = {}
 })
 
 describe('components/common/ListMusicTable 行内的「我喜欢」键', () => {
@@ -187,5 +197,48 @@ describe('components/common/ListMusicTable 行内的「我喜欢」键', () => {
 
     expect(wrapper.findAll('button')).toHaveLength(0)
     expect(getFavSongIds).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * 行内**下载键**的可用性组合（ui-polish-followups 票 17 接缝 3 的行内那一半）。
+ *
+ * 契约：`index.vue:71` 的 `:download-btn="assertApiSupport(item.source) && item.source != 'local'"`
+ * ——**两个条件都要**。容易漏的是第二个：`assertApiSupport('local')` 的真实返回值是 `true`
+ * （`store/utils.ts` 里 `source == 'local' || qualityList[source] != null`，那是给「能不能播」用的），
+ * 只判它会给本地文件开出一个点了没意义的下载键。同一表达式在右键菜单那侧由
+ * `useMenu.test.ts` 钉。
+ *
+ * 期望值来源：`ListButtons.vue` 的 `v-if="downloadBtn && appSetting['download.enable']"`
+ * （默认关，用例显式打开）与 `store/utils.ts` 的判据；「源声明了音质档位」用
+ * `qualityList.value = { tx: ['128k'] }` 造（与 `store/utils.test.ts` 同一手法）。
+ */
+describe('components/common/ListMusicTable 行内下载键的可用性（本地 vs 在线）', () => {
+  /** 源声明了音质档位（`assertApiSupport` 的判据是 `qualityList[source] != null`，空数组也算支持） */
+  const DECLARED_QUALITYS: LX.QualityList = { tx: ['128k'] }
+
+  it('在线 tx 歌曲 + 源声明了音质档位 → 有下载键', async() => {
+    qualityList.value = DECLARED_QUALITYS
+    appSetting['download.enable'] = true
+
+    const wrapper = mountTable([txSong('1')])
+    mountedWrappers.push(wrapper)
+    await flushPromises()
+
+    expect(downloadIn(wrapper.findAll('.list-item')[0])).toBeTruthy()
+  })
+
+  it('本地文件 → 没有下载键（即使源「支持」；对照同一行的播放键在）', async() => {
+    qualityList.value = DECLARED_QUALITYS
+    appSetting['download.enable'] = true
+
+    const wrapper = mountTable([localSong])
+    mountedWrappers.push(wrapper)
+    await flushPromises()
+
+    const row = wrapper.findAll('.list-item')[0]
+    expect(downloadIn(row)).toBeUndefined()
+    // 对照：这一排按钮真的渲染了（否则「没有下载键」可能只是整排没出来）
+    expect(playIn(row)).toBeTruthy()
   })
 })

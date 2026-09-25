@@ -2,6 +2,7 @@ import { httpFetch } from '../../request'
 import { dateFormat2 } from '../../index'
 import { getQQCredential } from '@renderer/utils/ipc'
 import getMusicInfo from './musicInfo'
+import { pickCommentTotal } from './utils/commentTotal'
 import { buildComm, txCgi } from './utils/request'
 
 /**
@@ -25,6 +26,12 @@ import { buildComm, txCgi } from './utils/request'
  *      靠 `toCommentId` 还原，热评的 `${SeqNo}_${CmId}` 拆不出来，只能靠 `cmId`。
  *   4. 发布后要过几秒才会出现在公开列表里（实测同一首歌里有时 1s 内可见、有时要等
  *      数秒），别把"刚发完列表里还没有"当成失败。
+ *   5. **评论条数就在上面那条 h5 读接口的响应里**（`body.comment.commenttotal`），
+ *      不用另发请求、也没有可用的计数端点（`CommentRead/GetCommentCount` 未探通）：
+ *      歌曲 `biztype=1` / 歌单 `biztype=3` 实测都能拿到（2026-09-25 探针，见
+ *      `scripts/verify/artifacts/2026-09-25-qq-probe/NOTES.md` §3），解析统一走
+ *      `./utils/commentTotal` 的 `pickCommentTotal`（取不到给 `null`，界面据此不显示计数）。
+ *      ⚠️ `GetHotCommentList` 的 `data.CommentList.Total` 是**热评条数**，不是总评论数。
  */
 
 const emojis = {
@@ -187,13 +194,16 @@ export default {
     if (statusCode != 200 || body.code !== 0) throw new Error('获取评论失败')
     // console.log(body, statusCode)
     const comment = body.comment
+    // 总评论条数跟着这次列表响应一起回来（文件头第 5 条），界面显示「评论 (N)」直接用它，
+    // 不为计数再打一次请求；`null` = 这次响应里没有这个数，调用方据此不显示计数
+    const total = pickCommentTotal(comment)
     return {
       source: 'tx',
       comments: this.filterNewComment(comment.commentlist),
-      total: comment.commenttotal,
+      total,
       page,
       limit,
-      maxPage: Math.ceil(comment.commenttotal / limit) || 1,
+      maxPage: total == null ? 1 : Math.max(1, Math.ceil(total / limit)),
     }
   },
   async getHotComment(mInfo, page = 1, limit = 20) {
@@ -260,6 +270,8 @@ export default {
     return {
       source: 'tx',
       comments: this.filterHotComment(comment.Comments),
+      // ⚠️ 这是**热评条数**（晴天实测 3964），**不是**歌曲总评论数（那是同名的
+      // `commenttotal`，晴天 230665）——只在热评 tab 的计数与分页上用，别拿去当「评论数」
       total: comment.Total,
       page,
       limit,

@@ -31,7 +31,8 @@
         @scroll="saveListPosition" @contextmenu.capture="handleListRightClick"
       >
         <div
-          class="list-item" :class="[{ [$style.active]: playingRowIndex === index }, { selected: selectedIndex == index || rightClickSelectedIndex == index }, { active: selectedList.includes(item) }, { disabled: !assertApiSupport(item.source) }]"
+          class="list-item" :class="[{ [$style.active]: playingRowIndex === index }, { selected: selectedIndex == index || rightClickSelectedIndex == index }, { active: selectedList.includes(item) }, { disabled: !assertApiSupport(item.source) || isUnavailableRow(item) }]"
+          :title="isUnavailableRow(item) ? $t('list__unavailable_song') : null"
           @click="handleListItemClick($event, index)" @contextmenu="handleListItemRightClick($event, index)"
         >
           <div class="list-item-cell no-select" :class="$style.num" style="flex: 0 0 5%;">
@@ -80,7 +81,8 @@
       >
         <div
           class="list-item"
-          :class="[{ [$style.active]: playingRowIndex === index }, { selected: selectedIndex == index || rightClickSelectedIndex == index }, { active: selectedList.includes(item) }, { disabled: !assertApiSupport(item.source) }]"
+          :class="[{ [$style.active]: playingRowIndex === index }, { selected: selectedIndex == index || rightClickSelectedIndex == index }, { active: selectedList.includes(item) }, { disabled: !assertApiSupport(item.source) || isUnavailableRow(item) }]"
+          :title="isUnavailableRow(item) ? $t('list__unavailable_song') : null"
           @click="handleListItemClick($event, index)" @contextmenu="handleListItemRightClick($event, index)"
         >
           <div class="list-item-cell no-select" :class="$style.num" style="flex: 0 0 5%;">
@@ -154,6 +156,7 @@ import useListScroll from './useListScroll'
 import usePlayingRowLocate from '@renderer/utils/compositions/usePlayingRowLocate'
 import useFavSong from '@renderer/utils/compositions/useFavSong'
 import { appSetting } from '@renderer/store/setting'
+import { isUnavailableMusic } from '@renderer/core/music/unavailable'
 
 export default {
   name: 'ListMusicTable',
@@ -359,9 +362,18 @@ export default {
       listRef.value.scrollTo(0, true)
     }
 
+    /**
+     * 这一行是不是失效曲（无版权 / 已下架，工单 01）：置灰 + 悬停说明（原生 `title`）。
+     * 登记表在 `core/music/unavailable.ts`（会话级、只在真播到过且取流结论不可播时才登记）；
+     * 本地文件与下载任务从来不在表里（判定收在 `isUnavailableMusic` 一处），点播入口在
+     * `usePlay` 里统一拦。
+     */
+    const isUnavailableRow = item => isUnavailableMusic(item)
+
     return {
       listItemHeight,
       handleListItemClick,
+      isUnavailableRow,
       selectedList,
       handleListItemRightClick,
       removeAllSelect,

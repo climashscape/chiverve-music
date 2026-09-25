@@ -23,6 +23,8 @@ import { tempListMeta } from '@renderer/store/list/state'
 import { addFavSongToCloud, removeFavSongFromCloud, favErrorText } from '@renderer/store/user/action'
 import { dialog } from '@renderer/plugins/Dialog'
 import { addDislikeInfo } from '@renderer/core/dislikeList'
+import { isUnavailableError, isUnavailableMusic, hintUnavailableMusic } from '@renderer/core/music/unavailable'
+import { MAX_CONSECUTIVE_UNAVAILABLE_SKIP, unavailableSkipGuard } from './unavailableSkip'
 // import { checkMusicFileAvailable } from '@renderer/utils/music'
 
 let gettingUrlId = ''
@@ -126,10 +128,37 @@ const getMusicPlayUrl = async(musicInfo: LX.Music.MusicInfo | LX.Download.ListIt
 
     if (err.message == requestMsg.tooManyRequests) return delayRetry(musicInfo, isRefresh, quality)
 
+    // 「不可播」是确定性结论（所有档位都问过、服务端都没给直链），重取一次也一样：
+    // 直接抛给上层去登记 / 跳过，不再白刷一轮（判据见 core/music/unavailable.ts）
+    if (isUnavailableError(err)) throw err
+
     if (!isRetryed) return getMusicPlayUrl(musicInfo, isRefresh, true, quality)
 
     throw err
   })
+}
+
+/**
+ * 失效曲（无版权 / 已下架）的统一处理：提示 + （开着自动切歌时）立刻跳过它。
+ *
+ * 为什么**不走 `window.app_event.error()`**：那条路会先按 `player.onUrlFailStrategy` 重试
+ * （默认再取两轮流，每轮 4 个档位）再等 `player.errorSkipDelay` 才切歌——而这里的结论
+ * （所有档位都没有直链）是确定性的，重试与降档都不会变，白刷接口还拖慢跳过。
+ * 队列推进本身仍交给 `playNext`（随机 / 已播历史 / 临时列表那几套逻辑一个字不改）。
+ *
+ * 跳过有上限（`unavailableSkipGuard`）：整队列都失效时跳满 5 首就停下并提示，别一路空转。
+ */
+const handleUnavailableMusic = () => {
+  hintUnavailableMusic()
+  if (!appSetting['player.autoSkipOnError']) return
+  // 单曲循环没有「下一首」可跳（`playNext` 会解回同一首），只提示、别空转
+  if (appSetting['player.togglePlayMethod'] == 'singleLoop') return
+  if (unavailableSkipGuard.take()) {
+    console.warn('skip unavailable music')
+    void playNext(true)
+    return
+  }
+  setAllStatus(window.i18n.t('player__unavailable_skip_limit', { num: MAX_CONSECUTIVE_UNAVAILABLE_SKIP }))
 }
 
 export const setMusicUrl = (musicInfo: LX.Music.MusicInfo | LX.Download.ListItem, isRefresh?: boolean, quality?: LX.Quality) => {
@@ -137,11 +166,23 @@ export const setMusicUrl = (musicInfo: LX.Music.MusicInfo | LX.Download.ListItem
   if (!diffCurrentMusicInfo(musicInfo)) return
   if (cancelDelayRetry) cancelDelayRetry()
   gettingUrlId = createGettingUrlId(musicInfo)
+  // 已知失效的曲不再打一次取流（否则每次跳过都要发一轮 vkey，正是探针警告的限流来源）
+  if (isUnavailableMusic(musicInfo)) {
+    handleUnavailableMusic()
+    return
+  }
   void getMusicPlayUrl(musicInfo, isRefresh, false, quality).then((url) => {
     if (!url) return
+    // 真取到流 = 队列没在「连续失效」里打转，跳过计数归零
+    unavailableSkipGuard.reset()
     setResource(url)
   }).catch((err: any) => {
     console.log(err)
+    // 取流结论是「不可播」：登记已在 `core/music/online.ts` 挂上，这里负责跳过它
+    if (isUnavailableError(err)) {
+      handleUnavailableMusic()
+      return
+    }
     setAllStatus(err.message)
     window.app_event.error()
     if (appSetting['player.autoSkipOnError']) addDelayNextTimeout()
@@ -253,6 +294,8 @@ export const playListById = (listId: string, id: string) => {
   setPlayMusicInfo(listId, musicInfo)
   if (appSetting['player.isAutoCleanPlayedList'] || prevListId != listId) clearPlayedList()
   clearTempPlayeList()
+  // 用户手动起播 = 新的播放意图，「连续失效跳过」的计数从头算（自动连播才会累加）
+  unavailableSkipGuard.reset()
   handlePlay()
 }
 
@@ -268,6 +311,8 @@ export const playList = (listId: string, index: number) => {
   setPlayMusicInfo(listId, getList(listId)[index])
   if (appSetting['player.isAutoCleanPlayedList'] || prevListId != listId) clearPlayedList()
   clearTempPlayeList()
+  // 同上：手动点播就重置跳过计数（`playMusicList` 也走这里）
+  unavailableSkipGuard.reset()
   handlePlay()
 }
 

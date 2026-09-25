@@ -14,6 +14,7 @@ import {
   handleGetOnlinePicUrl,
   getCachedLyricInfo,
 } from './utils'
+import { clearUnavailable, isUnavailableError, markUnavailable } from './unavailable'
 
 /* export const setMusicUrl = ({ musicInfo, type, url }: {
   musicInfo: LX.Music.MusicInfo
@@ -39,6 +40,17 @@ export const setPic = (datas: {
  */
 
 
+/**
+ * 在线取流。**失效曲的登记点**（工单 01）：
+ *
+ * 只有「所有档位都问过、服务端一个直链都没给」这一种失败才登记（判据见 `./unavailable.ts`），
+ * 网络抖动 / 限流 / 未登录 / 无权限一律不登记——它们与「这首歌有没有版权」无关。
+ * 真取到流就撤销登记（服务端恢复、或判据误判时，界面能自己恢复可点）。
+ *
+ * 这里同时也是「预加载」与「下载」的取流入口（`usePreloadNextMusic` / `store/download`）：
+ * 预加载跑在**本曲快播完、下一首即将上场**的时点，登记它等同「队列已经推到这首了」，
+ * 所以不改判据；下载拿到同样的结论也一样（取不到 128k 即真的播不了）。
+ */
 export const getMusicUrl = async({ musicInfo, quality, isRefresh }: {
   musicInfo: LX.Music.MusicInfoOnline
   quality?: LX.Quality
@@ -63,7 +75,16 @@ export const getMusicUrl = async({ musicInfo, quality, isRefresh }: {
 
   return handleGetOnlineMusicUrl({ musicInfo, quality, isRefresh }).then(({ url, quality: targetQuality }) => {
     void saveMusicUrl(musicInfo, targetQuality, url)
+    // 取到过就撤销「失效」标记（表只对登记那一刻成立）
+    clearUnavailable(musicInfo.id)
     return url
+  }).catch((err) => {
+    if (isUnavailableError(err)) {
+      // 无版权 / 已下架：登记成失效曲，界面据此置灰、点不动，连播据此跳过（见 core/player/action.ts）
+      console.warn(`[unavailable] ${musicInfo.id} 取流结论：不可播（${err.message}）`)
+      markUnavailable(musicInfo.id)
+    }
+    throw err
   })
 }
 

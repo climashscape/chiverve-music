@@ -9,6 +9,7 @@
       <fav-lists-panel v-else-if="tab === 'lists'" />
       <fav-albums-panel v-else-if="tab === 'albums'" />
       <follow-singers-panel v-else-if="tab === 'singers'" />
+      <dislike-songs-panel v-else-if="tab === 'dislike'" />
     </div>
   </div>
 </template>
@@ -20,6 +21,7 @@ import SongsPanel from './components/SongsPanel.vue'
 import FavListsPanel from './components/FavListsPanel.vue'
 import FavAlbumsPanel from './components/FavAlbumsPanel.vue'
 import FollowSingersPanel from './components/FollowSingersPanel.vue'
+import DislikeSongsPanel from './components/DislikeSongsPanel.vue'
 
 /**
  * 我的收藏（工单 05）：**所有收藏类的归口**——歌曲 / 歌单 / 专辑 / 歌手。
@@ -30,7 +32,7 @@ import FollowSingersPanel from './components/FollowSingersPanel.vue'
  * （专辑/歌手详情用 router.back() 回历史记录；歌单详情用 fromTab，见 SongCardGrid）。
  */
 
-const TABS = ['songs', 'lists', 'albums', 'singers'] as const
+const TABS = ['songs', 'lists', 'albums', 'singers', 'dislike'] as const
 type TabId = typeof TABS[number]
 
 const normalizeTab = (tab: unknown): TabId => TABS.includes(tab as TabId) ? tab as TabId : TABS[0]
@@ -42,6 +44,7 @@ export default {
     FavListsPanel,
     FavAlbumsPanel,
     FollowSingersPanel,
+    DislikeSongsPanel,
   },
   setup() {
     const router = useRouter()
@@ -54,6 +57,9 @@ export default {
       { tab: 'lists', label: window.i18n.t('favorites__tab_lists' as any) },
       { tab: 'albums', label: window.i18n.t('favorites__tab_albums' as any) },
       { tab: 'singers', label: window.i18n.t('favorites__tab_singers' as any) },
+      // 第五个 tab：云端「不喜欢」（数据类票 02）。同属账号里的云端数据，与上面四个并列；
+      // 与本地不喜欢列表（core/dislikeList，拦播放那份）不是一回事。
+      { tab: 'dislike', label: window.i18n.t('favorites__tab_dislike' as any) },
     ]
 
     const handleTabChange = (id: TabId) => {
