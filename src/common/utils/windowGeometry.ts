@@ -12,7 +12,8 @@
  * - `bounds` 的 x/y/width/height 全是绝对值（DIP，与 Electron `getBounds()` 同义）；
  * - 移动只改 x/y，宽高原样带过（不读任何外部尺寸来源，所以不可能漂）；
  * - 缩放只改被拖的那条边，对边严格不动（钳到最小尺寸时也一样：宁可拖不动，
- *   也不让对边跑——旧实现在钳位后仍继续移动 x，窗口会「一边缩一边位移」）。
+ *   也不让对边跑——旧实现在钳位后仍继续移动 x，窗口会「一边缩一边位移」）；
+ * - 锁定态（`desktopLyric.isLock`）只许移动：缩放帧整帧丢弃（`applyWindowDrag` 返回 `null`）。
  *
  * 位移由调用方给**自按下以来的总位移**（不是每帧增量）：套用到按下瞬间的基准 bounds 上，
  * 因此丢帧、慢帧、窗口跟着指针跑都不会累积误差。
@@ -75,6 +76,25 @@ export const resizeWindowBounds = (bounds: WindowBounds, edge: ResizeEdge, dx: n
   }
 
   return { x, y, width, height }
+}
+
+/**
+ * 一次拖动帧要落到的几何；`null` = 这一帧**不产生任何几何变化**（调用方整帧跳过写入）。
+ *
+ * 「锁定态只许移动」这条规则（ui-polish-followups 工单 07）落在这里：
+ * `desktopLyric.isLock` 为真时缩放帧一律丢弃，移动帧照常。
+ *
+ * 为什么主进程还要再判一次（渲染侧也有一道守卫，见 `renderer-lyric/utils/windowDrag.ts`）：
+ * 1. 锁定的真值在主进程（快捷键 `winLyric/index.ts:62` 随时可改），渲染侧那份可能还没跟上；
+ * 2. 拖动中途被锁时，主进程每一帧现读设置，能立刻停住，不依赖渲染侧是否收到配置推送。
+ *
+ * 锁定态收到缩放帧**不做「降级成移动」**：上游 `useWindowSize.handleMove` 的守卫意图就是
+ * 「这一次交互不发生」（`return`），改成移动会让拖右边缘变成横向平移，语义更坏。
+ */
+export const applyWindowDrag = (bounds: WindowBounds, drag: { mode: 'move' | 'resize', edge?: ResizeEdge }, dx: number, dy: number, isLock: boolean): WindowBounds | null => {
+  if (drag.mode === 'move') return moveWindowBounds(bounds, dx, dy)
+  if (isLock) return null
+  return resizeWindowBounds(bounds, drag.edge ?? 'bottom-right', dx, dy)
 }
 
 /**

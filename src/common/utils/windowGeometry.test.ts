@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { clampWindowBoundsToWorkArea, moveWindowBounds, resizeWindowBounds, type WindowBounds } from './windowGeometry'
+import { applyWindowDrag, clampWindowBoundsToWorkArea, moveWindowBounds, resizeWindowBounds, type ResizeEdge, type WindowBounds } from './windowGeometry'
 
 /**
- * 歌词窗「下一次窗口几何」的三条行为约束——即工单 03 尺寸缺陷的行为描述：
- * 移动不改尺寸、缩放只动被拖的那条边、不低于最小尺寸。
+ * 歌词窗「下一次窗口几何」的行为约束——工单 03 尺寸缺陷的描述（移动不改尺寸、缩放只动被拖的
+ * 那条边、不低于最小尺寸）加上工单 07 的锁定态约束（`applyWindowDrag`：锁定只许移动、缩放帧
+ * 整帧丢弃）。
  *
- * 这三条断言在抽纯函数之前是红的（旧链路把滞后的 `window.innerWidth` 当绝对尺寸、
+ * 前三条断言在抽纯函数之前是红的（旧链路把滞后的 `window.innerWidth` 当绝对尺寸、
  * 把总位移叠加到当前坐标上，见 `src/renderer-lyric/useApp/useWindowSize.ts:77-87`
  * 与 `src/main/modules/winLyric/utils.ts:17-47`）；抽成纯函数后由本文件钉住。
  */
@@ -68,6 +69,33 @@ describe('resizeWindowBounds（缩放只动被拖的那条边）', () => {
 
     const shrink = resizeWindowBounds({ x: 0, y: 0, width: 100, height: 100 }, 'bottom-right', -10000, -10000)
     expect(shrink).toEqual({ x: 0, y: 0, width: 38, height: 38 })
+  })
+})
+
+describe('applyWindowDrag（锁定态只许移动，工单 07）', () => {
+  const edges: ResizeEdge[] = ['left', 'top', 'right', 'bottom', 'top-left', 'top-right', 'bottom-left', 'bottom-right']
+
+  it('解锁态：移动帧只改位置，缩放帧只动被拖的边（不回归）', () => {
+    expect(applyWindowDrag(base, { mode: 'move' }, 10, 20, false))
+      .toEqual({ x: 110, y: 220, width: 800, height: 300 })
+    expect(applyWindowDrag(base, { mode: 'resize', edge: 'right' }, 40, 0, false))
+      .toEqual({ x: 100, y: 200, width: 840, height: 300 })
+  })
+
+  it('锁定态：八个手柄的缩放帧都不产生几何变化（null）', () => {
+    for (const edge of edges) {
+      expect(applyWindowDrag(base, { mode: 'resize', edge }, 40, 20, true)).toBeNull()
+    }
+  })
+
+  it('锁定态：移动帧照常生效，且只改位置', () => {
+    expect(applyWindowDrag(base, { mode: 'move' }, 12, -8, true))
+      .toEqual({ x: 112, y: 192, width: 800, height: 300 })
+  })
+
+  it('缩放帧没带 edge 时按右下角算（与主进程原先的缺省一致）', () => {
+    expect(applyWindowDrag(base, { mode: 'resize' }, 30, 20, false))
+      .toEqual({ x: 100, y: 200, width: 830, height: 320 })
   })
 })
 

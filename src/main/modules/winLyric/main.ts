@@ -1,7 +1,7 @@
 import path from 'node:path'
 import { BrowserWindow } from 'electron'
 import { debounce, getPlatform, isLinux, isWin } from '@common/utils'
-import { clampWindowBoundsToWorkArea, MIN_SIZE, moveWindowBounds, resizeWindowBounds, type ResizeEdge, type WindowBounds } from '@common/utils/windowGeometry'
+import { applyWindowDrag, clampWindowBoundsToWorkArea, MIN_SIZE, type ResizeEdge, type WindowBounds } from '@common/utils/windowGeometry'
 import { initWindowSize, minHeight, minWidth } from './utils'
 import { mainSend } from '@common/mainIpc'
 import { encodePath } from '@common/utils/electron'
@@ -278,14 +278,16 @@ export const handleWindowDrag = (action: LX.DesktopLyric.WindowDrag) => {
       if (!dragState) break
       const dx = Math.round(action.dx ?? 0)
       const dy = Math.round(action.dy ?? 0)
-      const next = clampWindowBoundsToWorkArea(
-        dragState.mode == 'move'
-          ? moveWindowBounds(dragState.base, dx, dy)
-          : resizeWindowBounds(dragState.base, dragState.edge ?? 'bottom-right', dx, dy),
+      // 锁定态只许移动（ui-polish-followups 工单 07）：收到缩放帧整帧跳过——不写窗口、也不记意图值。
+      // 判据是**现读**设置，所以拖动中途被锁（快捷键）也能立刻停住。
+      const next = applyWindowDrag(dragState.base, dragState, dx, dy, global.lx.appSetting['desktopLyric.isLock'])
+      if (!next) break
+      const bounds = clampWindowBoundsToWorkArea(
+        next,
         global.lx.appSetting['desktopLyric.isLockScreen'] ? global.envParams.workAreaSize : null,
       )
-      keepIntendedBounds(next)
-      setBounds(next)
+      keepIntendedBounds(bounds)
+      setBounds(bounds)
       break
     }
   }
