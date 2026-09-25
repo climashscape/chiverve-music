@@ -104,7 +104,11 @@ const linuxOptions = {
     vendor: 'climashscape',
     // artifactName: '${productName}-${version}.${env.ARCH}.${ext}',
     icon: './resources/icons',
-    category: 'Utility;AudioVideo;Audio;Player;Music;',
+    // Categories：freedesktop 规范要求主分类（Main Category）**只能有一个**，多主分类会让应用
+    // 在菜单里重复出现——desktop-file-validate 报 "contains more than one main category"（票 16）。
+    // 这里用 AudioVideo 作唯一主分类，Audio 是它的子分类（Rhythmbox/mpv 同款写法），
+    // 其余 Player / Music 都属 Additional Categories。原先的 Utility 是错的主分类，已去掉。
+    category: 'AudioVideo;Audio;Player;Music;',
     desktop: {
       // https://www.electron.build/app-builder-lib.interface.linuxdesktopfile
       // https://www.electronjs.org/docs/latest/tutorial/linux-desktop-actions
@@ -114,7 +118,8 @@ const linuxOptions = {
         Name: 'Ch\'iverve Music',
         'Name[zh_CN]': 'Ch\'iverve Music',
         'Name[zh_TW]': 'Ch\'iverve Music',
-        Encoding: 'UTF-8',
+        // 不写 Encoding：freedesktop 规范里 `.desktop` 一律 UTF-8，该键已废除
+        // （desktop-file-validate 报 "key Encoding ... is deprecated"，票 16 已删）
         MimeType: 'x-scheme-handler/chiverve-music',
         StartupNotify: 'false',
       },
@@ -143,7 +148,8 @@ const linuxOptions = {
   },
   appImage: {
     license: './licenses/license_zh.txt',
-    category: 'Utility;AudioVideo;Audio;Player;Music;',
+    // 与上面 linux.category 同一份清单与理由（AppImage 内的 .desktop 同样要过 desktop-file-validate）
+    category: 'AudioVideo;Audio;Player;Music;',
   },
 }
 /**
