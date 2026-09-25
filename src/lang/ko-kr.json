@@ -362,7 +362,6 @@
   "player__sound_effect_pitch_shifter_preset_semitones": "{num}반음",
   "player__sound_effect_pitch_shifter_reset_btn": "초기화",
   "player__sound_effect_pitch_shifter_tip": "음정을 높이거나 낮추려면 오디오 데이터를 실시간으로 처리해야 하므로 CPU 사용량이 추가로 발생합니다.\n\n알려진 문제:\nCPU 자원이 부족하면 처리 작업이 쌓여 소리에 이상이 발생할 수 있습니다.\n이 경우 재생을 잠시 멈추고 쌓인 작업이 처리될 때까지 기다린 후 재생해야 합니다.",
-  "player__stop": "일시정지됨",
   "player__volume": "볼륨: ",
   "player__volume_mute_label": "음소거",
   "player__volume_muted": "음소거됨",
