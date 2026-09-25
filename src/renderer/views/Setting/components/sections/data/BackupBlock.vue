@@ -2,18 +2,18 @@
 div
   h3 {{ $t('setting__backup_part') }}
   .p
-    base-btn.btn.gap-left(min @click="handleImportPlayList") {{ $t('setting__backup_part_import_list') }}
-    base-btn.btn.gap-left(min @click="handleExportPlayList") {{ $t('setting__backup_part_export_list') }}
-    base-btn.btn.gap-left(min @click="handleImportSetting") {{ $t('setting__backup_part_import_setting') }}
-    base-btn.btn.gap-left(min @click="handleExportSetting") {{ $t('setting__backup_part_export_setting') }}
+    base-btn.btn.gap-left(min data-setting-id="data_backup_import_list" @click="handleImportPlayList") {{ $t('setting__backup_part_import_list') }}
+    base-btn.btn.gap-left(min data-setting-id="data_backup_export_list" @click="handleExportPlayList") {{ $t('setting__backup_part_export_list') }}
+    base-btn.btn.gap-left(min data-setting-id="data_backup_import_setting" @click="handleImportSetting") {{ $t('setting__backup_part_import_setting') }}
+    base-btn.btn.gap-left(min data-setting-id="data_backup_export_setting" @click="handleExportSetting") {{ $t('setting__backup_part_export_setting') }}
   h3 {{ $t('setting__backup_all') }}
   .p
-    base-btn.btn.gap-left(min @click="handleImportAllData") {{ $t('setting__backup_all_import') }}
-    base-btn.btn.gap-left(min @click="handleExportAllData") {{ $t('setting__backup_all_export') }}
+    base-btn.btn.gap-left(min data-setting-id="data_backup_import_all" @click="handleImportAllData") {{ $t('setting__backup_all_import') }}
+    base-btn.btn.gap-left(min data-setting-id="data_backup_export_all" @click="handleExportAllData") {{ $t('setting__backup_all_export') }}
   h3 {{ $t('setting__backup_other') }}
   .p
-    base-btn.btn.gap-left(min @click="handleExportPlayListToText") {{ $t('setting__backup_other_export_list_text') }}
-    base-btn.btn.gap-left(min @click="handleExportPlayListToCsv") {{ $t('setting__backup_other_export_list_csv') }}
+    base-btn.btn.gap-left(min data-setting-id="data_backup_export_txt" @click="handleExportPlayListToText") {{ $t('setting__backup_other_export_list_text') }}
+    base-btn.btn.gap-left(min data-setting-id="data_backup_export_csv" @click="handleExportPlayListToCsv") {{ $t('setting__backup_other_export_list_csv') }}
 </template>
 
 <script>
@@ -30,17 +30,17 @@ import {
 import { dialog } from '@renderer/plugins/Dialog'
 import useImportTip from '@renderer/utils/compositions/useImportTip'
 import { useI18n } from '@renderer/plugins/i18n'
-import { getListMusics, overwriteListFull, overwriteListMusics } from '@renderer/store/list/action'
-import { LIST_IDS } from '@common/constants'
-import { defaultList, loveList, userLists } from '@renderer/store/list/state'
+import { getListMusics, overwriteListFull } from '@renderer/store/list/action'
+import { loveList, userLists } from '@renderer/store/list/state'
 import { appSetting, updateSetting } from '@renderer/store/setting'
 import migrateSetting from '@common/utils/migrateSetting'
+import { mergeImportedLists } from './listDataImport'
 
 /**
  * 「数据与存储 → 备份与恢复」的 8 个按钮（票 03 从旧 `SettingBackup.vue` 整体搬来）。
  *
- * 8 个按钮全是**非 key 控件**：元数据表的 `Item.key` 必填，装不下它们，所以本节把它们
- * 登记在这里而不是元数据里（票 01 已声明：「items 为空，票 03 落 UI 时另行登记」）。
+ * 8 个按钮全是**非 key 控件**：2026-09-25 起按 `NonKeyItem` 登记进元数据（`data_backup_*`），
+ * 每个按钮挂 `data-setting-id` 让搜索能精确高亮（此前只能搜到「备份与恢复」这个组标题）。
  * 搬运时**行为一字未改**：三个子块（部分数据 / 所有数据 / 其他备份格式）保留为无 id 的 `h3`
  * 子标题（有 id 就会变成元数据之外的野锚点）。默认文件名票 04 已从上游的旧前缀改成 `chiverve_*`
  * （`.lxmc` 后缀是上游的配置文件格式名，与 `readLxConfigFile` 同一套，不动）。
@@ -54,9 +54,15 @@ export default {
     const t = useI18n()
     const showImportTip = useImportTip()
 
+    /**
+     * 本地已有列表：**第 0 项是「我的收藏」**，其后都是自建列表。
+     *
+     * 票 08 起不再有试听列表：它既不在这份数组里，导出时也不会写进备份文件——于是
+     * 「第 0 项 = 试听列表」这个位置约定整体前移，导入侧改成按 `id` 认列表并**跳过**
+     * 旧备份里的试听列表（见 `listDataImport.ts`）。
+     */
     const getAllLists = async() => {
       const lists = []
-      lists.push(await getListMusics(defaultList.id).then(musics => ({ ...defaultList, list: toRaw(musics) })))
       lists.push(await getListMusics(loveList.id).then(musics => ({ ...loveList, list: toRaw(musics) })))
 
       for await (const list of userLists) {
@@ -67,54 +73,20 @@ export default {
     }
 
     const importOldListData = async(lists) => {
-      const allLists = await getAllLists()
-      for (const list of lists) {
-        try {
-          const targetList = allLists.find(l => l.id == list.id)
-          if (targetList) {
-            targetList.list = filterMusicList(list.list.map(m => toNewMusicInfo(m)))
-          } else {
-            allLists.push({
-              name: list.name,
-              id: list.id,
-              list: filterMusicList(list.list.map(m => toNewMusicInfo(m))),
-              source: list.source,
-              sourceListId: list.sourceListId,
-              locationUpdateTime: list.locationUpdateTime ?? null,
-            })
-          }
-        } catch (err) {
-          console.log(err)
-        }
-      }
-      const defaultList = allLists.shift().list
-      const loveList = allLists.shift().list
-      await overwriteListFull({ defaultList, loveList, userList: allLists })
+      const { loveList: loveListData, userList } = mergeImportedLists(
+        await getAllLists(),
+        lists,
+        (musicList) => filterMusicList(musicList.map(m => toNewMusicInfo(m))),
+      )
+      await overwriteListFull({ loveList: loveListData, userList })
     }
     const importNewListData = async(lists) => {
-      const allLists = await getAllLists()
-      for (const list of lists) {
-        try {
-          const targetList = allLists.find(l => l.id == list.id)
-          if (targetList) {
-            targetList.list = filterMusicList(list.list).map(m => fixNewMusicInfoQuality(m))
-          } else {
-            allLists.push({
-              name: list.name,
-              id: list.id,
-              list: filterMusicList(list.list).map(m => fixNewMusicInfoQuality(m)),
-              source: list.source,
-              sourceListId: list.sourceListId,
-              locationUpdateTime: list.locationUpdateTime ?? null,
-            })
-          }
-        } catch (err) {
-          console.log(err)
-        }
-      }
-      const defaultList = allLists.shift().list
-      const loveList = allLists.shift().list
-      await overwriteListFull({ defaultList, loveList, userList: allLists })
+      const { loveList: loveListData, userList } = mergeImportedLists(
+        await getAllLists(),
+        lists,
+        (musicList) => filterMusicList(musicList).map(m => fixNewMusicInfoQuality(m)),
+      )
+      await overwriteListFull({ loveList: loveListData, userList })
     }
     const importOldSettingData = (setting) => {
       console.log(setting)
@@ -137,8 +109,10 @@ export default {
 
       switch (allData.type) {
         case 'allData':
-          // 兼容 0.6.2 及以前版本的列表数据
-          if (allData.defaultList) await overwriteListMusics({ listId: LIST_IDS.DEFAULT, musicInfos: filterMusicList(allData.defaultList.list.map(m => toNewMusicInfo(m))) })
+          // 0.6.2 及以前版本的列表数据：列表都在 `playList` 里按 id 认，试听列表由
+          // `mergeImportedLists` 跳过；这一档只有「设置 + 试听列表」的老文件（带 `defaultList`）
+          // 的列表部分就整块丢掉，设置照旧导入——用户已接受早版本点过的歌不导入（票 08 契约 1）
+          if (allData.defaultList) console.log('[list import] 跳过 0.6.2 备份里的试听列表（该列表已删除）')
           else await importOldListData(allData.playList)
           importOldSettingData(allData.setting)
           break
@@ -264,8 +238,10 @@ export default {
       console.log(listData.type)
 
       switch (listData.type) {
-        case 'defautlList': // 兼容 0.6.2 及以前版本的列表数据
-          await overwriteListMusics({ listId: LIST_IDS.DEFAULT, musicInfos: filterMusicList(listData.data.list.map(m => toNewMusicInfo(m))) })
+        // 0.6.2 及以前的「单条试听列表」文件：这条列表（票 08）已从库里删掉，没地方可导——
+        // 跳过（不并进「我的收藏」，也不新建一条同 id 的自建列表），与 `mergeImportedLists` 同口径
+        case 'defautlList':
+          console.log('[list import] 跳过 0.6.2 的试听列表文件（该列表已删除）')
           break
         case 'playList':
           await importOldListData(listData.data)

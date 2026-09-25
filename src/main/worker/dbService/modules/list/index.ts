@@ -363,6 +363,10 @@ export const musicsPositionUpdate = (listId: string, position: number, ids: stri
 /**
  * 覆盖所有列表数据
  * @param myListData 完整列表数据
+ *
+ * 注意入参形状：**旧版同步 / 旧备份的载荷里多一个 `defaultList` 键**（试听列表，票 08 前是一等公民）。
+ * 这里只按名字取 `loveList` / `userList` / `tempList`，多出来的键自然被忽略——这正是「旧同步数据
+ * 拉取仍能跑通」的落点，别改成按位置解构或对多出来的键报错。
  */
 export const listDataOverwrite = (myListData: MakeOptional<LX.List.ListDataFull, 'tempList'>) => {
   const dbLists: LX.DBService.UserListInfo[] = []
@@ -372,7 +376,6 @@ export const listDataOverwrite = (myListData: MakeOptional<LX.List.ListDataFull,
   }
 
   const dbMusicInfos: LX.DBService.MusicInfo[] = [
-    ...toDBMusicInfo(listData.defaultList, LIST_IDS.DEFAULT),
     ...toDBMusicInfo(listData.loveList, LIST_IDS.LOVE),
     ...toDBMusicInfo(listData.tempList, LIST_IDS.TEMP),
   ]
@@ -388,7 +391,6 @@ export const listDataOverwrite = (myListData: MakeOptional<LX.List.ListDataFull,
   rawPoss.clear()
   for (const list of userLists) rawPoss.set(list.id, list.position)
   musicLists.clear()
-  musicLists.set(LIST_IDS.DEFAULT, listData.defaultList)
   musicLists.set(LIST_IDS.LOVE, listData.loveList)
   musicLists.set(LIST_IDS.TEMP, listData.tempList)
   for (const list of listData.userList) musicLists.set(list.id, list.list)

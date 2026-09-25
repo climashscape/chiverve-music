@@ -2,7 +2,6 @@ import { reactive } from '@common/utils/vueTools'
 
 export {
   allMusicList,
-  defaultList,
   loveList,
   tempList,
   userLists,
@@ -15,6 +14,8 @@ export {
 
 // export const allList: Map<string, LX.Music.MusicInfo[]> = window.lxData.allList = markRaw(new Map())
 
+// 试听列表（LIST_IDS.DEFAULT）的历史定义：界面（ADR-0006）与数据层（票 08）都已删除，
+// 这段注释只留作对照。
 // export const defaultList: Omit<LX.List.MyDefaultListInfo, 'list'> = reactive({
 //   id: 'default',
 //   name: '试听列表',

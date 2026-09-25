@@ -10,6 +10,14 @@ declare namespace LX {
       locationUpdateTime: number | null
     }
 
+    /**
+     * 「试听列表」（`LIST_IDS.DEFAULT`）的历史类型：界面已退场（ADR-0006），数据行也已删除（票 08）。
+     * 只留给**旧备份/旧同步载荷的兼容读取**（`config_files.d.ts` 的老文件格式）与注释里的历史对照，
+     * 应用当前的数据结构里不再有这条列表。
+     *
+     * `name` 仍写成当初的 i18n key（四语文件里的 `list__name_default` 已随数据层一起删掉）：
+     * 这是**旧文件里出现过的字符串**，保留它只为把历史形状记准，没有任何运行时消费者。
+     */
     interface MyDefaultListInfo {
       id: 'default'
       name: 'list__name_default'
@@ -34,10 +42,9 @@ declare namespace LX {
       }
     }
 
-    type MyListInfo = MyDefaultListInfo | MyLoveListInfo | UserListInfo
+    type MyListInfo = MyLoveListInfo | UserListInfo
 
     interface MyAllList {
-      defaultList: MyDefaultListInfo
       loveList: MyLoveListInfo
       userList: UserListInfo[]
       tempList: MyTempListInfo
@@ -134,7 +141,6 @@ declare namespace LX {
     }
 
     interface ListDataFull {
-      defaultList: LX.Music.MusicInfo[]
       loveList: LX.Music.MusicInfo[]
       userList: UserListInfoFull[]
       tempList: LX.Music.MusicInfo[]

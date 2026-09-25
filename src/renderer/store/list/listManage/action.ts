@@ -1,7 +1,6 @@
 import { markRaw, markRawList, toRaw } from '@common/utils/vueTools'
 import {
   allMusicList,
-  defaultList,
   loveList,
   tempList,
   userLists,
@@ -72,7 +71,6 @@ const updateList = ({
 }: LX.List.UserListInfo & { meta?: { id?: string } }) => {
   let targetList
   switch (id) {
-    case defaultList.id:
     case loveList.id:
       break
     case tempList.id:
@@ -106,7 +104,13 @@ const overwriteUserList = (lists: LX.List.UserListInfo[]) => {
 // }
 
 
-export const listDataOverwrite = ({ defaultList, loveList, userList, tempList }: MakeOptional<LX.List.ListDataFull, 'tempList'>): string[] => {
+/**
+ * 覆盖全部列表数据（旧数据迁移 / 备份导入 / 同步三处共用）。
+ *
+ * 入参**可能带旧版的 `defaultList`（试听列表）键**：本函数按名字解构，多出来的键天然被忽略，
+ * 这正是「旧同步数据拉取、旧备份导入仍能跑通」的落点（票 08 契约 2）——别改成按位置取参。
+ */
+export const listDataOverwrite = ({ loveList, userList, tempList }: MakeOptional<LX.List.ListDataFull, 'tempList'>): string[] => {
   const updatedListIds: string[] = []
   const newUserIds: string[] = []
   const newUserListInfos = userList.map(({ list, ...listInfo }) => {
@@ -124,11 +128,6 @@ export const listDataOverwrite = ({ defaultList, loveList, userList, tempList }:
   }
   overwriteUserList(newUserListInfos)
 
-  if (allMusicList.has(LIST_IDS.DEFAULT)) {
-    overwriteMusicList(LIST_IDS.DEFAULT, defaultList)
-    updatedListIds.push(LIST_IDS.DEFAULT)
-  }
-
   overwriteMusicList(LIST_IDS.LOVE, loveList)
   updatedListIds.push(LIST_IDS.LOVE)
 
@@ -136,7 +135,7 @@ export const listDataOverwrite = ({ defaultList, loveList, userList, tempList }:
     overwriteMusicList(LIST_IDS.TEMP, tempList)
     updatedListIds.push(LIST_IDS.TEMP)
   }
-  const newIds = [LIST_IDS.DEFAULT, LIST_IDS.LOVE, ...userList.map(l => l.id)]
+  const newIds = [LIST_IDS.LOVE, ...userList.map(l => l.id)]
   if (tempList) newIds.push(LIST_IDS.TEMP)
   void overwriteListPosition(newIds)
   void overwriteListUpdateInfo(newIds)

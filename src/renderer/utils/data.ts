@@ -15,7 +15,7 @@ import {
   saveViewPrevState as saveViewPrevStateFromData,
 } from '@renderer/utils/ipc'
 import { throttle } from '@common/utils'
-import { type DEFAULT_SETTING, LIST_IDS } from '@common/constants'
+import { type DEFAULT_SETTING } from '@common/constants'
 import { dateFormat } from './index'
 import music from '@renderer/utils/musicSdk'
 import { setUpdateTime } from '@renderer/store/list/action'
@@ -77,10 +77,16 @@ export const overwriteListPosition = async(ids: string[]) => {
 const saveListPrevSelectIdThrottle = throttle(() => {
   saveListPrevSelectIdFromData(listPrevSelectId)
 }, 200)
+/**
+ * 上一次选中的列表 id（只被本地歌单左栏写入）。
+ *
+ * 没有记录 / 记录为空时返回**空串**（= 没有可选中的列表）：以前这里回退成试听列表 `default`，
+ * 而它已随 ADR-0006 / 票 08 退场（库里连数据行都删了），返回它只会让调用方拿到一个不存在的列表。
+ */
 export const getListPrevSelectId = async() => {
   // eslint-disable-next-line require-atomic-updates
-  listPrevSelectId ??= await getListPrevSelectIdFromData() ?? LIST_IDS.DEFAULT
-  return listPrevSelectId ?? LIST_IDS.DEFAULT
+  listPrevSelectId ??= await getListPrevSelectIdFromData() ?? ''
+  return listPrevSelectId
 }
 export const saveListPrevSelectId = (id: string) => {
   listPrevSelectId = id

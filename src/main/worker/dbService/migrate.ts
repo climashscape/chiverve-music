@@ -1,5 +1,7 @@
 import type Database from 'better-sqlite3'
+import { LIST_IDS } from '@common/constants'
 import tables, { DB_VERSION } from './tables'
+import { deleteUserLists } from './modules/list/dbHelper'
 
 // const migrateV1 = (db: Database.Database) => {
 //   const sql = `
@@ -66,6 +68,25 @@ const migrateV2 = (db: Database.Database) => {
   })()
 }
 
+/**
+ * v3 → v4：删掉「试听列表」（`LIST_IDS.DEFAULT`）在库里的全部数据行（票 08 契约 1：**真删旧行**）。
+ *
+ * 四个刻意的做法：
+ * 1. **走 `dbHelper` 的列表删除路径**（`deleteUserLists`，即 `list_remove` 事件那条路径）：它把
+ *    `my_list` / `my_list_music_info` / `my_list_music_info_order` 三张表一次清干净，将来这条数据链
+ *    多了别的表也不用回来改这里。`db` 参数只为与其它迁移函数对齐签名——`dbHelper` 取的是
+ *    `getDB()`，而 `init` 在调 `migrateData(db)` 之前已经把同一个实例赋进去了。
+ * 2. **不做任何搬运**：用户已明确接受「早版本里点过的歌不再找得回来」，所以既不迁进「我的收藏」，
+ *    也不留备份行——库里、同步载荷、备份导出都不再有这个概念。
+ * 3. **表结构一个字不动**：只是清行，所以 `tables.ts` 的建表 SQL / `verifyDB` 的逐字符校验不受影响，
+ *    版本号抬一档只是为了让这次清行**有记录**（跑过就不再跑）。
+ * 4. **幂等**：行不存在时 DELETE 影响 0 行；即便版本号被回写成 '3'（例如从旧备份还原了 config），
+ *    重跑也只是再清一次。
+ */
+const migrateV3 = (db: Database.Database) => {
+  deleteUserLists([LIST_IDS.DEFAULT])
+}
+
 export default (db: Database.Database) => {
   // PRAGMA user_version = x
   // console.log(db.prepare('PRAGMA user_version').get().user_version)
@@ -74,12 +95,18 @@ export default (db: Database.Database) => {
   switch (version) {
     case '1':
       migrateV1(db)
-      // '1' 的库要连做两版迁移：版本号直接写成 DB_VERSION 会漏掉 v2 的加列 → 校验不过 → 重建空库
+      // '1' 的库要连做后面每一版迁移：版本号直接写成 DB_VERSION 会漏掉 v2 的加列 → 校验不过 → 重建空库
       migrateV2(db)
+      migrateV3(db)
       db.prepare('UPDATE "main"."db_info" SET "field_value"=@value WHERE "field_name"=@name').run({ name: 'version', value: DB_VERSION })
       break
     case '2':
       migrateV2(db)
+      migrateV3(db)
+      db.prepare('UPDATE "main"."db_info" SET "field_value"=@value WHERE "field_name"=@name').run({ name: 'version', value: DB_VERSION })
+      break
+    case '3':
+      migrateV3(db)
       db.prepare('UPDATE "main"."db_info" SET "field_value"=@value WHERE "field_name"=@name').run({ name: 'version', value: DB_VERSION })
       break
   }

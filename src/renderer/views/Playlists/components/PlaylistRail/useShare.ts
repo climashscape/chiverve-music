@@ -3,9 +3,10 @@ import { openSaveDir, showSelectDialog } from '@renderer/utils/ipc'
 import { useI18n } from '@renderer/plugins/i18n'
 import { filterFileName, toNewMusicInfo, fixNewMusicInfoQuality, filterMusicList } from '@renderer/utils'
 import { getListMusics, updateUserList, addListMusics, overwriteListMusics, createUserList } from '@renderer/store/list/action'
-import { defaultList, loveList, userLists } from '@renderer/store/list/state'
+import { loveList, userLists } from '@renderer/store/list/state'
 import useImportTip from '@renderer/utils/compositions/useImportTip'
 import { dialog } from '@renderer/plugins/Dialog'
+import { LIST_IDS } from '@common/constants'
 
 
 export default () => {
@@ -58,7 +59,15 @@ export default () => {
           return
       }
 
-      const targetList = [defaultList, loveList, ...userLists].find(l => l.id == listData.id)
+      // 单列表文件里带的是「试听列表」（`default`，票 08 已从数据层删除）时直接跳过：
+      // 不能落进任何一条现有列表（用户明确不让它并进「我的收藏」），也不能拿它的 id 去
+      // 新建自建列表——那会让已删除的保留 id 借尸还魂，`list_data_overwrite` 一跑就把它清掉。
+      if (listData.id == LIST_IDS.DEFAULT) {
+        console.log('[list import] 跳过试听列表（该列表已删除）')
+        return
+      }
+
+      const targetList = [loveList, ...userLists].find(l => l.id == listData.id)
       if (targetList) {
         const confirm = await dialog.confirm({
           message: t('lists__import_part_confirm', { importName: listData.name, localName: targetList.name }),
@@ -68,7 +77,6 @@ export default () => {
         if (confirm) {
           listData.name = targetList.name
           switch (listData.id) {
-            case defaultList.id:
             case loveList.id:
               break
             default:

@@ -3,12 +3,8 @@ import { markRaw, reactive } from '@common/utils/vueTools'
 
 export const allMusicList: Map<string, LX.Music.MusicInfo[]> = markRaw(new Map())
 
-export const defaultList = markRaw<LX.List.MyDefaultListInfo>({
-  id: LIST_IDS.DEFAULT,
-  name: 'list__name_default',
-  // name: '试听列表',
-})
-
+// 「试听列表」（`LIST_IDS.DEFAULT`）的数据层已删除（票 08：库里真删旧行、同步与备份格式里都不再存在），
+// 所以这里没有它对应的 listInfo；界面上的固定列表只剩收藏与临时列表两条。
 export const loveList = markRaw<LX.List.MyLoveListInfo>({
   id: LIST_IDS.LOVE,
   name: 'list__name_love',

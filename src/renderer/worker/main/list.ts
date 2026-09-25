@@ -320,10 +320,10 @@ export const createLocalMusicInfos = async(filePaths: string[]): Promise<LX.Musi
 /**
  * 导出列表到txt文件
  * @param savePath 保存路径
- * @param lists 列表数据
+ * @param lists 列表数据（票 08 起不再含试听列表：`getAllLists()` 只给收藏 + 自建列表）
  * @param isMerge 是否合并
  */
-export const exportPlayListToText = async(savePath: string, lists: Array<LX.List.MyDefaultListInfoFull | LX.List.MyLoveListInfoFull | LX.List.UserListInfoFull>, isMerge: boolean) => {
+export const exportPlayListToText = async(savePath: string, lists: Array<LX.List.MyLoveListInfoFull | LX.List.UserListInfoFull>, isMerge: boolean) => {
   const iconv = (await import('iconv-lite')).default
 
   if (isMerge) {
@@ -345,7 +345,7 @@ export const exportPlayListToText = async(savePath: string, lists: Array<LX.List
  * @param header 表头名称
  */
 export const exportPlayListToCSV = async(savePath: string,
-  lists: Array<LX.List.MyDefaultListInfoFull | LX.List.MyLoveListInfoFull | LX.List.UserListInfoFull>,
+  lists: Array<LX.List.MyLoveListInfoFull | LX.List.UserListInfoFull>,
   isMerge: boolean,
   header: string) => {
   const iconv = (await import('iconv-lite')).default

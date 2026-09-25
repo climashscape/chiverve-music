@@ -1,6 +1,6 @@
 import { computed, ref, reactive, nextTick } from '@common/utils/vueTools'
 import { useI18n } from '@renderer/plugins/i18n'
-import { userLists, defaultList, loveList } from '@renderer/store/list/state'
+import { userLists } from '@renderer/store/list/state'
 import musicSdk from '@renderer/utils/musicSdk'
 import { addLocalFile } from './actions'
 
@@ -136,20 +136,12 @@ export default ({
     isShowMenu.value = false
   }
 
+  // 右键菜单只挂在左栏渲染的**本地自建列表**上（`LocalRail.vue` 的 v-for，index ≥ 0）：
+  // 以前还有 -1（我的收藏）/ -2（试听列表）两个前导项，随 ADR-0006（界面）与票 08（数据层）
+  // 一起退场，故只剩下面这一条分支。
   const getListInfo = (index) => {
-    let list
-    switch (index) {
-      case -2:
-        list = defaultList
-        break
-      case -1:
-        list = loveList
-        break
-      default:
-        list = userLists[index]
-        if (!list) return null
-        break
-    }
+    const list = userLists[index]
+    if (!list) return null
     return list
   }
 

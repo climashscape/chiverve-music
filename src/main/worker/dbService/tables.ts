@@ -237,8 +237,11 @@ export default tables
  *
  * ⚠️ 校验不过时 `db.init` 返回 `null`，`main/app.ts` 会把用户库改名备份后**重建空库**（数据丢失）。
  *
- * 版本历史：
- * - `'1'`：补 `dislike_list` 表（上游 v2.4.0 的默认版本号出错遗留）；
- * - `'2'`：`music_url` 加 `created_at`（设置页重构票 08：URL 缓存回收的时间依据，0 = 加列之前写的行）。
+ * 版本历史（每项 = 一个**起始版本**的库在迁移时补了什么；`migrate.ts` 的 `case` 与之对应，
+ * 迁移跑完版本号一律写成上面的 `DB_VERSION`）：
+ * - 起始 `'1'`：补 `dislike_list` 表（上游 v2.4.0 的默认版本号出错遗留）；
+ * - 起始 `'2'`：`music_url` 加 `created_at`（设置页重构票 08：URL 缓存回收的时间依据，0 = 加列之前写的行）；
+ * - 起始 `'3'`：删掉「试听列表」（`LIST_IDS.DEFAULT`）在库里的全部数据行（票 08：数据层删除，
+ *   真删、不迁进「我的收藏」；表结构不变，只是清行）。
  */
-export const DB_VERSION = '3'
+export const DB_VERSION = '4'

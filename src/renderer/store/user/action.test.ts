@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { favSongIds, favSongIdsLoaded, favSongs } from './state'
-import { addFavSongToCloud, removeFavSongFromCloud, toggleFavSongToCloud } from './action'
+import { addFavSongToCloud, canFavSongInCloud, isFavSongInCloud, removeFavSongFromCloud, toggleFavSongToCloud } from './action'
 
 /**
  * 「我喜欢」一键切换的**动作方向**（ui-polish-3 工单 06）。
@@ -224,5 +224,64 @@ describe('store/user/action 的「我收藏的歌曲」就地更新', () => {
 
     expect(idsOf()).toEqual(['9'])
     expect(favSongs.total).toBe(1)
+  })
+})
+
+/**
+ * 收藏的**来源分支**：本地文件 / 其它源 vs QQ 在线歌（ui-polish-followups 票 17 接缝 2）。
+ *
+ * 契约（2026-09-24 起）：本地收藏退场后「我喜欢」只有**云端 dirId=201 一条路**
+ * （`core/player/action.ts` 的 collectMusic 注释、`views/Favorites/components/SongsPanel.vue`），
+ * 所以来源分支只剩「这一首能不能写进云端」：
+ *   - 判据是**有没有 QQ 歌曲 id**（`source == 'tx'` 且 `meta.id` 不为 null）——本地文件
+ *     （source=local，`meta.id` 是文件路径/没有）与其它源的 id 送给 QQ 都是错的；
+ *   - 不能收藏的歌，界面**不显示**收藏入口（三个入口都先问 `canFavSongInCloud`），
+ *     真被直接调用时写接口也不发请求（不静默送错数据）；
+ *   - 收藏态只读云端的全量 id 集合（本地 love 列表的数据行仍在，但不再是收藏态的判据）。
+ *
+ * 期望值来源：判据与文案都取自 `store/user/action.ts` 的既有实现与其注释（票 06/09 落地时的
+ * 真机结论：本地文件没有 QQ songId，送进写接口是「无意义条目」——同 `AddSongsModal` 的
+ * `source !== 'local'` 过滤、`playlists__add_songs_no_online` 文案）。
+ */
+describe('store/user/action 的收藏来源分支（本地 vs QQ 在线）', () => {
+  /** 本地文件：source=local，没有 QQ 歌曲 id（本地库歌曲的形态，见 ListMusicTable 的用例） */
+  const localFile = { id: 'local_1', name: '本地文件', singer: '歌手', source: 'local', interval: '03:00', meta: { albumName: '' } } as any
+
+  it('tx 源且带 QQ 歌曲 id → 能收藏', () => {
+    expect(canFavSongInCloud(song('1'))).toBe(true)
+  })
+
+  it('本地文件 / 其它源 → 不能收藏（本地收藏已取消，界面上不出现收藏入口）', () => {
+    expect(canFavSongInCloud(localFile)).toBe(false)
+    expect(canFavSongInCloud({ ...song('1'), source: 'netease' })).toBe(false)
+  })
+
+  it('缺 meta / 缺 meta.id / 空歌 → 不能收藏（判据是 meta.id != null，不是「有 meta」）', () => {
+    expect(canFavSongInCloud({ ...song('1'), meta: {} })).toBe(false)
+    expect(canFavSongInCloud({ ...song('1'), meta: undefined })).toBe(false)
+    expect(canFavSongInCloud(null)).toBe(false)
+    expect(canFavSongInCloud(undefined)).toBe(false)
+  })
+
+  it('本地文件即使被直接调用写接口：抛错且**一个请求都不发**', async() => {
+    // 直接调 addFavSongToCloud 是「界面判据被绕过」的场景（快捷键 / 托盘 / deeplink 也走它）：
+    // 没有 QQ id 时不能拿 NaN 去打接口
+    await expect(addFavSongToCloud(localFile)).rejects.toThrow()
+    await expect(removeFavSongFromCloud(localFile)).rejects.toThrow()
+
+    expect(likeSong).not.toHaveBeenCalled()
+    expect(unlikeSong).not.toHaveBeenCalled()
+  })
+
+  it('收藏态只认云端 id 集合（字符串 id），与 source 无关', () => {
+    expect(isFavSongInCloud(song('1'))).toBe(false)
+
+    favSongIds.push('1')
+
+    expect(isFavSongInCloud(song('1'))).toBe(true)
+    expect(isFavSongInCloud(song('2'))).toBe(false)
+    // 没有 QQ id 的一律「未收藏」（不能拿空串去 includes）
+    expect(isFavSongInCloud({ ...song('1'), meta: {} })).toBe(false)
+    expect(isFavSongInCloud(null)).toBe(false)
   })
 })

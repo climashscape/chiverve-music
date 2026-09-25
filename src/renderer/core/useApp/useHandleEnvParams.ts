@@ -1,6 +1,6 @@
 import { useRouter } from '@common/utils/vueRouter'
 import { parseUrlParams } from '@common/utils/common'
-import { defaultList, loveList, userLists } from '@renderer/store/list/state'
+import { loveList, userLists } from '@renderer/store/list/state'
 import { getListMusics } from '@renderer/store/list/action'
 import usePlaySonglist from './compositions/usePlaySonglist'
 import { playList } from '@renderer/core/player'
@@ -52,7 +52,9 @@ const useInitEnvParamPlay = () => {
       case 'myList':
         if (params.name != null) {
           let targetList
-          const lists = [defaultList, loveList, ...userLists]
+          // 候选里没有试听列表：它随 ADR-0006 / 票 08 退场，旧命令行参数按它的名字点播会
+          // 找不到目标（`targetList` 为空 → return，不去播一个不存在的列表）
+          const lists = [loveList, ...userLists]
           for (const list of lists) {
             if (list.name === params.name) {
               targetList = list

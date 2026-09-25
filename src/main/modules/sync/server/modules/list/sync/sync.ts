@@ -5,15 +5,21 @@ import { buildUserListInfoFull, getLocalListData, setLocalListData } from '@main
 import { SYNC_CLOSE_CODE } from '@common/constants_sync'
 // import { LIST_IDS } from '@common/constants'
 
-// type ListInfoType = LX.List.UserListInfoFull | LX.List.MyDefaultListInfoFull | LX.List.MyLoveListInfoFull
+// type ListInfoType = LX.List.UserListInfoFull | LX.List.MyLoveListInfoFull
 
 // let wss: LX.Sync.Server.SocketServer | null
 let syncingId: string | null = null
 const wait = async(time = 1000) => await new Promise((resolve, reject) => setTimeout(resolve, time))
 
+/**
+ * 补上缺失的字段（对端可能是旧版，只发了 `userList` 之类）。
+ *
+ * **不要往这里加回 `defaultList`**（试听列表，票 08 已从数据层删除）：旧版对端/旧快照发来的
+ * `defaultList` 会被原样留在对象上，但下游没有任何地方再读它——落库走
+ * `dbService.listDataOverwrite`（按名字取字段），渲染侧同理。
+ */
 const patchListData = (listData: Partial<LX.Sync.List.ListData>): LX.Sync.List.ListData => {
   return Object.assign({
-    defaultList: [],
     loveList: [],
     userList: [],
   }, listData)
@@ -136,11 +142,9 @@ const handleMergeList = (
 const mergeList = (socket: LX.Sync.Server.Socket, sourceListData: LX.Sync.List.ListData, targetListData: LX.Sync.List.ListData): LX.Sync.List.ListData => {
   const addMusicLocationType = getUserConfig(socket.userInfo.name)['list.addMusicLocationType']
   const newListData: LX.Sync.List.ListData = {
-    defaultList: [],
     loveList: [],
     userList: [],
   }
-  newListData.defaultList = handleMergeList(sourceListData.defaultList, targetListData.defaultList, addMusicLocationType)
   newListData.loveList = handleMergeList(sourceListData.loveList, targetListData.loveList, addMusicLocationType)
 
   const userListDataObj = createUserListDataObj(sourceListData)
@@ -171,11 +175,9 @@ const mergeList = (socket: LX.Sync.Server.Socket, sourceListData: LX.Sync.List.L
 }
 const overwriteList = (sourceListData: LX.Sync.List.ListData, targetListData: LX.Sync.List.ListData): LX.Sync.List.ListData => {
   const newListData: LX.Sync.List.ListData = {
-    defaultList: [],
     loveList: [],
     userList: [],
   }
-  newListData.defaultList = sourceListData.defaultList
   newListData.loveList = sourceListData.loveList
 
   const userListDataObj = createUserListDataObj(sourceListData)
@@ -233,12 +235,12 @@ const handleMergeListData = async(socket: LX.Sync.Server.Socket): Promise<[LX.Sy
 const handleSyncList = async(socket: LX.Sync.Server.Socket) => {
   const [remoteListData, localListData] = await Promise.all([getRemoteListData(socket), getLocalListData()])
   console.log('handleSyncList', 'remoteListData, localListData')
-  console.log('localListData', localListData.defaultList.length || localListData.loveList.length || localListData.userList.length)
-  console.log('remoteListData', remoteListData.defaultList.length || remoteListData.loveList.length || remoteListData.userList.length)
+  console.log('localListData', localListData.loveList.length || localListData.userList.length)
+  console.log('remoteListData', remoteListData.loveList.length || remoteListData.userList.length)
   const userSpace = getUserSpace(socket.userInfo.name)
   const clientId = socket.keyInfo.clientId
-  if (localListData.defaultList.length || localListData.loveList.length || localListData.userList.length) {
-    if (remoteListData.defaultList.length || remoteListData.loveList.length || remoteListData.userList.length) {
+  if (localListData.loveList.length || localListData.userList.length) {
+    if (remoteListData.loveList.length || remoteListData.userList.length) {
       const [mergedList, requiredUpdateLocalListData, requiredUpdateRemoteListData] = await handleMergeListData(socket)
       console.log('handleMergeListData', 'mergedList', requiredUpdateLocalListData, requiredUpdateRemoteListData)
       let key
@@ -256,7 +258,7 @@ const handleSyncList = async(socket: LX.Sync.Server.Socket) => {
     }
   } else {
     let key: string
-    if (remoteListData.defaultList.length || remoteListData.loveList.length || remoteListData.userList.length) {
+    if (remoteListData.loveList.length || remoteListData.userList.length) {
       key = await setLocalList(socket, remoteListData)
       await overwriteRemoteListData(socket, remoteListData, key, [clientId])
     }
@@ -328,11 +330,9 @@ const handleMergeListDataFromSnapshot = async(socket: LX.Sync.Server.Socket, sna
   const addMusicLocationType = getUserConfig(socket.userInfo.name)['list.addMusicLocationType']
   const [remoteListData, localListData] = await Promise.all([getRemoteListData(socket), getLocalListData()])
   const newListData: LX.Sync.List.ListData = {
-    defaultList: [],
     loveList: [],
     userList: [],
   }
-  newListData.defaultList = mergeListDataFromSnapshot(localListData.defaultList, remoteListData.defaultList, snapshot.defaultList, addMusicLocationType)
   newListData.loveList = mergeListDataFromSnapshot(localListData.loveList, remoteListData.loveList, snapshot.loveList, addMusicLocationType)
   const localUserListData = createUserListDataObj(localListData)
   const remoteUserListData = createUserListDataObj(remoteListData)

@@ -18,22 +18,24 @@ import { musicUrlCount, musicUrlRecycle, musicUrlRemove, musicUrlSave } from './
  * `init` 返回 `true`，或者没验证过。这里就是把那次实测变成可复跑的用例。
  *
  * 四组用例：
- * 1. `v2 → v3`：库的 `music_url` 是票 08 之前的定义（两列、无 `created_at`），版本号 `'2'`；
- * 2. `v1 → v3`：再老一版（缺 `dislike_list`，版本号 `'1'`），要连做两版迁移；
+ * 1. `v2 → v4`：库的 `music_url` 是票 08 之前的定义（两列、无 `created_at`），版本号 `'2'`；
+ * 2. `v1 → v4`：再老一版（缺 `dislike_list`，版本号 `'1'`），要连做三版迁移；
  * 3. 半迁移状态：`created_at` 已在但定义带 `DEFAULT`（手写 `ALTER TABLE` 会留下的样子）、版本号还是 `'2'`
  *    —— 重建要把它归一化回 `tables` 的原文，且已写入的时间戳不能被抹掉；
  * 4. 空目录（没有库文件）：新建的库自带 `created_at` 且直接通过校验。
- * 外加一组「迁移后的库上回收 / 精确删真的能跑通」（验语句绑定的列名对不对，光看结构比不出来）。
+ * 外加两组：一是「迁移后的库上回收 / 精确删真的能跑通」（验语句绑定的列名对不对，光看结构比不出来），
+ * 二是「旧库实测：试听列表行被真删、其余列表数据一行不少」（票 08 的 v3 → v4 清行迁移）。
  *
- * **旧库夹具**：默认用**合成旧库**（v2 结构 + 真实体量的行数，见 `legacyFixture`），所以这组用例
+ * **旧库夹具**：默认用**合成旧库**（v3 结构 + 真实体量的行数，见 `legacyFixture`），所以这组用例
  * **每次都跑**。要用一份**真库的副本**复验（结构与数据量是真的，合成库只能证明「我按我以为的旧结构
  * 写对了」）就设环境变量——注意要的是**副本**，不能拿原件：
  * ```bash
- * cp ~/.config/chiverve-music/LxDatas/lx.data.db /tmp/lx-legacy.db   # 应用在跑时这样拷只拿到主文件，够用
+ * cp ~/.config/chiverve-music-dev/LxDatas/lx.data.db* /tmp/lx-legacy.db  # 连同 -wal/-shm 一起拷
  * CHIVERVE_LEGACY_DB=/tmp/lx-legacy.db npx vitest run src/main/worker/dbService/migrate.test.ts
  * ```
  * （2026-09-24 起：从「不设环境变量就整组跳过」改成「默认用合成件」——原先那种写法让 CI 永远少两条
- * 用例，而它们覆盖的正是最要命的路径。）
+ * 用例，而它们覆盖的正是最要命的路径。票 08 起夹具版本号跟到 `'3'`：真库副本现在就是这个版本，
+ * 再按 `'2'` 断言会让「真库副本」这条路直接失败。）
  */
 
 /**
@@ -127,6 +129,23 @@ const readTableNames = (file: string) => inspect(file, db => (db
   .all() as Array<{ name: string }>).map(row => row.name))
 const readLyricCount = (file: string) => inspect(file, db => (db.prepare('SELECT COUNT(*) AS "count" FROM "main"."lyric"').get() as { count: number }).count)
 
+/** 按 listId 统计列表歌曲行（票 08 的迁移只该动 `default` 这一档） */
+const readListMusicCounts = (file: string) => inspect(file, db => {
+  const rows = db.prepare('SELECT "listId", COUNT(*) AS "count" FROM "main"."my_list_music_info" GROUP BY "listId"').all() as Array<{ listId: string, count: number }>
+  return Object.fromEntries(rows.map(row => [row.listId, row.count])) as Record<string, number>
+})
+/** 按 listId 统计排序行（`my_list_music_info_order`，与歌曲表是两份） */
+const readListOrderCounts = (file: string) => inspect(file, db => {
+  const rows = db.prepare('SELECT "listId", COUNT(*) AS "count" FROM "main"."my_list_music_info_order" GROUP BY "listId"').all() as Array<{ listId: string, count: number }>
+  return Object.fromEntries(rows.map(row => [row.listId, row.count])) as Record<string, number>
+})
+/** `my_list` 里的自建列表 id（收藏/试听/临时列表本来就不在这张表里） */
+const readUserListIds = (file: string) => inspect(file, db => (db
+  .prepare('SELECT "id" FROM "main"."my_list" ORDER BY "position"')
+  .all() as Array<{ id: string }>).map(row => row.id))
+/** 去掉 `default` 那一档后的计数（迁移必须只动它） */
+const countsWithoutDefault = (counts: Record<string, number>) => Object.fromEntries(Object.entries(counts).filter(([listId]) => listId != 'default'))
+
 afterAll(() => {
   try {
     getDB()?.close()
@@ -134,7 +153,7 @@ afterAll(() => {
   fs.rmSync(tmpRoot, { recursive: true, force: true })
 })
 
-describe('v2 → v3：`music_url` 加 `created_at`', () => {
+describe('v2 → v4：`music_url` 加 `created_at`', () => {
   let dir: string
   let file: string
 
@@ -159,7 +178,7 @@ describe('v2 → v3：`music_url` 加 `created_at`', () => {
   })
 
   it('版本号升到 DB_VERSION；别的表一行没动；没留下迁移用的临时表', () => {
-    expect(DB_VERSION).toBe('3')
+    expect(DB_VERSION).toBe('4')
     expect(readVersion(file)).toBe(DB_VERSION)
     expect(readLyricCount(file)).toBe(1)
     // 迁移中途改名出来的表必须收干净。`sqlite_stat*` 是 `init` 里 `PRAGMA optimize` 建的，不算数
@@ -186,7 +205,7 @@ describe('v2 → v3：`music_url` 加 `created_at`', () => {
   })
 })
 
-describe('v1 → v3：连做两版迁移（`dislike_list` 与 `created_at` 一起补）', () => {
+describe('v1 → v4：连做三版迁移（`dislike_list` 与 `created_at` 一起补）', () => {
   let dir: string
   let file: string
 
@@ -239,7 +258,7 @@ describe('半迁移状态（列已在、定义与 `tables` 不同、版本号还
   })
 })
 
-describe('空目录（没有库文件）：新建的库直接是 v3 结构', () => {
+describe('空目录（没有库文件）：新建的库直接是 v4 结构', () => {
   let dir: string
   let file: string
 
@@ -298,37 +317,63 @@ describe('迁移后的库上：写入 / 回收 / 精确删真的能跑通（验�
 })
 
 /**
- * 旧库夹具：默认**自己造**一份形状一致的 v2 旧库（真实体量：400 首 × 两档音质 + 一条歌词），
- * 于是下面两条**每次都跑**；设了 `CHIVERVE_LEGACY_DB` 就改用那一份**真库副本**（也不再跳过）。
+ * 旧库夹具：默认**自己造**一份形状一致的 v3 旧库（= 票 08 之前的真库样子：`musics.fcg` 那版的
+ * `music_url` 已经有 `created_at`、版本号 `'3'`，列表数据里还带着「试听列表」那一档），
+ * 于是下面两组**每次都跑**；设了 `CHIVERVE_LEGACY_DB` 就改用那份**真库副本**（也不再跳过）。
  *
- * 为什么改（2026-09-24 用户问「为什么出现 2 skipped，不能解决吗」）：原写法 `it.runIf(env)` 让这组
- * 在 CI 里永远是 skipped，而它覆盖的正是最要命的路径——`init` 返回 `null` 会备份改名 + **重建空库**。
- * 「数据形状不是我手搓的」那条价值属于**一次性真机验证**，不该以「永远少两条用例」为代价。
- * 合成件与真副本走**同一批断言**（结构升级 + 行数守恒 + 回收口径），只是数据来源不同。
+ * 为什么是 v3：`v3 → v4` 才是票 08 的清行迁移，而用户手上的库就是 `'3'`（`'1'`/`'2'` → 最新的
+ * 多版链路由上面几组用例覆盖）。夹具里刻意塞进四档列表数据，用来证明迁移**只**删试听列表：
+ * - `default`：3 首（迁移后必须清零，票 08 契约 1）
+ * - `love`：2 首（一行不动）
+ * - `temp`：2 首（一行不动）
+ * - 一条自建列表（`my_list` 行 + 2 首，一行不动）
  */
 const legacyDbPath = process.env.CHIVERVE_LEGACY_DB
 
-/** 造一份「像真库那样」的旧库：v2 结构（`music_url` 两列、版本号 `'2'`）+ 上量的行数 */
+/** 夹具里的列表数据（id 是合成的，不含任何真实歌曲信息） */
+const LEGACY_LIST_ROWS: Record<string, string[]> = {
+  default: ['d1', 'd2', 'd3'],
+  love: ['l1', 'l2'],
+  temp: ['t1', 't2'],
+  userlist_fixture: ['u1', 'u2'],
+}
+
+/** 往 `my_list_music_info` + `my_list_music_info_order` 写同一档列表的若干首歌 */
+const insertLegacyListMusics = (db: BetterSqlite3.Database, listId: string, musicIds: string[]) => {
+  const insertMusic = db.prepare('INSERT INTO "main"."my_list_music_info" ("id", "listId", "name", "singer", "source", "interval", "meta") VALUES (?, ?, ?, ?, ?, ?, ?)')
+  const insertOrder = db.prepare('INSERT INTO "main"."my_list_music_info_order" ("listId", "musicInfoId", "order") VALUES (?, ?, ?)')
+  musicIds.forEach((musicId, index) => {
+    insertMusic.run(musicId, listId, `song_${musicId}`, 'singer', 'tx', 200, '{}')
+    insertOrder.run(listId, musicId, index)
+  })
+}
+
+/** v3 旧库：表结构与当前 `tables` 完全一致，版本号写 `'3'`，列表数据含四档 */
 const legacyFixture = (dir: string) => {
   const file = dbFileOf(dir)
   if (legacyDbPath) {
+    // 真库副本：连同 -wal/-shm 一起拷（应用可能在跑，主文件里未必含未 checkpoint 的事务）
     fs.copyFileSync(legacyDbPath, file)
+    for (const suffix of ['-wal', '-shm']) {
+      if (fs.existsSync(`${legacyDbPath}${suffix}`)) fs.copyFileSync(`${legacyDbPath}${suffix}`, `${file}${suffix}`)
+    }
     return file
   }
   const db = new Database(file)
-  const sqls = Array.from(tables.entries())
-    .map(([name, sql]) => name == 'music_url' ? LEGACY_MUSIC_URL_SQL : sql)
-  db.exec(sqls.join('\n'))
-  db.prepare('INSERT INTO "main"."db_info" ("field_name", "field_value") VALUES (?, ?)').run('version', '2')
-  const insertUrl = db.prepare('INSERT INTO "main"."music_url" ("id", "url") VALUES (?, ?)')
-  // 一次事务写完：800 行逐条受自动提交会明显拖慢这条用例
+  db.exec(Array.from(tables.values()).join('\n'))
+  db.prepare('INSERT INTO "main"."db_info" ("field_name", "field_value") VALUES (?, ?)').run('version', '3')
+  const insertUrl = db.prepare('INSERT INTO "main"."music_url" ("id", "url", "created_at") VALUES (?, ?, ?)')
   db.transaction(() => {
+    // 一次事务写完：800 行逐条受自动提交会明显拖慢这条用例
     for (let song = 1; song <= 400; song++) {
       for (const quality of ['128k', '320k']) {
-        // 刻意不含任何真实 URL（与 LEGACY_ROWS 同口径）
-        insertUrl.run(`${song}_${quality}`, `https://example.invalid/${song}?quality=${quality}`)
+        // 刻意不含任何真实 URL（与 LEGACY_ROWS 同口径）；created_at 统一 0 = 加列之前的行
+        insertUrl.run(`${song}_${quality}`, `https://example.invalid/${song}?quality=${quality}`, 0)
       }
     }
+    db.prepare('INSERT INTO "main"."my_list" ("id", "name", "source", "sourceListId", "position", "locationUpdateTime") VALUES (?, ?, ?, ?, ?, ?)')
+      .run('userlist_fixture', '旧库自建列表', null, null, 0, 0)
+    for (const [listId, musicIds] of Object.entries(LEGACY_LIST_ROWS)) insertLegacyListMusics(db, listId, musicIds)
   })()
   db.prepare('INSERT INTO "main"."lyric" ("id", "source", "type", "text") VALUES (?, ?, ?, ?)')
     .run('2001', 'tx', 'lrc', '[00:00.00]合成旧库里的歌词')
@@ -343,28 +388,56 @@ describe('旧库（合成件；设 CHIVERVE_LEGACY_DB 时用真库副本）：db
 
     const versionBefore = readVersion(file)
     const columnsBefore = readColumns(file)
-    // 迁移前只能用只查 id 的读法（旧表还没有 created_at 列）
-    const idsBefore = inspect(file, db => (db
-      .prepare('SELECT "id" FROM "main"."music_url" ORDER BY "rowid"')
-      .all() as Array<{ id: string }>).map(row => row.id))
+    const rowsBefore = readRows(file)
     const bytesBefore = inspect(file, db => (db.prepare('SELECT COALESCE(SUM(LENGTH("id") + LENGTH("url")), 0) AS "bytes" FROM "main"."music_url"').get() as { bytes: number }).bytes)
+    // 列表侧的迁移前状态：试听列表那档在不在、其余几档各有多少行
+    const listCountsBefore = readListMusicCounts(file)
+    const userListIdsBefore = readUserListIds(file)
     console.log('[migrate.test] 旧库（%s）：version=%s, music_url 行数=%d, 近似占用=%d 字节, 列=%s',
-      legacyDbPath ? '真库副本' : '合成件', versionBefore, idsBefore.length, bytesBefore, columnsBefore.join('/'))
-    expect(versionBefore).toBe('2')
-    expect(columnsBefore).toEqual(['id', 'url'])
+      legacyDbPath ? '真库副本' : '合成件', versionBefore, rowsBefore.length, bytesBefore, columnsBefore.join('/'))
+    console.log('[migrate.test] 迁移前列表行数：%s（my_list 里的自建列表：%s）',
+      JSON.stringify(listCountsBefore), JSON.stringify(userListIdsBefore))
+    expect(versionBefore).toBe('3')
+    expect(columnsBefore).toEqual(['id', 'url', 'created_at'])
 
     expect(init(dir)).toBe(true)
     expect(verifyDB(getDB())).toBe(true)
 
     const columnsAfter = readColumns(file)
     const rowsAfter = readRows(file)
-    console.log('[migrate.test] 迁移后：version=%s, music_url 行数=%d, created_at 全为 0=%s',
-      readVersion(file), rowsAfter.length, rowsAfter.every(row => row.createdAt === 0))
+    console.log('[migrate.test] 迁移后：version=%s, music_url 行数=%d, 行内容逐行不变=%s',
+      readVersion(file), rowsAfter.length,
+      JSON.stringify(rowsAfter.map(row => [row.id, row.createdAt])) == JSON.stringify(rowsBefore.map(row => [row.id, row.createdAt])))
     expect(readVersion(file)).toBe(DB_VERSION)
     expect(columnsAfter).toEqual(['id', 'url', 'created_at'])
-    expect(rowsAfter.map(row => row.id)).toEqual(idsBefore)
-    expect(rowsAfter.every(row => row.createdAt === 0)).toBe(true)
+    // 逐行（id + url + created_at）原样：这份库已经是 v3，v4 只清列表行，`music_url` 一个字节都不该动
+    expect(rowsAfter.map(row => [row.id, row.url, row.createdAt])).toEqual(rowsBefore.map(row => [row.id, row.url, row.createdAt]))
     expect(readLyricCount(file)).toBeGreaterThan(0)
+  })
+
+  it('试听列表（`default`）的数据行被真删，其余列表一行不少（票 08 契约 1）', () => {
+    const dir = newCaseDir()
+    const file = legacyFixture(dir)
+    const listCountsBefore = readListMusicCounts(file)
+    const orderCountsBefore = readListOrderCounts(file)
+    const userListIdsBefore = readUserListIds(file)
+
+    expect(init(dir)).toBe(true)
+
+    const listCountsAfter = readListMusicCounts(file)
+    const orderCountsAfter = readListOrderCounts(file)
+    console.log('[migrate.test] 列表行数 %s → %s；排序行数 %s → %s',
+      JSON.stringify(listCountsBefore), JSON.stringify(listCountsAfter),
+      JSON.stringify(orderCountsBefore), JSON.stringify(orderCountsAfter))
+    // 真删：两处「default」都清零（不是搬进收藏，也不是留成孤儿行）
+    expect(listCountsAfter.default ?? 0).toBe(0)
+    expect(orderCountsAfter.default ?? 0).toBe(0)
+    // 其余档逐项守恒（收藏 / 临时 / 自建列表一首都没少）
+    expect(countsWithoutDefault(listCountsAfter)).toEqual(countsWithoutDefault(listCountsBefore))
+    expect(countsWithoutDefault(orderCountsAfter)).toEqual(countsWithoutDefault(orderCountsBefore))
+    // `my_list` 表也一行不多不少（自建列表还在；没有借尸还魂的 default 行）
+    expect(readUserListIds(file)).toEqual(userListIdsBefore.filter(id => id != 'default'))
+    expect(readUserListIds(file)).not.toContain('default')
   })
 })
 
