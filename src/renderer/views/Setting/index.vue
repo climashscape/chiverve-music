@@ -134,8 +134,9 @@ export default {
     /**
      * 搜索命中 → 切节 → 滚到分组锚点 → 高亮命中项。
      * 分组锚点还没就位（该组内容未归位，票 03/05-09 之后才有）就退到节顶，不做半截滚动。
-     * 高亮优先精确到控件：控件要带 `data-setting-key`（票 03/05 的契约，见 useSettingToc.ts），
-     * 没有就闪分组锚点——至少指出它在哪一组，别让用户自己找。
+     * 高亮优先精确到控件：key 项带 `data-setting-key`、非 key 控件带 `data-setting-id`
+     * （票 03/05 的契约，见 useSettingToc.ts），没有就闪分组锚点——至少指出它在哪一组，
+     * 别让用户自己找。
      */
     const handleSearchSelect = async(hit) => {
       selectSection(hit.sectionId, { scrollTop: false })
@@ -145,7 +146,7 @@ export default {
         scrollContentTop()
         return
       }
-      if (hit.itemKey && await flashItem(hit.itemKey)) return
+      if (hit.itemId && await flashItem(hit.itemId)) return
       if (hit.groupId) await flashGroup(hit.groupId)
     }
 

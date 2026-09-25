@@ -5,7 +5,8 @@
  * - 本文件是**纯数据 + 纯类型**：不 import Vue / window / electron，落 vitest 的 node project
  *   （`src/common/**` 在 `vitest.config.ts:98-104` 的 include 白名单里）。
  * - 三级结构 `Section → Group → Item`：数组顺序即页面顺序（左栏一级分组 `navGroup` × 节名），
- *   `Group.id` 直接当节内锚点的 DOM id，`Item.key` 是 `keyof LX.AppSetting`（拼错在编译期报错）。
+ *   `Group.id` 直接当节内锚点的 DOM id，项的标识用 `itemId()`（key 项 = `Item.key`，非 key 项 =
+ *   `Item.id`，两种 item 见 `Item` 的注释）。
  * - 节 / 分组的划分与每一项的归属，逐项照
  *   `.scratch/settings-refactor/notes/04-item-classification.md`（134 个 key + 140 个非 key 控件
  *   逐项定去向）落地，**不要凭观感重新归类**；改名 / 拆合并的处置在该表的附 A / 附 B。
@@ -15,12 +16,17 @@
  *   每个 key **恰好登记一次**（在某个 item 或 `INTERNAL_ONLY_KEYS` 里）——新增设置 key 时必须
  *   同时在这里登记，删 key 时必须同时删 item（票 10 删桌面歌词颜色组就是这么走的）。
  *
- * 与 spec 的两处偏差（已在实现里落地，需要复核时看这两条）：
+ * 两组历史裁定（与 spec 的两处偏差，2026-09-23 定，仍生效）：
  * 1. 节顺序：spec §2 的编号把「快捷键」排在「数据与存储」之前，但一级分组的既定顺序是
  *    「… 我的音乐 / 数据 / 系统 / 高级」，而快捷键 / 网络 / 更新与关于同属「系统」——按 §2 编号
  *    会让「系统」被「数据」劈成两段。这里把 `data` 排在 `hot_key` 前，保证一级分组在左栏里连续。
  * 2. `player.isShowStatusBarLyric` / `isShowTaskProgess` 归「外观 → 托盘与系统栏」（附 B11 的裁定，
  *    附 B11 留的回退口由票 03 决定是否改判）。
+ *
+ * 票 05 的两条已知偏离**已于 2026-09-25 收口**（用户裁定「全补」）：
+ * 1. 非 key 控件进表：`Item` 放开成 `KeyItem | NonKeyItem` 两种（见 `Item`），快捷键 28 项、
+ *    清理 / 备份 / 登录等按钮全部登记——它们此前只能搜到组标题。
+ * 2. 「来源显示」不再是「列表与收藏行为」组里的两项，拆成独立分组 `my_music_source`。
  */
 
 /**
@@ -55,6 +61,10 @@ export const SETTING_NAV_GROUPS: ReadonlyArray<{ id: SettingNavGroupId, i18nKey:
  * - `pathPicker`：目录选择（只读输入 + 选择按钮，`download.savePath` 现状）
  * - `panel`：由既有浮层面板承载，设置页只给一个「打开面板」的入口（音效 17 个 key 里的 13 个）
  * - `custom`：复合控件（主题色卡及其右键两层弹窗、主字体+备用字体两个下拉拼串）
+ * - `button`：**动作按钮**（2026-09-25 随非 key 项一起加）：点一下执行一次动作、或打开一个既有
+ *   弹窗，没有可写的值——非 key 项里最常见的一种（清理 / 备份 / 登录 / 重置窗口 / 刷新连接码…）。
+ *   与 `panel` 的分工：`panel` 说的是「这一项的值整体由那个面板承载」（点开才能改），`button`
+ *   说的是「它本身就是个动作」（点完就完事，不改任何设置值）。
  */
 export type SettingControl =
   | 'checkbox'
@@ -66,17 +76,57 @@ export type SettingControl =
   | 'pathPicker'
   | 'panel'
   | 'custom'
+  | 'button'
 
-/** 一个设置项 = 用户能操作的一个控件（radio / 复选组算一项）。 */
-export interface Item {
+/**
+ * 一个设置项 = 用户能操作的一个控件（radio / 复选组算一项）。**两种形态见下面两个接口**。
+ *
+ * 这两支是为「票 05 的 140 个非 key 控件装不进表」开的（2026-09-25 用户裁定全补）：不登记它们，
+ * 设置搜索就只能命中所属的组标题，点进去还得自己找按钮。
+ *
+ * 为什么用**联合类型**而不是「两个字段都可选」：
+ * - 联合能让「至少有一个标识」成为编译期保证——非 key 项不给 `id` 直接编译不过；
+ * - 又不必给 134 个 key 项各抄一遍 `id`（key 项的 id 由 key 派生，见 `itemId()`，二者不可能漂移）。
+ *   反过来给所有项都加必填 `id` 会让 key 项出现两份必须同步的标识，是纯风险。
+ *
+ * 非 key 项的 `id` 命名：`<分组 id 去掉节前缀的语义>_<控件>`（`hot_key_local_player_prev` /
+ * `data_backup_import_list`），全局唯一由对账用例钉住；DOM 上标 `data-setting-id`（key 项标
+ * `data-setting-key`），搜索命中就按这两个属性找控件（见 `useSettingToc.ts` 的 `findItemElement`）。
+ */
+export type Item = KeyItem | NonKeyItem
+
+/** key 项：读写 `defaultSetting` 的控件，项的标识就是它的 key。 */
+export interface KeyItem {
   /** `defaultSetting` 的 key；`keyof LX.AppSetting` 让拼错在编译期报错。 */
   key: keyof LX.AppSetting
+  /** 恒为 `undefined`：key 项的 id 由 key 派生（见 `itemId()`）；写出来只为让联合类型两支同名。 */
+  id?: undefined
   /** 这一项文案的 i18n key（非空；文案的实义与四语一致性由票 11 的用例兜）。 */
   i18nKey: string
   control: SettingControl
   /** 帮助（`?`）文案的 i18n key；没有帮助的项不写。 */
   helpI18nKey?: string
 }
+
+/**
+ * 非 key 控件项：界面上能操作、但**不读写 `defaultSetting`** 的控件（快捷键录入框、清理 / 备份 /
+ * 登录 / 重置窗口按钮…）。它们没有 key 可盯，改用本表自己的稳定 `id`。
+ */
+export interface NonKeyItem {
+  key?: undefined
+  /** 稳定、全局唯一的项 id；改它等于改搜索与 DOM 定位的契约，别随手改。 */
+  id: string
+  i18nKey: string
+  control: SettingControl
+  helpI18nKey?: string
+}
+
+/**
+ * 项的稳定 id：**key 项 = 它的 key，非 key 项 = 显式 `id`**。
+ * 搜索命中（`SearchHit.itemId`）、DOM 定位（`data-setting-key` / `data-setting-id`）、
+ * 对账用例三处共用它，别再各写一份「key ?? id」。
+ */
+export const itemId = (item: Item): string => item.id ?? item.key
 
 /** 节内的一个分组 = 一个 `h3` 锚点（`id` 就是它的 DOM id）。 */
 export interface Group {
@@ -94,6 +144,26 @@ export interface Section {
   navGroup: SettingNavGroupId
   groups: readonly Group[]
 }
+
+/**
+ * 允许 `items: []` 的分组：内容区里**只有只读展示 / 占位**、没有可操作控件的组，逐个列出并写明理由。
+ *
+ * 对账用例钉住两头：名单里的组**确实为空**（已经补了项却还留在名单里会被报出来），
+ * 名单外的组**至少一项**——防再出现「搜索只能命中组标题」的空分组（票 05 收口的正是这条偏离）。
+ * 与 `INTERNAL_ONLY_KEYS` 同一个套路：宁可显式列白名单，也不给「空分组」静默放行。
+ */
+export const GROUPS_WITHOUT_ITEMS: readonly string[] = [
+  // 歌词偏移：设置页只有「当前这首歌偏移多少」的只读显示 + 一句「改值在歌词右键菜单」（附 B10），
+  // 真正的控件在浮层（`PlayDetail/components/LyricMenu.vue`）里，没法给设置页内容区的元素挂 id。
+  'data_lyric_offset',
+  // 版本信息：版本号 / 代码版本 / 提交日期三行只读展示（含「连点 5 次开 DevTools」的隐藏手势），
+  // 没有任何可点可写的控件。
+  'about_version',
+  // 网络 → 请求超时：自票 03 起就是**占位组**（本来留给「在线请求统一超时」做成设置项，票 06 把
+  // `player.getUrlTimeout` 判给了「播放 → 播放稳定性」，见 `sections/network/index.vue` 注释）。
+  // 组内一个控件都没有，留着只为保住锚点；真要启用它时把 id 从这里删掉并补上 items。
+  'network_timeout',
+]
 
 /**
  * 内部机制键：**由交互直接写入**（拖动窗口几何）或**由产品决策固定**（单源 / 协议签署状态）的 key，
@@ -115,12 +185,72 @@ export const INTERNAL_ONLY_KEYS: ReadonlyArray<keyof LX.AppSetting> = [
   'common.isAgreePact',
   // 下面 4 个是桌面歌词窗的几何（宽 / 高 / X / Y）：由拖拽 / 缩放时主进程 setBounds 直接回写，
   // 设置页不该给数值输入框。唯一的用户入口是「重置窗口设置」按钮（写回 450×300 + x/y=null），
-  // 该按钮是「桌面歌词 → 重置」组里的非 key 控件，不在这张表里。
+  // 该按钮是「桌面歌词 → 重置」组里的非 key 控件（`desktop_lyric_reset_window`），不在这张表里。
   'desktopLyric.width',
   'desktopLyric.height',
   'desktopLyric.x',
   'desktopLyric.y',
 ]
+
+/**
+ * 快捷键的两组：软件内（local）/ 全局（global）。`renderer/utils/ipc.ts` 的 `allHotKeys` 也正是
+ * 这一对 key，`sections/hot_key/index.vue` 拿它渲染两组录入框。
+ */
+export type HotKeyGroupType = 'local' | 'global'
+
+/**
+ * 快捷键项的 id（非 key 项）：**元数据登记与 `sections/hot_key/HotKeyGrid.vue` 的 DOM 标记共用
+ * 这一个函数**，免得两处手抄 `hot_key_<type>_<name>` 漂移（录入框的 items 来自 `allHotKeys[type]`，
+ * 每个 entry 的 `name` 就是这里传进来的 name）。
+ */
+export const hotKeyItemId = (type: HotKeyGroupType, name: string) => `hot_key_${type}_${name}`
+
+/**
+ * 两组快捷键的动作名，**顺序 = 页面里录入框的顺序**（逐字照 `renderer/utils/ipc.ts` 的
+ * `allHotKeys.local` / `allHotKeys.global`；顺序不同不会致命，但页面顺序与元数据顺序就分家了）。
+ * 文案 key 由 `hotKeyItems()` 拼成 `setting__hot_key_<name>`——与 `HotKeyGrid.vue` 的渲染同一条规则，
+ * 名字写错会在 `lang.test.ts`（声明的文案四语必须都有）被抓住。
+ */
+const HOT_KEY_LOCAL_NAMES = [
+  'player_toggle_play',
+  'player_prev',
+  'player_next',
+  'player_seekbackward',
+  'player_seekforward',
+  'player_music_dislike',
+  'common_focus_search_input',
+  'common_min',
+  'common_toggle_close',
+] as const
+
+const HOT_KEY_GLOBAL_NAMES = [
+  'common_toggle_min',
+  'common_toggle_hide',
+  'common_toggle_close',
+  'player_toggle_play',
+  'player_prev',
+  'player_next',
+  'player_seekbackward',
+  'player_seekforward',
+  'player_volume_up',
+  'player_volume_down',
+  'player_volume_mute',
+  'player_music_love',
+  'player_music_unlove',
+  'player_music_dislike',
+  'desktop_lyric_toggle_visible',
+  'desktop_lyric_toggle_lock',
+  'desktop_lyric_toggle_always_top',
+] as const
+
+/**
+ * 动作名清单 → 录入框的非 key 项。`control: 'input'` 说的是形态：只读输入框，靠 focus/blur 与
+ * 全局 keyDown 监听录入（值存在 `window.lx.appHotKeyConfig`，不落 `defaultSetting`）。
+ * 两个组都有 `common_toggle_close`（同名不同项），它们的文案 key 因此是同一个 `setting__hot_key_*`
+ * ——项 id 不同（`hot_key_local_*` / `hot_key_global_*`），搜索里靠分组区分。
+ */
+const hotKeyItems = (type: HotKeyGroupType, names: readonly string[]): Item[] =>
+  names.map(name => ({ id: hotKeyItemId(type, name), i18nKey: `setting__hot_key_${name}`, control: 'input' }))
 
 /**
  * 10 节 × 分组。数组顺序即页面顺序；每节的分组顺序即节内顺序。
@@ -355,6 +485,9 @@ export const SETTING_SECTIONS: readonly Section[] = [
           // 分钟数（1–1440）。原来只有弹窗自己读写、「等待播放完毕」时不参与计时（死设置），
           // 票 04 已救活：`timeoutStop.ts` 真按它计时，并在启动时恢复（`restoreTimeoutStop`）
           { key: 'player.waitPlayEndStopTime', i18nKey: 'setting__play_timeout_time', control: 'numberInput', helpI18nKey: 'setting__play_timeout_time_tip' },
+          // 非 key 项：开始 / 取消定时的按钮（打开 `PlayTimeoutModal`，弹窗里改的是上面同一个时长值，
+          // 按钮上显示剩余时间）。按钮文案与组标题同词（「定时暂停」），照实登记可见文案
+          { id: 'play_timeout_open_modal', i18nKey: 'setting__play_timeout', control: 'panel' },
         ],
       },
     ],
@@ -436,11 +569,13 @@ export const SETTING_SECTIONS: readonly Section[] = [
       // （renderer-lyric/utils/lyricColors.ts）。所以这里**不登记 Group**：登记一个空组会让左栏/锚点
       // 多出一个点不进去的死锚点。
       {
-        // §3.5 重置（4 个几何 key 是内部机制键，见 INTERNAL_ONLY_KEYS；组内只有非 key 的
-        // 「重置窗口设置」按钮——元数据的 Item 必须带 key，故这里 items 为空）
+        // §3.5 重置（4 个几何 key 是内部机制键，见 INTERNAL_ONLY_KEYS，不给数值输入；组内只有这一个非 key 项）
         id: 'desktop_lyric_reset',
-        i18nKey: 'setting__desktop_lyric_reset', // 复用「重置窗口设置」；组标题的措辞由票 11 收敛
-        items: [],
+        i18nKey: 'setting__desktop_lyric_reset', // 复用「重置窗口」；组标题的措辞由票 11 收敛
+        items: [
+          // 把 4 个几何 key 一次性写回 450×300 + x/y=null（不改字号 / 透明度 / 加粗）
+          { id: 'desktop_lyric_reset_window', i18nKey: 'setting__desktop_lyric_reset_window', control: 'button' },
+        ],
       },
     ],
   },
@@ -514,8 +649,8 @@ export const SETTING_SECTIONS: readonly Section[] = [
 
   // ===================================================================================
   // §5 我的音乐（my_music）—— 一级分组「我的音乐」
-  // 本节的多数项是**非 key 控件**（QQ 账号 3 个按钮 + 登录态、我的收藏入口），
-  // Item 必须带 `keyof LX.AppSetting`，故这些组 items 为空，等票 03 落 UI 时另行登记。
+  // 本节的 QQ 账号三按钮与「我的收藏」入口是**非 key 控件**（2026-09-25 起按 `NonKeyItem` 登记，
+  // 此前 items 为空、只能搜到组标题）。
   // ===================================================================================
   {
     id: 'my_music',
@@ -523,20 +658,30 @@ export const SETTING_SECTIONS: readonly Section[] = [
     navGroup: 'my_music',
     groups: [
       {
-        // §5.1 QQ 账号：登录 / 刷新凭证 / 退出登录 / 登录态显示（都是非 key 控件）
+        // §5.1 QQ 账号：三个按钮都是非 key 项（登录态由主进程推送，不落 `defaultSetting`）
         id: 'my_music_qq_auth',
         i18nKey: 'setting__qq_auth',
-        items: [],
+        items: [
+          // 「登录」与下面两个按钮互斥渲染（`v-if="!status.isLogin"`），页面上同时只存在一种形态
+          { id: 'my_music_qq_login', i18nKey: 'qq_auth__login', control: 'button' },
+          // 手动续期；成功 / 失败反映到同一行下方的 lastRefreshError 文案里
+          { id: 'my_music_qq_refresh', i18nKey: 'qq_auth__refresh_credential', control: 'button' },
+          // 清本地凭证；退出后在线取流与「我的收藏」同步都不能用
+          { id: 'my_music_qq_logout', i18nKey: 'qq_auth__logout', control: 'button' },
+          // 只读的登录态那一行（已登录 · 脱敏 id · 有效期）不登记：没有可点可写的控件
+        ],
       },
       {
-        // §5.2 喜欢的歌：目前只有「我的收藏」列表入口（非 key）
+        // §5.2 喜欢的歌：目前只有「我的收藏」列表入口（非 key 项）
         id: 'my_music_favorite',
         i18nKey: 'setting__my_music_favorite_title', // 新增
-        items: [],
+        items: [
+          // 跳到 `/favorites`（「我的收藏」列表页）；「喜欢 / 不喜欢当前歌」还没有界面入口（归类表 §4E）
+          { id: 'my_music_favorite_entry', i18nKey: 'favorites', control: 'button' },
+        ],
       },
       {
-        // §5.3 列表与收藏行为（其中 isShowSource + sourceNameType 是附 B7 的「来源显示」子块：
-        // 先决定挂不挂那一列，再决定列里写别名还是原名。若票 05 想让它是独立锚点组，再拆一个 Group 出来）
+        // §5.3 列表与收藏行为（「来源显示」两项 2026-09-25 已拆到下面的独立分组）
         id: 'my_music_list',
         i18nKey: 'setting__list', // 复用「列表设置」；值由票 11 改成「列表与收藏行为」
         items: [
@@ -545,16 +690,27 @@ export const SETTING_SECTIONS: readonly Section[] = [
           // 发现页「推荐歌单」固定 9 条（3×3 配平）是这条帮助文案里点名的例外
           { key: 'list.pageSize', i18nKey: 'setting__list_page_size', control: 'selection', helpI18nKey: 'setting__list_page_size_tip' },
           { key: 'list.actionButtonsVisible', i18nKey: 'setting__list_action_btn', control: 'checkbox' },
-          // 附 A3 改名（单源后只有一种来源，且列表标签不再渲染内部值 tx）
-          { key: 'list.isShowSource', i18nKey: 'setting__list_source', control: 'checkbox' },
-          // 无入口但活（消费点 store/index.ts:87 的 getSourceName）；spec §3 裁定救活成「来源显示」的样式选项
-          { key: 'common.sourceNameType', i18nKey: 'setting__list_source_name_type', control: 'checkboxGroup', helpI18nKey: 'setting__list_source_tip' },
           // 位置存在列表元数据里，清空列表数据会一起丢
           { key: 'list.isSaveScrollLocation', i18nKey: 'setting__list_scroll', control: 'checkbox' },
           // 只对在线列表（歌单/排行榜）生效
           { key: 'list.isClickPlayList', i18nKey: 'setting__list_click_action', control: 'checkbox' },
           // 主进程同步也会读它（服务端模式下影响别人的落点）
           { key: 'list.addMusicLocationType', i18nKey: 'setting__list_add_music_location_type', control: 'checkboxGroup' },
+        ],
+      },
+      {
+        // §5.3b 来源显示（附 B7；2026-09-25 按票 05 从「列表与收藏行为」拆成**独立锚点组**）：
+        // 先决定列表里挂不挂那一列，再决定列里写别名还是原名。两项都活着，消费点见各自注释——
+        // 拆组的理由：两项的分工（开关 / 样式）在同一个锚点里与「列表怎么翻页、怎么点」混在一起，
+        // 搜索「来源」也只能落到那个大组上。
+        id: 'my_music_source',
+        i18nKey: 'setting__my_music_source_title', // 新增（票 05 拆组）
+        items: [
+          // 附 A3 改名：单源后只有一种来源，值是「显示歌曲来源标签」；管的是列表行里那枚小标签的显隐
+          // （`ListMusicTable/useListInfo.js`）
+          { key: 'list.isShowSource', i18nKey: 'setting__list_source', control: 'checkbox' },
+          // 无入口但活（消费点 `store/index.ts` 的 `getSourceName()`）；spec §3 裁定救活成「来源显示」的样式选项
+          { key: 'common.sourceNameType', i18nKey: 'setting__list_source_name_type', control: 'checkboxGroup', helpI18nKey: 'setting__list_source_tip' },
         ],
       },
       {
@@ -584,10 +740,9 @@ export const SETTING_SECTIONS: readonly Section[] = [
   // （排在「快捷键」之前：一级分组的既定顺序是 … 我的音乐 / 数据 / 系统 / …，而快捷键与
   // 网络 / 更新与关于同属「系统」；照 spec §2 的编号排在快捷键之后会让「系统」被「数据」劈开。
   // 见文件头「与 spec 的两处偏差」第 1 条。）
-  // 本节只有 `data_cache_policy` 一组带 key（票 08 的 `cache.musicUrlKeepDays` / `cache.maxSizeMB`），
-  // 其余全是「动作」与数据库内容（music_url / lyric_raw / lyric_edited /
-  // dislike / 列表数据），消费点在 renderer/utils/ipc.ts 与 worker/dbService。
-  // 清理按钮、备份按钮、规则编辑器、歌词偏移都是非 key 控件，items 为空（票 03 落 UI 时另行登记）。
+  // 本节的清理 / 备份 / 清空按钮都是**非 key 控件**（2026-09-25 起按 `NonKeyItem` 全部登记：
+  // 4 行清理 + 编辑规则 + 清空列表 + 8 个备份按钮 + 立即回收）；`data_lyric_offset` 组只有只读
+  // 显示与说明（真控件在歌词右键菜单），列在 `GROUPS_WITHOUT_ITEMS` 里。
   // ===================================================================================
   {
     id: 'data',
@@ -598,10 +753,18 @@ export const SETTING_SECTIONS: readonly Section[] = [
         // §7.1 缓存与清理（附 B4：五块清理 + 三个计数行收成一张表）
         id: 'data_cache',
         i18nKey: 'setting__data_cache_title', // 新增
-        items: [],
+        items: [
+          // 四行各有独立的清理动作与语义（四份不同的数据），**不要合并成「一键全清」**；
+          // 计数（大小 / 条数）是只读展示，不单独登记。顺序 = 表里的行顺序（CacheClearTable.vue）
+          { id: 'data_cache_clear_resource', i18nKey: 'setting__data_cache_row_resource', control: 'button' },
+          { id: 'data_cache_clear_music_url', i18nKey: 'setting__data_cache_row_music_url', control: 'button' },
+          { id: 'data_cache_clear_lyric_raw', i18nKey: 'setting__data_cache_row_lyric_raw', control: 'button' },
+          { id: 'data_cache_clear_lyric_edited', i18nKey: 'setting__data_cache_row_lyric_edited', control: 'button' },
+        ],
       },
       {
         // §7.2 歌词偏移（调当前这首歌的 offset，入口在歌词右键菜单；附 B10）
+        // 组内只有只读显示与说明，列在 `GROUPS_WITHOUT_ITEMS`
         id: 'data_lyric_offset',
         i18nKey: 'lyric_menu__offset', // 复用（歌词右键菜单的「歌词偏移」）
         items: [],
@@ -610,19 +773,37 @@ export const SETTING_SECTIONS: readonly Section[] = [
         // §7.3 不喜欢规则
         id: 'data_dislike',
         i18nKey: 'setting__other_dislike_list',
-        items: [],
+        items: [
+          // 非 key 项：打开 `DislikeListModal`（整块覆盖式写入规则文本，不是增量）。
+          // 弹窗里的文本域 / 保存按钮不单独登记——它们不在内容区，挂 id 也定位不到（同 `panel` 的既有口径）
+          { id: 'data_dislike_edit', i18nKey: 'setting__other_dislike_list_show_btn', control: 'panel' },
+        ],
       },
       {
         // §7.4 列表数据（清空「我的列表」数据，不可撤销）
         id: 'data_list',
         i18nKey: 'setting__other_listdata',
-        items: [],
+        items: [
+          // 非 key 项：二次确认后用空数组覆盖默认列表 / 我的收藏 / 用户列表（不可撤销）
+          { id: 'data_list_clear', i18nKey: 'setting__other_listdata_clear_btn', control: 'button' },
+        ],
       },
       {
         // §7.5 备份与恢复（8 个按钮 + 组标题文案残留见附 A15）
         id: 'data_backup',
         i18nKey: 'setting__backup',
-        items: [],
+        items: [
+          // 8 个按钮都是非 key 项，分三块（部分数据 / 所有数据 / 其他格式），顺序 = 页面顺序（BackupBlock.vue）。
+          // 「导入设置 / 导入所有数据」会把 `common.isAgreePact` 强制写成 false（下次启动重新走协议弹窗）
+          { id: 'data_backup_import_list', i18nKey: 'setting__backup_part_import_list', control: 'button' },
+          { id: 'data_backup_export_list', i18nKey: 'setting__backup_part_export_list', control: 'button' },
+          { id: 'data_backup_import_setting', i18nKey: 'setting__backup_part_import_setting', control: 'button' },
+          { id: 'data_backup_export_setting', i18nKey: 'setting__backup_part_export_setting', control: 'button' },
+          { id: 'data_backup_import_all', i18nKey: 'setting__backup_all_import', control: 'button' },
+          { id: 'data_backup_export_all', i18nKey: 'setting__backup_all_export', control: 'button' },
+          { id: 'data_backup_export_txt', i18nKey: 'setting__backup_other_export_list_text', control: 'button' },
+          { id: 'data_backup_export_csv', i18nKey: 'setting__backup_other_export_list_csv', control: 'button' },
+        ],
       },
       {
         // §7.6 缓存回收策略（票 08）：只回收 `music_url` 表里过期 / 超限的 URL 缓存行，
@@ -634,6 +815,9 @@ export const SETTING_SECTIONS: readonly Section[] = [
           { key: 'cache.musicUrlKeepDays', i18nKey: 'setting__data_cache_music_url_keep_days', control: 'numberInput', helpI18nKey: 'setting__data_cache_music_url_keep_days_tip' },
           // MB。占用用 `LENGTH(id)+LENGTH(url)` 近似（乐观估计，不含 SQLite 页 / 索引开销）
           { key: 'cache.maxSizeMB', i18nKey: 'setting__data_cache_max_size', control: 'numberInput', helpI18nKey: 'setting__data_cache_max_size_tip' },
+          // 非 key 项：立即回收按钮。两项都是 0 时照样能点（返回「不回收」的提示），
+          // 按钮还额外保住「正在播放那首歌」的缓存行（见 CachePolicyBlock.vue）
+          { id: 'data_cache_recycle_now', i18nKey: 'setting__data_cache_recycle_btn', control: 'button' },
         ],
       },
     ],
@@ -642,7 +826,9 @@ export const SETTING_SECTIONS: readonly Section[] = [
   // ===================================================================================
   // §6 快捷键（hot_key）—— 一级分组「系统」
   // 本节 **0 个 key**：配置存在 window.lx.appHotKeyConfig，读写走 hotKeySetConfig IPC。
-  // 26 个按键框 + 2 个启用开关都是非 key 控件，Item 装不下，items 为空（票 03 落 UI 时另行登记）。
+  // 2 个启用开关 + 26 个录入框都是非 key 控件，2026-09-25 起按 `NonKeyItem` 全部登记
+  // （此前 items 为空，搜索只能命中「软件内快捷键 / 全局快捷键」两个组标题），
+  // 动作名清单与 id 规则见上面那组 `hotKeyItemId` / `hotKeyItems`。
   // ===================================================================================
   {
     id: 'hot_key',
@@ -653,13 +839,21 @@ export const SETTING_SECTIONS: readonly Section[] = [
         // §6.1 软件内（local，9 项，默认折叠）
         id: 'hot_key_local',
         i18nKey: 'setting__hot_key_local_title',
-        items: [],
+        items: [
+          // 总闸不在折叠范围内（收起时仍可见可切）；关掉后下面 9 个框变半透明但仍可编辑，实际不响应
+          { id: hotKeyItemId('local', 'enable'), i18nKey: 'setting__is_enable', control: 'checkbox' },
+          ...hotKeyItems('local', HOT_KEY_LOCAL_NAMES),
+        ],
       },
       {
         // §6.2 全局（global，17 项；开启时逐个向系统注册，注册失败在输入框打删除线）
         id: 'hot_key_global',
         i18nKey: 'setting__hot_key_global_title',
-        items: [],
+        items: [
+          // 全局总闸；与软件内那条同名但分开配置（改一处不影响另一处）
+          { id: hotKeyItemId('global', 'enable'), i18nKey: 'setting__is_enable', control: 'checkbox' },
+          ...hotKeyItems('global', HOT_KEY_GLOBAL_NAMES),
+        ],
       },
     ],
   },
@@ -709,6 +903,7 @@ export const SETTING_SECTIONS: readonly Section[] = [
       {
         // §9.1 版本信息（只读展示：版本 / 代码版本 / 提交日期；
         // 「当前版本」一行连点 5 次开 DevTools 的隐藏手势也在这里，勿「顺手清理」）
+        // 三行都是只读文案、没有可操作控件 → 列在 `GROUPS_WITHOUT_ITEMS`
         id: 'about_version',
         i18nKey: 'setting__about_version_title', // 新增（旧的 setting__about 是「关于 Ch'iverve Music」，语义不同）
         items: [],
@@ -717,7 +912,10 @@ export const SETTING_SECTIONS: readonly Section[] = [
         // §9.2 许可（界面只显示签署状态 + 打开协议原文；`common.isAgreePact` 是内部机制键）
         id: 'about_license',
         i18nKey: 'setting__about_license_title', // 新增（不复用 setting__about_pact_tip：那条是半截句，附 A13 要改写）
-        items: [],
+        items: [
+          // 非 key 项：打开协议原文（上游 Apache-2.0 全文 + 补充条款，原文不可改，AGENTS §8）
+          { id: 'about_show_pact', i18nKey: 'setting__about_pact_btn', control: 'button' },
+        ],
       },
     ],
   },
@@ -757,6 +955,10 @@ export const SETTING_SECTIONS: readonly Section[] = [
           { key: 'sync.client.host', i18nKey: 'setting__sync_client_host', control: 'input', helpI18nKey: 'setting__sync_client_host_tip' },
           // 无入口但主进程真读（服务端每个用户保留的快照数上限）：spec §3 要求补入口；改小会让旧快照被丢
           { key: 'sync.server.maxSsnapshotNum', i18nKey: 'setting__sync_server_max_snapshot_num', control: 'numberInput', helpI18nKey: 'setting__sync_server_max_snapshot_num_tip' },
+          // 下面两个是非 key 项（服务端模式才有，且都是动作）：连接码只在服务端起监听后能刷新；
+          // 设备列表弹窗里可以移除设备（移除后需重新输连接码）
+          { id: 'advanced_sync_refresh_code', i18nKey: 'setting__sync_server_refresh_code', control: 'button' },
+          { id: 'advanced_sync_device_list', i18nKey: 'setting__sync_server_show_device_list', control: 'panel' },
         ],
       },
       {
@@ -766,6 +968,9 @@ export const SETTING_SECTIONS: readonly Section[] = [
         id: 'advanced_sound_effect',
         i18nKey: 'setting__advanced_sound_effect_title', // 新增
         items: [
+          // 非 key 项：「打开音效面板」按钮。面板里是播放详情页那四个组件的复用，面板内部控件不单独
+          // 登记——它们不在内容区，挂了 id 也定位不到（同 `data_dislike_edit` 的口径）
+          { id: 'advanced_sound_effect_open_panel', i18nKey: 'setting__advanced_sound_effect_open_btn', control: 'button' },
           // 环境混响：选中的预设会顺带写入下面两个增益
           { key: 'player.soundEffect.convolution.fileName', i18nKey: 'player__sound_effect_convolution', control: 'selection' },
           { key: 'player.soundEffect.convolution.mainGain', i18nKey: 'player__sound_effect_convolution_main_gain', control: 'panel' },

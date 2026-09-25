@@ -1,5 +1,7 @@
 <template lang="pug">
-//- §5.1 QQ 账号：全是非 key 控件（登录态展示 + 登录 / 刷新凭证 / 退出登录三枚按钮）
+//- §5.1 QQ 账号：三个按钮都是非 key 控件（登录态展示 + 登录 / 刷新凭证 / 退出登录）
+//- 三个按钮各带 `data-setting-id`（元数据 `my_music_qq_login` / `.._refresh` / `.._logout`），
+//- 搜索命中时能精确闪到按钮上
 //- 根元素是 div：内容区样式 `.setting dd > div` 会给它左右 padding
 div
   .p.small
@@ -11,10 +13,10 @@ div
   .p.gap-top.small(v-if="status.lastRefreshError")
     span {{ status.lastRefreshError }}
   .p.gap-top
-    base-btn(v-if="!status.isLogin" min @click="openLoginModal") {{ $t('qq_auth__login') }}
+    base-btn(v-if="!status.isLogin" min data-setting-id="my_music_qq_login" @click="openLoginModal") {{ $t('qq_auth__login') }}
     template(v-else)
-      base-btn(min :disabled="isRefreshing" @click="handleRefresh") {{ $t('qq_auth__refresh_credential') }}
-      base-btn.gap-left(min @click="handleLogout") {{ $t('qq_auth__logout') }}
+      base-btn(min data-setting-id="my_music_qq_refresh" :disabled="isRefreshing" @click="handleRefresh") {{ $t('qq_auth__refresh_credential') }}
+      base-btn.gap-left(min data-setting-id="my_music_qq_logout" @click="handleLogout") {{ $t('qq_auth__logout') }}
 </template>
 
 <script>

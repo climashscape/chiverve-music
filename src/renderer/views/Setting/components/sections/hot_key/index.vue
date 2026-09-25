@@ -1,7 +1,8 @@
 <template lang="pug">
 //- 快捷键节（元数据 §6）：软件内 / 全局两组。
 //- 26 个按键框 + 2 个启用开关都是**非 key 控件**（配置存在 window.lx.appHotKeyConfig，不走 defaultSetting），
-//- 所以本节没有 data-setting-key 可挂（票 01 的 Item.key 必填，这些控件不在元数据表里）
+//- 2026-09-25 起按 `NonKeyItem` 登记进元数据，DOM 上标 `data-setting-id`（录入框在 HotKeyGrid 里拼，
+//- 两个总闸的 id 写死在这里：`hot_key_local_enable` / `hot_key_global_enable`）
 dt#hot_key {{ $t('setting__hot_key') }}
 dd
   h3#hot_key_local(:class="$style.groupTitle")
@@ -10,7 +11,7 @@ dd
       | {{ $t('setting__hot_key_local_title') }}
   div
     //- 总闸不在折叠范围内：收起时也要能看到/切到「启用」
-    base-checkbox(id="setting_hotKeyLocal_enable" v-model="current_hot_key.local.enable" :label="$t('setting__is_enable')" @change="handleHotKeySaveConfig")
+    base-checkbox(id="setting_hotKeyLocal_enable" v-model="current_hot_key.local.enable" :label="$t('setting__is_enable')" data-setting-id="hot_key_local_enable" @change="handleHotKeySaveConfig")
     //- 折叠用 v-show 不用 v-if：只收视觉，录入框留在 DOM 里（搜索高亮与调试都按「它在」算）
     HotKeyGrid(
       v-show="localExpanded" type="local" :items="allHotKeys.local" :config="hotKeyConfig.local"
@@ -22,7 +23,7 @@ dd
       svg-icon(name="angle-right-solid" :class="[$style.arrow, globalExpanded ? $style.arrowOpen : null]")
       | {{ $t('setting__hot_key_global_title') }}
   div
-    base-checkbox(id="setting_hotKeyGlobal_enable" v-model="current_hot_key.global.enable" :label="$t('setting__is_enable')" @change="handleEnableHotKey")
+    base-checkbox(id="setting_hotKeyGlobal_enable" v-model="current_hot_key.global.enable" :label="$t('setting__is_enable')" data-setting-id="hot_key_global_enable" @change="handleEnableHotKey")
     HotKeyGrid(
       v-show="globalExpanded" type="global" :items="allHotKeys.global" :config="hotKeyConfig.global"
       :status="hotKeyStatus" :enabled="current_hot_key.global.enable" :format-key="formatHotKeyName"

@@ -47,7 +47,7 @@ export default {
       .join(' › ')
 
     // 列表 key：三级 id 拼起来，天然唯一（`''` 占位避免相邻两级撞串）
-    const hitKey = (hit) => `${hit.sectionId}/${hit.groupId || ''}/${hit.itemKey || ''}`
+    const hitKey = (hit) => `${hit.sectionId}/${hit.groupId || ''}/${hit.itemId || ''}`
 
     return {
       t,

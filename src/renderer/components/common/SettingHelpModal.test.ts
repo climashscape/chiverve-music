@@ -1,12 +1,13 @@
 import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { nextTick } from 'vue'
+import { defineComponent, h, nextTick } from 'vue'
 import { i18nPlugin } from '@renderer/plugins/i18n'
 import BaseBtn from '@renderer/components/base/Btn.vue'
 import BaseCheckbox from '@renderer/components/base/Checkbox.vue'
 import BaseSelection from '@renderer/components/base/Selection.vue'
 import Modal from '@renderer/components/material/Modal.vue'
 import MyMusicListGroup from '@renderer/views/Setting/components/sections/my_music/MyMusicListGroup.vue'
+import MyMusicSourceGroup from '@renderer/views/Setting/components/sections/my_music/MyMusicSourceGroup.vue'
 import zhCn from '@root/lang/zh-cn.json'
 import SettingHelpIcon from './SettingHelpIcon.vue'
 import SettingHelpModal from './SettingHelpModal.vue'
@@ -15,7 +16,8 @@ import { closeSettingHelp, openSettingHelp } from './useSettingHelp'
 /**
  * 设置页 `?` 帮助：点击弹窗（2026-09-24 用户裁定「设置页的 `?` 帮助图标做成点击弹窗」）。
  *
- * 挂的是**真 SFC**：消费者用一个真实的设置节（`MyMusicListGroup`，它有两个 `?`），
+ * 挂的是**真 SFC**：消费者用真实的设置组件——「列表与收藏行为」+「来源显示」两个兄弟组件
+ * （票 05 把来源显示拆成了独立分组，两个 `?` 因此分处两个组件；页面里也是这样并排渲染的），
  * 再加 `SettingHelpIcon` / `SettingHelpModal` 本体。只有两处替身，都有理由：
  * - `material-modal`（第 1–5 组）押着 `show` 渲染 slot —— 真件 teleport 到 `#view`，
  *   jsdom 里没有那个锚点（同 `ListAddModal.test.ts` 的口径）。弹窗**真件**另有一组用例（第 6 组）。
@@ -35,9 +37,15 @@ const materialModalStub = {
   template: '<div v-if="show" class="modal"><slot /></div>',
 }
 
-/** 挂一个真实的设置节：`common-setting-help-icon` 是全局注册的（`components/index.js` 按目录名给
- *  `common-` 前缀，同 `common-list-add-modal`），测试里没有那层注册，手动补上 */
-const mountSection = () => mount(MyMusicListGroup, {
+/** 两个真实子组件并排（用 `h` 而不是模板串：不依赖运行时的模板编译器） */
+const SectionWithSource = defineComponent({
+  render: () => h('div', [h(MyMusicListGroup), h(MyMusicSourceGroup)]),
+})
+
+/** 挂真实的设置组件：「列表与收藏行为」的 `?` + 「来源显示」的 `?`（一组两个）。
+ *  `common-setting-help-icon` 是全局注册的（`components/index.js` 按目录名给 `common-` 前缀，
+ *  同 `common-list-add-modal`），测试里没有那层注册，手动补上 */
+const mountSection = () => mount(SectionWithSource, {
   global: {
     plugins: [i18nPlugin],
     components: {

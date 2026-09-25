@@ -90,9 +90,13 @@ export interface GroupAnchor {
 export const findGroupAnchor = (root: HTMLElement | null, groupId: string): HTMLElement | null =>
   root ? root.querySelector<HTMLElement>(`[id="${groupId}"]`) : null
 
-/** 命中项控件的定位契约：控件带 `data-setting-key="<item.key>"`（票 03/05 落）。 */
-export const findItemElement = (root: HTMLElement | null, key: string): HTMLElement | null =>
-  root ? root.querySelector<HTMLElement>(`[data-setting-key="${key}"]`) : null
+/**
+ * 命中项控件的定位契约（票 03 立、2026-09-25 扩展）：**key 项的控件带
+ * `data-setting-key="<item.key>"`，非 key 控件带 `data-setting-id="<item.id>"`**（两者都等于
+ * `itemId(item)`）。两个属性都查，是因为搜索结果只带 id、不区分它是哪种项。
+ */
+export const findItemElement = (root: HTMLElement | null, id: string): HTMLElement | null =>
+  root ? root.querySelector<HTMLElement>(`[data-setting-key="${id}"],[data-setting-id="${id}"]`) : null
 
 /**
  * 锚点在内容区滚动坐标里的偏移。用 `getBoundingClientRect` 换算，不读 `offsetTop`——
@@ -225,10 +229,13 @@ export const useSettingToc = (
     return true
   }
 
-  /** 高亮命中项：控件带 `data-setting-key` 时精确到控件，否则返回 false 让调用方退到分组锚点。 */
-  const flashItem = async(key: string): Promise<boolean> => {
+  /**
+   * 高亮命中项：控件带 `data-setting-key` / `data-setting-id` 时精确到控件（见 `findItemElement`），
+   * 否则返回 false 让调用方退到分组锚点。
+   */
+  const flashItem = async(id: string): Promise<boolean> => {
     await nextTick()
-    return flashElement(findItemElement(contentRef.value, key))
+    return flashElement(findItemElement(contentRef.value, id))
   }
 
   /** 退路：高亮分组锚点本身（命中项还没有就位的控件时用，至少指出它在哪一组）。 */

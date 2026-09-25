@@ -14,7 +14,7 @@ dd
     //- 上面一句是状态（已完整成句），下面一行只放按钮，避免「你已……的 查看协议。」这种断句。
     .p.small {{ $t('setting__about_pact_tip') }}
     .p.small
-      base-btn(min @click="handleShowPact") {{ $t('setting__about_pact_btn') }}
+      base-btn(min data-setting-id="about_show_pact" @click="handleShowPact") {{ $t('setting__about_pact_btn') }}
 </template>
 
 <script>
@@ -28,7 +28,9 @@ import SettingAboutVersionInfo from './VersionInfo.vue'
  * - **没有「软件更新」组**：应用内更新链路（检查更新 / 更新日志 / 下载更新）已于 2026-09-24
  *   整体删除（ADR-0008 不对外发布任何打包版），原 `common.tryAutoUpdate` /
  *   `common.showChangeLog` 两个开关随之退场，别再按上游那套加回来。
- * - 「版本信息」「许可」两组的内容都是非 key 控件（只读展示 + 动作按钮），元数据里 items 为空。
+ * - 「版本信息」组是只读展示（版本号 / 代码版本 / 提交日期 + 连点开 DevTools 的隐藏手势），
+ *   元数据里 `items: []` 并列在 `GROUPS_WITHOUT_ITEMS`；「许可」组的打开协议按钮是非 key 项
+ *   （`about_show_pact`），挂 `data-setting-id` 供搜索高亮。
  */
 export default {
   name: 'SettingSectionAbout',

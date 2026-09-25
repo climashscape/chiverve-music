@@ -1,7 +1,8 @@
 <template lang="pug">
 div
+  //- 面板入口是非 key 项（元数据 `advanced_sound_effect_open_panel`），挂 data-setting-id 供搜索高亮
   .p
-    base-btn.btn(min @click="isShowPanel = true") {{ $t('setting__advanced_sound_effect_open_btn') }}
+    base-btn.btn(min data-setting-id="advanced_sound_effect_open_panel" @click="isShowPanel = true") {{ $t('setting__advanced_sound_effect_open_btn') }}
 
   //- 常用开关：元数据里 control 不是 `panel` 的三项（环境混响预设 / 3D 环绕总闸 / 升降调），
   //- 不必打开面板就能改；其余 14 项在面板里，见下面的入口行。

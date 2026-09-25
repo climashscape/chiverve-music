@@ -15,7 +15,7 @@ div
     div
       base-input(:class="$style.numInput" type="number" :model-value="appSetting['cache.maxSizeMB']" :placeholder="$t('setting__data_cache_max_size')" @update:model-value="setNumber('cache.maxSizeMB', $event)")
   .gap-top
-    base-btn.btn(min :disabled="isRecycling" @click="handleRecycle") {{ $t('setting__data_cache_recycle_btn') }}
+    base-btn.btn(min data-setting-id="data_cache_recycle_now" :disabled="isRecycling" @click="handleRecycle") {{ $t('setting__data_cache_recycle_btn') }}
     span.p.small(v-if="resultText" :class="$style.result") {{ resultText }}
 </template>
 

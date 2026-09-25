@@ -6,8 +6,11 @@ div(:class="$style.hotKeyContainer" :style="{ opacity: enabled ? 1 : .6 }")
     h4(:class="$style.hotKeyItemTitle") {{ $t('setting__hot_key_' + item.name) }}
     //- 录入靠 focus/blur + 直接写 input.value（键名由父组件的 keyDown 监听落到 hotKeyTargetInput），
     //- 所以这里只把事件透出去，不自己改值
+    //- `data-setting-id` 由 `hotKeyItemId()`（元数据里登记同一项时用的同一个函数）拼出来，
+    //- 搜索命中「上一首歌曲」这类项时就能闪到这个框上
     base-input(
       :class="[$style.hotKeyItemInput, isFailed(item) ? $style.hotKeyFailed : null]"
+      :data-setting-id="hotKeyItemId(type, item.name)"
       readonly :auto-paste="false" :placeholder="$t('setting__hot_key_unset_input')"
       :value="config[item.name] && formatKey(config[item.name].key)"
       @keyup.prevent @input.prevent
@@ -15,6 +18,7 @@ div(:class="$style.hotKeyContainer" :style="{ opacity: enabled ? 1 : .6 }")
 </template>
 
 <script>
+import { hotKeyItemId } from '@common/settingMetadata'
 import { useI18n } from '@renderer/plugins/i18n'
 
 export default {
@@ -63,6 +67,7 @@ export default {
     return {
       t,
       isFailed,
+      hotKeyItemId,
     }
   },
 }

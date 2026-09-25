@@ -14,9 +14,10 @@ dd
         common-setting-help-icon(:text="$t('setting__play_timeout_time_tip')" :label="$t('setting__play_timeout_time')")
       div
         base-input(:class="$style.numInput" type="number" :model-value="appSetting['player.waitPlayEndStopTime']" :placeholder="$t('setting__play_timeout_time')" @update:model-value="setWaitTime")
-    //- 「开始 / 取消定时」按钮 + 当前剩余时间：弹窗仍作为开始 / 取消的入口（它也带时长输入，同值）
+    //- 「开始 / 取消定时」按钮 + 当前剩余时间：弹窗仍作为开始 / 取消的入口（它也带时长输入，同值）。
+    //- 按钮是非 key 项（元数据 `play_timeout_open_modal`），挂 data-setting-id 供搜索高亮
     .p.gap-top
-      base-btn.btn(min @click="isShowPlayTimeoutModal = true") {{ $t('setting__play_timeout') }} {{ timeLabel ? ` (${timeLabel})` : '' }}
+      base-btn.btn(min data-setting-id="play_timeout_open_modal" @click="isShowPlayTimeoutModal = true") {{ $t('setting__play_timeout') }} {{ timeLabel ? ` (${timeLabel})` : '' }}
 
 PlayTimeoutModal(v-model="isShowPlayTimeoutModal")
 </template>

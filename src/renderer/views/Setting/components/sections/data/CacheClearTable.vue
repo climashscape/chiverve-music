@@ -1,6 +1,7 @@
 <template lang="pug">
 div(:class="$style.table")
-  .p(v-for="row in rows" :key="row.id" :class="$style.row")
+  //- 每行挂 `data-setting-id`（元数据 `data_cache_clear_*`）：搜索命中「歌词缓存」这类项时闪整行
+  .p(v-for="row in rows" :key="row.id" :class="$style.row" :data-setting-id="row.settingId")
     div(:class="$style.rowMain")
       span(:class="$style.name") {{ row.name }}
       span.auto-hidden(:class="$style.value") {{ row.value }}
@@ -125,6 +126,8 @@ export default {
     const rows = computed(() => [
       {
         id: 'resource',
+        // 元数据里这一项的 id（`data_cache_clear_*`）：挂到行容器上供搜索高亮定位
+        settingId: 'data_cache_clear_resource',
         name: t('setting__data_cache_row_resource'),
         value: cacheSize.value,
         button: t('setting__other_resource_cache_clear_btn'),
@@ -134,6 +137,7 @@ export default {
       },
       {
         id: 'musicUrl',
+        settingId: 'data_cache_clear_music_url',
         name: t('setting__data_cache_row_music_url'),
         value: String(musicUrlCount.value),
         button: t('setting__other_music_url_clear_btn'),
@@ -143,6 +147,7 @@ export default {
       },
       {
         id: 'lyricRaw',
+        settingId: 'data_cache_clear_lyric_raw',
         name: t('setting__data_cache_row_lyric_raw'),
         value: String(lyricRawCount.value),
         button: t('setting__other_lyric_raw_clear_btn'),
@@ -152,6 +157,7 @@ export default {
       },
       {
         id: 'lyricEdited',
+        settingId: 'data_cache_clear_lyric_edited',
         name: t('setting__data_cache_row_lyric_edited'),
         value: String(lyricEditedCount.value),
         button: t('setting__other_lyric_edited_clear_btn'),

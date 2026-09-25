@@ -2,30 +2,34 @@
  * 设置搜索（设置页重构票 02）：索引与匹配全部由 `@common/settingMetadata` 驱动。
  *
  * 两条改动前要读的约束：
- * 1. **命中项靠元数据的 `key` 认，别按文案反查控件**。文案四语不同、票 11 还要按附 A 改，
- *    按文案找 DOM 在换语言后必错。跳转时用 `[data-setting-key]` 定位控件（票 03/05 落这个属性的
- *    契约，见 `useSettingToc.ts` 的 `flashItem`），找不到才退到分组锚点。
- * 2. 匹配口径：**当前语言下** section / group / item 的文案 + item 的 `key`，不区分大小写**子串**。
- *    `key` 也参与匹配，是因为菜单里搜不到的技术名（`quality` / `proxy` 之类）用户会直接敲。
+ * 1. **命中项靠元数据的 `itemId()` 认（key 项 = key，非 key 项 = 显式 id），别按文案反查控件**。
+ *    文案四语不同、票 11 还要按附 A 改，按文案找 DOM 在换语言后必错。跳转时用
+ *    `[data-setting-key]` / `[data-setting-id]` 定位控件（票 03/05 落这两个属性的契约，
+ *    见 `useSettingToc.ts` 的 `flashItem`），找不到才退到分组锚点。
+ * 2. 匹配口径：**当前语言下** section / group / item 的文案 + 项的 id，不区分大小写**子串**。
+ *    项 id 也参与匹配，是因为菜单里搜不到的技术名（`quality` / `proxy` / `backup` 之类）用户会直接敲；
+ *    2026-09-25 起非 key 控件也进表，它们的 id 同样可搜（`hot_key_global_*` 这类）。
  *
- * 三级都给命中：节级 → 跳该节顶部；分组级 → 跳该分组锚点（`hot_key` / `data` 两节 items 为空，
- * 只可能命中组标题）；项级 → 跳分组锚点并高亮控件。**同一分支只留最深的一条**（有项命中就不再列
- * 它的分组与节），否则搜一次「音量」会刷出「播放 › 播放 › 音量」三条。
+ * 三级都给命中：节级 → 跳该节顶部；分组级 → 跳该分组锚点（只有只读内容的分组，如
+ * `data_lyric_offset` / `about_version`，只可能命中组标题）；项级 → 跳分组锚点并高亮控件。
+ * **同一分支只留最深的一条**（有项命中就不再列它的分组与节），否则搜一次「音量」会刷出
+ * 「播放 › 播放 › 音量」三条。
  *
  * 纯函数（翻译函数按参数传进来），单测见同目录 `useSettingSearch.test.ts`。
  */
-import { SETTING_SECTIONS, type Section } from '@common/settingMetadata'
+import { SETTING_SECTIONS, itemId, type Section } from '@common/settingMetadata'
 
 /** 文案取值函数（`useI18n()` 的返回值）。单独传进来是为了让本模块能被单测直接跑。 */
 export type Translate = (key: string) => string
 
-/** 一条命中：`groupId` 为 null = 节级命中，`itemKey` 为 null = 分组级命中。 */
+/** 一条命中：`groupId` 为 null = 节级命中，`itemId` 为 null = 分组级命中。 */
 export interface SearchHit {
   sectionId: string
   sectionI18nKey: string
   groupId: string | null
   groupI18nKey: string | null
-  itemKey: string | null
+  /** 命中项的稳定 id（`itemId()` 的取值）——控件上标着 `data-setting-key` 或 `data-setting-id`。 */
+  itemId: string | null
   itemI18nKey: string | null
 }
 
@@ -56,7 +60,7 @@ export const buildSearchIndex = (
         sectionI18nKey: section.i18nKey,
         groupId: null,
         groupI18nKey: null,
-        itemKey: null,
+        itemId: null,
         itemI18nKey: null,
       },
       haystack: toHaystack(t(section.i18nKey)),
@@ -68,23 +72,25 @@ export const buildSearchIndex = (
           sectionI18nKey: section.i18nKey,
           groupId: group.id,
           groupI18nKey: group.i18nKey,
-          itemKey: null,
+          itemId: null,
           itemI18nKey: null,
         },
         haystack: toHaystack(t(group.i18nKey)),
       })
       for (const item of group.items) {
+        const id = itemId(item)
         index.push({
           hit: {
             sectionId: section.id,
             sectionI18nKey: section.i18nKey,
             groupId: group.id,
             groupI18nKey: group.i18nKey,
-            itemKey: item.key,
+            itemId: id,
             itemI18nKey: item.i18nKey,
           },
-          // key 也进可搜文本：`player.playQuality` 里的 quality、`network.proxy.host` 里的 proxy
-          haystack: toHaystack(t(item.i18nKey), item.key),
+          // 项 id 也进可搜文本：`player.playQuality` 里的 quality、`network.proxy.host` 里的 proxy、
+          // 非 key 项的 `data_backup_import_setting` 里的 backup
+          haystack: toHaystack(t(item.i18nKey), id),
         })
       }
     }
@@ -107,12 +113,12 @@ export const matchSettingHits = (
   if (!query) return []
   const matched = index.filter(entry => entry.haystack.includes(query))
   // 「更深的命中」集合：项级命中的分组、以及任意组/项级命中过的节
-  const itemHitGroups = new Set(matched.filter(entry => entry.hit.itemKey != null).map(entry => groupBranchKey(entry.hit)))
+  const itemHitGroups = new Set(matched.filter(entry => entry.hit.itemId != null).map(entry => groupBranchKey(entry.hit)))
   const deeperSections = new Set(matched.filter(entry => entry.hit.groupId != null).map(entry => entry.hit.sectionId))
   return matched
     .filter(({ hit }) => {
       if (hit.groupId == null) return !deeperSections.has(hit.sectionId)
-      if (hit.itemKey == null) return !itemHitGroups.has(groupBranchKey(hit))
+      if (hit.itemId == null) return !itemHitGroups.has(groupBranchKey(hit))
       return true
     })
     .map(entry => entry.hit)

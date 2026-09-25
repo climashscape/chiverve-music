@@ -15,13 +15,13 @@ dd
       | {{ $t('setting__other_dislike_list_label') }}
       span.auto-hidden {{ dislikeRuleCount }}
     .p
-      base-btn.btn(min @click="isShowDislikeList = true") {{ $t('setting__other_dislike_list_show_btn') }}
+      base-btn.btn(min data-setting-id="data_dislike_edit" @click="isShowDislikeList = true") {{ $t('setting__other_dislike_list_show_btn') }}
   DislikeListModal(v-model="isShowDislikeList")
 dd
   h3#data_list {{ $t('setting__other_listdata') }}
   div
     .p
-      base-btn.btn(min @click="handleClearListData") {{ $t('setting__other_listdata_clear_btn') }}
+      base-btn.btn(min data-setting-id="data_list_clear" @click="handleClearListData") {{ $t('setting__other_listdata_clear_btn') }}
 dd
   h3#data_backup {{ $t('setting__backup') }}
   div
@@ -52,10 +52,13 @@ const offsetTagRxp = /(?:^|\n)\s*\[offset:\s*(\S+(?:\d+)*)\s*\]/
 /**
  * 数据与存储（`data`）节：6 组全部来自元数据表 `SETTING_SECTIONS` 的 data 节，顺序即元数据顺序。
  *
- * 本节只有 `data_cache_policy` 一组有 `defaultSetting` key（票 08 的 `cache.musicUrlKeepDays` /
- * `cache.maxSizeMB`，`data-setting-key` 在 `CachePolicyBlock.vue` 里）；其余 5 组是「动作」与
- * 数据库内容（清理 / 备份 / 偏移 / 清空列表），`items` 都是空数组——`Item.key` 必填的约束装不下
- * 这 20 个非 key 控件（4 组清理行 + 编辑规则 + 清空列表 + 8 个备份按钮 + 歌词偏移说明）。
+ * 本节只有 `data_cache_policy` 一组带 `defaultSetting` key（票 08 的 `cache.musicUrlKeepDays` /
+ * `cache.maxSizeMB`，`data-setting-key` 在 `CachePolicyBlock.vue` 里）；其余是「动作」与数据库内容
+ * （清理 / 备份 / 偏移 / 清空列表）。这些动作按钮是**非 key 控件**，2026-09-25 起按 `NonKeyItem`
+ * 登记进元数据（`data_cache_clear_*` / `data_backup_*` / `data_list_clear` / `data_dislike_edit`），
+ * DOM 上标 `data-setting-id`——登记前它们只能被搜到所属组标题。
+ * `data_lyric_offset` 组例外：组内只有只读显示与说明（真控件在歌词右键菜单），列在元数据的
+ * `GROUPS_WITHOUT_ITEMS` 里。
  *
  * 缓存清理的计数表与回收策略两块要联动：回收完让计数表重新取一次数（两块是兄弟，不互相 import，
  * 用一个自增的 `cacheCountRefreshKey` 从本组件转发）。
@@ -91,7 +94,8 @@ export default {
         confirmButtonText: t('setting__other_resource_cache_confirm'),
       })) return
       void overwriteListFull({
-        defaultList: [],
+        // 试听列表已从数据层删除（票 08）：它没有需要清空的数据行，覆盖写也会顺手把残留的
+        // `default` 行清掉（`overwriteListData` 是整表清空重建）
         loveList: [],
         userList: [],
         tempList: [],

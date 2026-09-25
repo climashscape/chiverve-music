@@ -3,9 +3,10 @@ dd
   h3#desktop_lyric_reset {{ $t('setting__desktop_lyric_reset') }}
   div
     //- 本组没有带 key 的项：4 个几何 key（desktopLyric.width/height/x/y）是 INTERNAL_ONLY_KEYS，
-    //- 由拖拽/缩放直接写入，设置页只留这个「重置窗口设置」按钮（写回 450×300 + x/y=null）
+    //- 由拖拽/缩放直接写入，设置页只留这个「重置窗口设置」按钮（写回 450×300 + x/y=null）；
+    //- 按钮是非 key 项（元数据 `desktop_lyric_reset_window`），挂 `data-setting-id` 供搜索高亮
     .p.gap-top
-      base-btn.btn(min @click="resetWindowSetting") {{ $t('setting__desktop_lyric_reset_window') }}
+      base-btn.btn(min data-setting-id="desktop_lyric_reset_window" @click="resetWindowSetting") {{ $t('setting__desktop_lyric_reset_window') }}
 </template>
 
 <script>
