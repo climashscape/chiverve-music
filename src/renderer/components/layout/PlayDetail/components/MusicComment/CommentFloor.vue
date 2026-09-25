@@ -11,6 +11,9 @@ div(:class="$style.container")
               div.select(:class="$style.name") {{ item.userName }}
               div(:class="$style.metaInfo")
                 time(v-if="item.timeStr" :class="$style.label") {{ timeFormat(item.timeStr) }}
+                //- 「仅自己可见」：服务端还没把这条放进公开列表（他人看不到、总数也不计它），
+                //- 由父组件从「自己的评论」通道并进来时打上 pending 标记
+                div(v-if="item.pending" :class="$style.label") {{ $t('comment__pending_own') }}
                 div(v-if="item.location" :class="$style.label") {{ $t('comment__location', { location: item.location }) }}
             div(v-if="item.likedCount != null" :class="$style.likes")
               svg(:class="$style.likesIcon" version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" viewBox="0 0 512 512" space="preserve")

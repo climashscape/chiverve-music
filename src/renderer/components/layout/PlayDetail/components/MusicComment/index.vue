@@ -102,6 +102,14 @@ export default {
        */
       myEuin: '',
       /**
+       * 本次会话里刚发表、但还没进公开列表的评论 cmId（`createComment` 的返回值）。
+       *
+       * 为什么要它：公开列表（h5 通道）看不到服务端还没放出来的自己那条（`tx/comment.js`
+       * 文件头第 6 条），所以发表后先靠「自己的评论」通道把它并到列表顶部显示，
+       * 一旦公开列表里有了就把它从这一集合里摘掉（去重靠 cmId）。
+       */
+      ownPendingCmIds: [],
+      /**
        * 歌曲总评论条数（标题上的「(N)」）。
        *
        * 来源是「最新评论」那次列表响应的 `commenttotal`（`tx/comment.js` 的 `pickCommentTotal`），
@@ -226,6 +234,8 @@ export default {
         // 标题上的计数用同一个响应（成功才更新：失败时保留上一次的合法值，切歌时已由
         // handleShowComment 清成 null）
         this.commentTotal = comment.total ?? null
+        // 公开列表里没有、但自己刚发的那几条并到顶部（只第 1 页；拿不到就维持原样）
+        void this.mergeOwnPendingComments(page)
         this.$nextTick(() => {
           this.$refs.dom_commentNew.scrollTo(0, 0)
         })
@@ -235,6 +245,36 @@ export default {
         this.newComment.isLoadError = true
         this.newComment.isLoading = false
       })
+    },
+    /**
+     * 把「刚发表、公开列表里还没有」的自己那条并到「最新评论」顶部（只第 1 页）。
+     *
+     * 数据来自 `tx/comment.js` 的 `getSelfComment`（新式通道 `SelfSeeEnable`，能立刻读到自己
+     * 还没公开的评论）。**不是**拿整条通道替换公开列表：那条通道不能按 `PageNum` 翻页、总数也
+     * 与公开计数不是一个数（数据层有实测注释），所以只借它显示自己刚发的那几条。
+     * 公开列表里一旦出现同一个 cmId，就把它从待定集合里摘掉——此后不再为它多发这一次请求。
+     */
+    async mergeOwnPendingComments(page) {
+      if (page !== 1 || !this.ownPendingCmIds.length) return
+      const visibleInPublicList = () => new Set(this.newComment.list.map(item => item.cmId))
+      // 公开列表里已经出现过的 id 直接从待定集合摘掉：服务端已放出来，不必再问那条通道
+      let visible = visibleInPublicList()
+      this.ownPendingCmIds = this.ownPendingCmIds.filter(cmId => !visible.has(cmId))
+      if (!this.ownPendingCmIds.length) return
+      let own
+      try {
+        own = await music.tx.comment.getSelfComment(toOldMusicInfo(this.currentMusicInfo), this.newComment.limit)
+      } catch (err) {
+        // 拿不到就维持公开列表原样（最多是「刚发的那条暂时不显示」，不能因此把列表弄坏）
+        console.log('[comment] getSelfComment', err)
+        return
+      }
+      // 请求期间可能又刷新过：重算一次，避免并出一条已经在公开列表里的重复行
+      visible = visibleInPublicList()
+      const pending = own
+        .filter(item => this.ownPendingCmIds.includes(item.cmId) && !visible.has(item.cmId))
+        .map(item => ({ ...item, pending: true }))
+      if (pending.length) this.newComment.list = [...pending, ...this.newComment.list]
     },
     handleGetHotComment(musicInfo, page, limit) {
       this.hotComment.isLoadError = false
@@ -313,12 +353,14 @@ export default {
       this.composerSending = true
       this.composerTip = ''
       try {
-        await music.tx.comment.createComment(toOldMusicInfo(this.currentMusicInfo), content, this.replyTarget?.cmId)
+        const added = await music.tx.comment.createComment(toOldMusicInfo(this.currentMusicInfo), content, this.replyTarget?.cmId)
         this.composerText = ''
         this.replyTarget = null
         this.composerTip = this.$t('comment__publish_success')
-        // 新评论只会出现在「最新评论」里，且服务端要过几秒才放出来（comment.js 文件头第 4 条）——
-        // 所以切到最新页并重拉第 1 页，而不是往列表里塞一条本地假数据（重拉简单且不会与真实列表打架）
+        // 新评论只会出现在「最新评论」里——切到最新页并重拉第 1 页。
+        // 记下服务端返回的 id：服务端公开它之前，公开列表（h5）里没有它，就靠
+        // mergeOwnPendingComments 从「自己的评论」通道把它并到列表顶部（见数据层文件头第 6 条）
+        if (added?.id) this.ownPendingCmIds.push(String(added.id))
         this.handleToggleTab('new')
         this.handleGetNewComment(this.currentMusicInfo, 1, this.newComment.limit)
       } catch (err) {
@@ -339,6 +381,8 @@ export default {
         this.composerTip = ''
         // 删掉的正好是当前回复目标时，把回复态收回去（否则会往已删除的评论下回复）
         if (this.replyTarget?.cmId === item.cmId) this.replyTarget = null
+        // 已删的 id 从待定集合里去掉，免得后续每次刷新都为它多打一次「自己的评论」请求
+        this.ownPendingCmIds = this.ownPendingCmIds.filter(cmId => cmId !== item.cmId)
         this.refreshActiveTab()
       } catch (err) {
         console.log(err)

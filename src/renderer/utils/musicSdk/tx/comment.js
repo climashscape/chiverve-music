@@ -32,6 +32,11 @@ import { buildComm, txCgi } from './utils/request'
  *      `scripts/verify/artifacts/2026-09-25-qq-probe/NOTES.md` §3），解析统一走
  *      `./utils/commentTotal` 的 `pickCommentTotal`（取不到给 `null`，界面据此不显示计数）。
  *      ⚠️ `GetHotCommentList` 的 `data.CommentList.Total` 是**热评条数**，不是总评论数。
+ *   6. **自己刚发的评论不在 h5 列表里**（2026-09-26 真机实测）：h5 `cmd=8` 是**公开视图**，
+ *      `AddComment` 返回 `code=0/SubCode=0` 之后对方要过一段时间才公开（实测同一条评论
+ *      发布后 2 小时仍不在 h5 列表、`commenttotal` 也不变），而新式
+ *      `CommentRead/GetNewCommentList` + `SelfSeeEnable: 1` **1 秒内**就能读到它（`IsSelf=1`）。
+ *      所以「刚发表的那条」单独走 `getSelfComment`，见组件的 `mergeOwnPendingComments`。
  */
 
 const emojis = {
@@ -279,6 +284,48 @@ export default {
     }
   },
   /**
+   * 取**自己的**评论（新式通道 `CommentRead/GetNewCommentList` + `SelfSeeEnable: 1`）。
+   *
+   * 存在的唯一理由见文件头第 6 条：h5 公开列表看不到自己「还没公开」的那条，这条通道能。
+   * 返回的条目形状与 `filterNewComment` 对齐（组件与 `CommentFloor` 只认一套字段）。
+   *
+   * ⚠️ **别拿它替换 `getComment`**，两个硬理由：
+   *   1. 它的 `PageNum` 实测**不翻页**（page 1/2/3 返回同一批数据，游标是 `LastCommentSeqNo`），
+   *      界面上的数字分页器撑不住这种改法；
+   *   2. 它的 `Total` 与 h5 的 `commenttotal` **不是同一个数**（晴天实测 330913 vs 230665），
+   *      所以标题上的「评论 (N)」仍以 h5 为准（`pickCommentTotal`）。
+   *
+   * @param {object} mInfo 老式歌曲对象
+   * @param {number} [limit] 最多取多少条（固定取第 1 页）
+   * @returns {Promise<Array>} 只含 `IsSelf == 1` 的条目
+   */
+  async getSelfComment(mInfo, limit = 20) {
+    const credential = await requireLoginCredential()
+    const songId = await this.getSongId(mInfo)
+    const node = await txCgi({
+      module: 'music.globalComment.CommentRead',
+      method: 'GetNewCommentList',
+      param: {
+        BizType: 1,
+        BizId: String(songId),
+        PageSize: limit,
+        PageNum: 0,
+        HashTagID: '',
+        LastCommentSeqNo: '',
+        // 关键参数：带上它才返回「仅自己可见」的条目（自己刚发的就在其中）
+        SelfSeeEnable: 1,
+        PicEnable: 1,
+        AudioEnable: 1,
+      },
+    }, buildComm(credential)).promise
+    if (node?.code != 0) throw new Error('获取自己的评论失败')
+
+    const comments = node.data?.CommentList?.Comments ?? []
+    return comments
+      .filter(item => Number(item.IsSelf) === 1)
+      .map(item => this.filterSelfComment(item))
+  },
+  /**
    * 发表评论（要登录态）。
    *
    * @param {object} mInfo 老式歌曲对象（有 songId 就用它，没有就按 songmid 查）
@@ -373,6 +420,31 @@ export default {
           : [],
       }
     })
+  },
+  /**
+   * 新式通道（`CommentRead/GetNewCommentList`）的条目整形。
+   *
+   * 字段名与 h5 那套完全不同（大驼峰），这里统一映射成 `filterNewComment` 的输出形状，
+   * 组件与 `CommentFloor` 不需要知道数据来自哪条通道。`userId` 取 `EncryptUin`
+   * ——已实测与凭证里的 `encryptUin` 是同一个值（同长度、同指纹），组件的
+   * `canDelete` 就是靠它相等才显示「删除」。
+   */
+  filterSelfComment(item) {
+    const time = item.PubTime ? this.formatTime(item.PubTime) : null
+    return {
+      id: `${item.SeqNo}_${item.CmId}`,
+      rootId: item.SeqNo,
+      cmId: String(item.CmId ?? ''),
+      text: item.Content ? this.replaceEmoji(item.Content).replace(/\\n/g, '\n') : '',
+      time,
+      timeStr: time ? dateFormat2(time) : null,
+      userName: item.Nick ?? '',
+      avatar: item.Avatar,
+      userId: item.EncryptUin,
+      likedCount: item.PraiseNum,
+      // 只用于「自己刚发的根评论」，不带回复列表（本应用的发评论入口也不支持附图）
+      reply: [],
+    }
   },
   filterHotComment(rawList) {
     return rawList.map(item => {
