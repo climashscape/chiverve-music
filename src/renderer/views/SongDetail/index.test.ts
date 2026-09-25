@@ -13,19 +13,30 @@ import Page from './index.vue'
  * `setShowPlayerDetail` 也 mock —— 真身从 `store/player/action` → `core/player`，本测试不需要播放器。
  * 子组件用桩：工具栏 / 在线列表 / MV 弹窗 / 歌手选择菜单都与本票无关，别让它们把不在范围内的失败带进来。
  */
-const mocks = vi.hoisted(() => ({
-  push: vi.fn(),
-  back: vi.fn(),
-  replace: vi.fn(),
-  setShowPlayerDetail: vi.fn(),
-  getDetail: vi.fn(),
-  dialog: vi.fn(),
-}))
+const mocks = vi.hoisted(() => {
+  /** 路由要用**可变且响应式**的对象：有一条用例专门验「同路由换 mid 要重新取数」（工厂里再套 reactive） */
+  const route: { query: { mid: string, source: string } } = { query: { mid: 'abc', source: 'tx' } }
+  return {
+    push: vi.fn(),
+    back: vi.fn(),
+    replace: vi.fn(),
+    setShowPlayerDetail: vi.fn(),
+    getDetail: vi.fn(),
+    dialog: vi.fn(),
+    route,
+  }
+})
 
-vi.mock('@common/utils/vueRouter', () => ({
-  useRoute: () => ({ query: { mid: 'abc', source: 'tx' } }),
-  useRouter: () => ({ push: mocks.push, back: mocks.back, replace: mocks.replace }),
-}))
+vi.mock('@common/utils/vueRouter', async() => {
+  // 直接在裸对象上改属性不会触发 watch（没有经过代理的 set 陷阱），所以工厂里换成响应式代理，
+  // 用例通过 mocks.route 改动即可驱动组件重取数。
+  const { reactive } = await import('vue')
+  mocks.route = reactive(mocks.route)
+  return {
+    useRoute: () => mocks.route,
+    useRouter: () => ({ push: mocks.push, back: mocks.back, replace: mocks.replace }),
+  }
+})
 vi.mock('@renderer/store/player/action', () => ({ setShowPlayerDetail: mocks.setShowPlayerDetail }))
 vi.mock('@renderer/components/material/OnlineList/usePlay', () => ({ default: () => ({ handlePlayMusic: vi.fn() }) }))
 vi.mock('@renderer/plugins/Dialog', () => ({ dialog: mocks.dialog }))
@@ -88,6 +99,7 @@ describe('views/SongDetail/index.vue 的「打开播放详情页」入口', () =
   beforeEach(() => {
     // 歌单间会串：每个用例都从「什么都没在播」起步
     playMusicInfo.musicInfo = null
+    mocks.route.query.mid = 'abc'
     vi.clearAllMocks()
     mocks.getDetail.mockResolvedValue({
       // songmid 才是 mid（本页身份）；trackRaw.id = 0 → 四个关联块不再发请求，本测试不关心它们
@@ -132,5 +144,18 @@ describe('views/SongDetail/index.vue 的「打开播放详情页」入口', () =
 
     expect(wrapper.text()).not.toContain(ENTRY_TEXT)
     wrapper.unmount()
+  })
+
+  it('同路由换 mid 会重新取数（否则 URL 换了、页面还是上一首）', async() => {
+    // 2026-09-25 真机验收抓到的 bug：`/songDetail?mid=A` → `?mid=B` 是同组件复用，
+    // setup 只跑一次，原来的 `if (mid.value) void load(mid.value)` 不会重取数。
+    // 期望值来自「URL 与内容必须一致」这条用户可见契约（票 .scratch/verify-2026-09-25/issues/01）。
+    await mountDetailPage()
+    expect(mocks.getDetail).toHaveBeenCalledWith('abc')
+
+    mocks.getDetail.mockClear()
+    mocks.route.query.mid = 'def'
+    await flushPromises()
+    expect(mocks.getDetail).toHaveBeenCalledWith('def')
   })
 })

@@ -127,7 +127,7 @@
 </template>
 
 <script lang="ts">
-import { computed, ref } from '@common/utils/vueTools'
+import { computed, ref, watch } from '@common/utils/vueTools'
 import { useRoute, useRouter } from '@common/utils/vueRouter'
 import usePlay from '@renderer/components/material/OnlineList/usePlay'
 import MvPlayerModal from '@renderer/components/common/MvPlayerModal.vue'
@@ -154,7 +154,13 @@ export default {
     const { detail, similar, otherVersions, load } = useSongDetail()
 
     const mid = computed(() => (route.query.mid as string) ?? '')
-    if (mid.value) void load(mid.value)
+    // 路由页没有 keep-alive，但 `/songDetail?mid=A` → `?mid=B` 是**同组件复用**（setup 不会再跑）——
+    // 只写 `if (mid.value) void load(mid.value)` 会出现「URL 换了、内容还是上一首」（2026-09-25 真机验收抓到，
+    // 见 `.scratch/verify-2026-09-25/issues/01`）。改成 watch 驱动（与 `views/Singer/index.vue` 同一写法），
+    // 首次进入与换 mid 两种情况都覆盖。
+    watch(() => route.query.mid, (value) => {
+      if (value) void load(value as string)
+    }, { immediate: true })
 
     const infoRows = computed(() => [
       { label: window.i18n.t('song_detail__company' as any), value: detail.info.company },
