@@ -8,6 +8,11 @@
 # 注意：test 与 lint 都不需要 Electron 二进制（vitest 里 electron 走桩），所以这里不需要配
 # ELECTRON_MIRROR / NODEJS_ORG_MIRROR；若将来往 CI 里加真的打包步骤，先看 README 里
 # 「装依赖」那两条必踩的坑（node-gyp 的头文件与 Electron 二进制都要走镜像或代理）。
+#
+# 为什么这里有 typecheck：构建期只有 webpack 的 ts-loader 会查类型，而 CI **不跑 build**
+# （只为校验、不产包，见上面 ADR-0008 那段）——于是 TS 类型错误在 CI 里完全没有门禁，能一路进
+# main。npm run typecheck 用三个构建目标的 tsconfig 各跑一遍 tsc --noEmit，补上这条缝。
+# 口径由全历史自审查（2026-09-26）定，落点约定见 docs/agents/self-review.md（本机-only）。
 name: verify
 
 on:
@@ -28,3 +33,4 @@ jobs:
       - run: npm ci
       - run: npm run test
       - run: npm run lint
+      - run: npm run typecheck

@@ -42,6 +42,7 @@
     "build:renderer-scripts": "cross-env NODE_ENV=production webpack --config build-config/renderer-scripts/webpack.config.prod.js --progress",
     "lint": "eslint --ext .ts,.js,.vue -f node_modules/eslint-formatter-friendly src",
     "lint:fix": "eslint --ext .ts,.js,.vue -f node_modules/eslint-formatter-friendly --fix src",
+    "typecheck": "tsc --noEmit -p src/main/tsconfig.json && tsc --noEmit -p src/renderer/tsconfig.json && tsc --noEmit -p src/renderer-lyric/tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
