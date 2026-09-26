@@ -2,12 +2,14 @@
   <div :class="$style.container" class="scroll">
     <p v-if="listInfo.noItemLabel && !listInfo.list.length" :class="$style.noitem" v-text="listInfo.noItemLabel" />
     <ul v-show="listInfo.list.length" :class="$style.cards">
-      <!-- 歌手：圆形头像 + 歌曲/专辑/MV 数 -->
+      <!-- 歌手：圆形头像 + 歌曲/专辑/MV 数 + 关注 / 取消关注两态键（票 04；
+           件内 `@click.stop`，点关注不会连带跳进歌手页） -->
       <template v-if="type === 'singer'">
         <li v-for="item in listInfo.list" :key="item.id" :class="[$style.card, $style.singer]" @click="toSinger(item)">
           <img :class="[$style.img, $style.round]" loading="lazy" decoding="async" :src="item.img" alt="">
           <h4 :class="$style.name" :title="item.name">{{ item.name }}</h4>
           <p :class="$style.meta">{{ $t('search__singer_stat', { song: item.songNum, album: item.albumNum }) }}</p>
+          <follow-singer-button :mid="item.mid" />
         </li>
       </template>
       <!-- 专辑：方形封面 + 歌手 + 发行日期 -->
@@ -57,6 +59,7 @@ import { listInfos, search as searchTyped, type TypedSearchType } from '@rendere
 import { player, openMv as openMvPlayer, closePlayer, retryUrl, type MvInfo } from '@renderer/store/mv'
 import { formatPlayCount } from '@renderer/utils'
 import MvPlayerModal from '@renderer/components/common/MvPlayerModal.vue'
+import FollowSingerButton from '@renderer/components/common/FollowSingerButton.vue'
 
 /**
  * 搜索页的「歌手 / 专辑 / MV」三类结果（工单 10）。
@@ -66,11 +69,17 @@ import MvPlayerModal from '@renderer/components/common/MvPlayerModal.vue'
  * 取数在 `store/search/typed`，三个类型各自一份 listInfo。
  *
  * MV 卡片点开复用乐馆 MV 的播放弹窗与播放器（`store/mv` 是模块级单例），不另造一套。
+ * 歌手卡片上的关注键（票 04）是共用件 `components/common/FollowSingerButton.vue`：
+ * 数据层只留 `singer.js` 一处判态，多张卡片共用一份关注态。
+ *
+ * 为什么不给专辑 / MV 卡片也加：`musicSearch.searchAlbum/searchMv` 把歌手 mids 丢了
+ * （只留 `singer` 名字串），没有 mid 就判不了「是哪位歌手」——见票 04 的覆盖面清单。
  */
 export default {
   name: 'SearchTypedResultList',
   components: {
     MvPlayerModal,
+    FollowSingerButton,
   },
   props: {
     type: {
@@ -193,6 +202,11 @@ export default {
 .singer {
   width: 112px;
   text-align: center;
+
+  // 关注键（共用件）跟在本卡的名字/统计之后，与上面的文字同一份居中
+  button {
+    margin-top: 6px;
+  }
 }
 .img {
   width: 132px;

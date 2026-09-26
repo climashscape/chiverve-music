@@ -9,6 +9,10 @@
           <h4 :class="$style.cardName" :title="item.name">{{ item.name }}</h4>
           <p :class="$style.cardMeta" :title="item.desc">{{ item.desc }}</p>
         </div>
+        <!-- 取关键（票 04）：与其它出现处共用同一份关注态；取关成功后本列表要少一位，
+             所以接 `changed` 重拉（不然卡片还在，却显示成「关注」——那是「我关注的歌手」列表在说谎）。
+             件内 `@click.stop`，点它不会连带跳进歌手页 -->
+        <follow-singer-button :mid="item.id" @changed="handleFollowChanged" />
       </li>
     </ul>
     <div v-if="pagers.followSingers.hasMore" :class="$style.more">
@@ -22,13 +26,22 @@
 <script lang="ts">
 import { computed, watch } from '@common/utils/vueTools'
 import { useRouter } from '@common/utils/vueRouter'
+import FollowSingerButton from '@renderer/components/common/FollowSingerButton.vue'
 import { followSingers, labels, pagers } from '@renderer/store/user/state'
 import { initUserCenter, loadMoreFollowSingers, moreErrorLabelOf } from '@renderer/store/user/action'
 import { status } from '@renderer/store/qqAuth/state'
 
-/** 我的收藏 → 歌手：QQ 账号关注的歌手（只读）。 */
+/**
+ * 我的收藏 → 歌手：QQ 账号关注的歌手 + 每张卡上的**取消关注键**（票 04）。
+ *
+ * 关注态与写通道都是共用件 `components/common/FollowSingerButton.vue` 提供的
+ * （= `useFollowSinger`；歌手页 / 搜索 / MV 弹窗引用的是同一份关注态，别在这里另判）。
+ */
 export default {
   name: 'FavoritesSingersPanel',
+  components: {
+    FollowSingerButton,
+  },
   setup() {
     const router = useRouter()
     void initUserCenter()
@@ -44,12 +57,22 @@ export default {
       void router.push({ path: '/singer', query: { mid: item.id } })
     }
 
+    /**
+     * 关注态变了（本列表里只会是**取关**）→ 重拉这一块，让这张卡从「我关注的歌手」里退场。
+     * 只拉 followSingers 那一格做不到（store 的动作是整包 refresh），走 `initUserCenter(true)`
+     * 复用既有链路；这是用户主动发起的低频写，多几个请求可以接受。
+     */
+    const handleFollowChanged = () => {
+      void initUserCenter(true)
+    }
+
     return {
       followSingers,
       labels,
       pagers,
       moreError,
       toSinger,
+      handleFollowChanged,
       loadMoreFollowSingers,
     }
   },
@@ -95,6 +118,8 @@ export default {
   transition: transform @transition-fast;
 }
 .singerInfo {
+  // 撑满中间那一段（`min-width: 0` 是省略号的前提），关注键钉在行尾
+  flex: auto;
   min-width: 0;
   padding-left: 10px;
 }

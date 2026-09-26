@@ -9,13 +9,12 @@
         <p :class="$style.meta">
           <span v-if="detail.musicCount">{{ $t('singer__songs') }} {{ detail.musicCount }}</span>
           <span v-if="detail.albumCount">{{ $t('singer__albums') }} {{ detail.albumCount }}</span>
-          <!-- 关注态：**只读标记**（本票不做点击/两态键，写侧见 .scratch/follow-singer/issues/03）。
-               取不到（未登录 / 请求失败）时 followLabel 是空串 → 整块不渲染：
-               把「不知道」显示成「未关注」是在撒谎，三态口径写在 useSinger.ts 的 followState 上。 -->
-          <span
-            v-if="followLabel"
-            :class="[$style.followState, followState === true ? $style.followStateOn : $style.followStateOff]"
-          >{{ followLabel }}</span>
+          <!-- 关注 / 取消关注**两态键**（票 03）：判态、写通道、失败分支全在共用件
+               `components/common/FollowSingerButton.vue`（= `useFollowSinger` 的一层壳），
+               与搜索、收藏、MV 弹窗那些出现处**共用同一份关注态**。
+               `show-message`：页头有余量，失败原因 / 登录·重新扫码引导就地常驻显示。
+               ⚠️ 取不到（null）时整块不渲染（件内处理）：把「不知道」画成「未关注」是在撒谎。 -->
+          <follow-singer-button :mid="mid" show-message />
         </p>
         <p v-if="detail.desc" :class="$style.desc">{{ detail.desc }}</p>
       </div>
@@ -65,6 +64,7 @@
 import { computed, ref, watch } from '@common/utils/vueTools'
 import { useRoute, useRouter } from '@common/utils/vueRouter'
 import PlayerModal from '@renderer/components/common/MvPlayerModal.vue'
+import FollowSingerButton from '@renderer/components/common/FollowSingerButton.vue'
 import useSinger from './useSinger'
 import { normalizeTab, type TabId } from './tabs'
 import SongsPanel from './components/SongsPanel.vue'
@@ -84,11 +84,16 @@ import SimilarPanel from './components/SimilarPanel.vue'
  * 刷新后落回原 tab，`useViewScrollMemory` 也按 `fullPath` 给每个 tab 各记一份滚动位置（与发现/收藏同理）。
  * ⚠️ 写 tab 时**必须保留 `mid`**（它是本页的主参数），所以 query 是展开后再覆盖 tab。
  * 老链接 `/singer?mid=…`（没有 `tab` 键）照旧落歌曲 tab，推断规则见 `./tabs.ts`（单测 `tabs.test.ts`）。
+ *
+ * 页头的关注态是**关注 / 取消关注两态键**（票 03）：判态与写通道在共用件
+ * `components/common/FollowSingerButton.vue` + `useFollowSinger.ts`（与票 04 铺开的其它出现处
+ * 共用同一份关注态），本文件只把它挂上。
  */
 export default {
   name: 'Singer',
   components: {
     PlayerModal,
+    FollowSingerButton,
     SongsPanel,
     AlbumsPanel,
     MvsPanel,
@@ -98,22 +103,13 @@ export default {
     const route = useRoute()
     const router = useRouter()
     const {
-      detail, headerLabel, isInfoLoading, followState, mvPlayer,
+      detail, headerLabel, isInfoLoading, mvPlayer,
       initSingerInfo, closeMv, retryMvUrl,
     } = useSinger()
 
     const tab = ref<TabId>(normalizeTab(route.query.tab))
     // 页头与四个面板都按「路由上的歌手」取数；面板要的 mid 从这里传下去（单一来源，不再各自读路由）
     const mid = computed(() => String(route.query.mid ?? '').trim())
-
-    /**
-     * 关注态的文案：**取不到（null）时是空串**——模板按空串不渲染整个标记。
-     * 这一层不做「false 兜底成未关注」的转换（那正是要避免的撒谎）。
-     */
-    const followLabel = computed(() => {
-      if (followState.value === null) return ''
-      return window.i18n.t((followState.value ? 'singer__followed' : 'singer__not_followed') as any)
-    })
 
     const tabs = [
       { tab: 'songs', label: window.i18n.t('singer__songs' as any) },
@@ -147,8 +143,6 @@ export default {
       detail,
       headerLabel,
       isInfoLoading,
-      followState,
-      followLabel,
       mvPlayer,
       handleTabChange,
       handleBack,
@@ -215,19 +209,11 @@ export default {
   span {
     margin-right: 12px;
   }
-}
-// 关注态标记（只读）。底色与圆角照 `views/friends/components/UserCard.vue` 的 `.badge`——
-// 仓库里「小状态块」的既有写法，别另造一套。两态只差文字色（已关注用主题色，未关注用弱化色）。
-.followState {
-  padding: 0 6px;
-  border-radius: @radius-border;
-  background-color: var(--color-primary-alpha-800);
-}
-.followStateOn {
-  color: var(--color-primary);
-}
-.followStateOff {
-  color: var(--color-font-label);
+  // 关注键是 `<button>`（不是 span），既有那条 `span { margin-right }` 管不到它——
+  // 与前面的歌曲数/专辑数保持同一条间距（样式在共用件里，只在这里补外边距）
+  button {
+    margin-right: 12px;
+  }
 }
 .desc {
   margin-top: 6px;

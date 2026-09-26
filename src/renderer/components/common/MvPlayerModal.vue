@@ -21,11 +21,15 @@
           歌手名可点（工单 02）。这里**不用歌手选择菜单**：弹窗的层级（Modal.vue 的 z-index 99/100）
           压得住 base-menu（z-index 10），菜单点不到。MV 数据本身带 singers[]，逐位渲染成链接，
           要挑谁直接点谁——比「先弹菜单再挑」更直接。
+          每位后面再挂一颗关注 / 取消关注两态键（票 04）：详情/列表数据里自带 mid（`normalizeSingers`
+          只留带 mid 的），判态与写通道都是共用件（与歌手页、搜索、收藏是同一份关注态）。
+          下面那个 `v-else-if="singer"` 分支只有一个名字串、没有 mid，判不了是哪位歌手，所以不加键。
         -->
         <p v-if="singers.length" :class="$style.singer">
           <template v-for="(item, index) in singers" :key="item.mid">
             <span v-if="index" :class="$style.singerGap"> / </span>
             <span :class="$style.singerLink" :title="$t('list__jump_singer')" @click.stop="handleSingerJump(item)">{{ item.name || item.mid }}</span>
+            <follow-singer-button :mid="item.mid" />
           </template>
         </p>
         <p v-else-if="singer" :class="$style.singer" :title="singer">{{ singer }}</p>
@@ -61,9 +65,13 @@ import { openUrl } from '@common/utils/electron'
 import { formatPlayCount } from '@renderer/utils'
 import { normalizeSingers, type JumpSinger } from '@common/utils/musicLink'
 import useMusicJump from '@renderer/utils/compositions/useMusicJump'
+import FollowSingerButton from './FollowSingerButton.vue'
 import type { MvDetail, MvInfo } from '@renderer/store/mv'
 
 export default {
+  components: {
+    FollowSingerButton,
+  },
   props: {
     show: {
       type: Boolean,
@@ -240,7 +248,12 @@ export default {
   margin-top: 6px;
   font-size: 13px;
   color: var(--color-font);
-  .mixin-ellipsis-1();
+  // 多位歌手 + 每位的关注键排成一行；排不下就换行（原来那条单行省略号在多歌手 + 带键时会
+  // 把后面的歌手/关注键直接裁掉）
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
 }
 // 可点的歌手名（工单 02）
 .singerLink {
