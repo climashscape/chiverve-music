@@ -14,6 +14,7 @@ import songDetail from './songDetail'
 import tipSearch from './tipSearch'
 import dislike from './dislike'
 import longAudio from './longAudio'
+import upload from './upload'
 
 const tx = {
   tipSearch,
@@ -31,6 +32,8 @@ const tx = {
   dislike,
   // 长音频（有声书 / 节目）的**专辑**浏览与搜索；单集与播放复用 album（见 longAudio.js 文件头）
   longAudio,
+  // 图片直传 COS（目前只服务「建云端歌单带自定义封面」；链路与实测见 upload.js 文件头）
+  upload,
 
   getMusicUrl(songInfo, type) {
     return apis('tx').getMusicUrl(songInfo, type)

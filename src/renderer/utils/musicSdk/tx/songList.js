@@ -527,13 +527,23 @@ export default {
    * 创建歌单。重名不会失败（服务端自行加时间戳）。
    * 返回 `{ dirId, tid, name }`——**实测**新歌单的 dirId/tid 在 `data.result` 里，
    * 不在 `data.dirId`（那是删除接口的回显字段）。加歌/移歌要用返回的 `tid`。
+   *
+   * `dirPicUrl` 是**可选的自定义封面**（`tx/upload.js` 直传 COS 拿回的 CDN 地址）。
+   * 2026-09-26 真机实测（探针 `scripts/verify/probe-qq/probe_upload.py --stage verify`）：
+   * `AddPlaylist` 带 `dirPicUrl` 建出来的歌单，回读 `GetPlaylistByUin` 的 `picUrl` **就是这张图**；
+   * 对照组（不带该参数）回读封面为空。所以「带封面新建」只能走**建的时候**传：
+   * `EditPlaylist`（改已有歌单的封面）同日实测四个参数名 + 老版 web 完整载荷全是 `code: 1101`、
+   * 回显 `dirId: 0`，改不动——别往那条路上想办法。
    */
-  async createList(dirName) {
+  async createList(dirName, dirPicUrl) {
     const credential = await requireCredential()
+    const param = { dirName: String(dirName ?? '') }
+    // 只在真给了封面时才带上（少一个字段少一份被服务端当成「要清空封面」的风险）
+    if (dirPicUrl) param.dirPicUrl = String(dirPicUrl)
     const data = await txCgi({
       module: 'music.musicasset.PlaylistBaseWrite',
       method: 'AddPlaylist',
-      param: { dirName: String(dirName ?? '') },
+      param,
     }, buildComm(credential)).promise
     const result = data?.data?.result ?? data?.result ?? {}
     const dirId = Number(result.dirId ?? 0)

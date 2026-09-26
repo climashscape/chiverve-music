@@ -1,7 +1,7 @@
-import { computed, nextTick, ref, watch, type Ref } from '@common/utils/vueTools'
+import { computed, nextTick, ref, shallowRef, watch, type Ref } from '@common/utils/vueTools'
 import { useRoute, useRouter } from '@common/utils/vueRouter'
 import { createdLists, isInited, labels as userLabels } from '@renderer/store/user/state'
-import { createCloudList, initUserCenter, removeCloudList } from '@renderer/store/user/action'
+import { createCloudList, initUserCenter, removeCloudList, uploadListCover } from '@renderer/store/user/action'
 import { dialog } from '@renderer/plugins/Dialog'
 import { useI18n } from '@renderer/plugins/i18n'
 import type { PlaylistCard } from '@renderer/store/user/state'
@@ -57,9 +57,50 @@ export default ({ cloudDirId, tab }: { cloudDirId: Ref<string>, tab: Ref<TabId> 
     if (next != null) handleSelect(next)
   }, { immediate: true })
 
-  // ── 新建云端歌单 ──────────────────────────────────────────────────────
+  // ── 新建云端歌单（可带自定义封面）──────────────────────────────────────
   const isShowNewCloudList = ref(false)
   const isNewCloudListLeave = ref(false)
+
+  /**
+   * 待上传的封面：`{ file, url }`，`url` 是本地预览的 blob 地址（选中后行内显示缩略图）。
+   *
+   * 为什么封面只能在"新建时"给：改**已有**歌单封面的端点（`EditPlaylist`）2026-09-26 实测
+   * 不可用（四个参数名 + 老版 web 完整载荷全是 `code: 1101`、回显 `dirId: 0`），证据见
+   * `tx/songList.js` 的 `createList` 注释。不选封面 = 完全走原来那条路径（零行为变化）。
+   *
+   * ⚠️ 用 `shallowRef`：`File` 进了深层响应式会被包成 Proxy，交给 `arrayBuffer()` 不划算；
+   * 而且我们只关心"换没换"，不需要观察 File 内部。
+   */
+  const newListCover = shallowRef(null as { file: File, url: string } | null)
+
+  const clearNewListCover = () => {
+    if (newListCover.value) URL.revokeObjectURL(newListCover.value.url)
+    newListCover.value = null
+  }
+
+  /**
+   * 选完图（SFC 的隐藏 `<input type="file">` 触发）。
+   *
+   * 选完立刻把名字输入行打开（原来要靠点「+」），用户的下一步就是起名 → 回车。
+   * 输入行里会显示缩略图，所以"这张图会当封面"是看得见的。
+   */
+  const handleCoverPicked = (event: Event) => {
+    const input = event.target as HTMLInputElement
+    const file = input.files?.[0]
+    // 清掉 value：同一个文件连选两次也要能再触发 change（浏览器同值不派发）
+    input.value = ''
+    if (file == null) return
+    clearNewListCover()
+    newListCover.value = { file, url: URL.createObjectURL(file) }
+    // 打开名字输入行；焦点由 SFC 的 `@after-enter` 给（那里是 DOM 的事，见 CloudRail.vue）
+    isShowNewCloudList.value = true
+  }
+
+  /** 缩略图点击 = 去掉封面（回到"不带封面建歌单"）。 */
+  const handleCoverRemove = () => {
+    clearNewListCover()
+  }
+
   const handleCreateCloudList = async(event: Event) => {
     const target = event.target as HTMLInputElement
     if (target.readOnly) return
@@ -67,13 +108,20 @@ export default ({ cloudDirId, tab }: { cloudDirId: Ref<string>, tab: Ref<TabId> 
     target.readOnly = true
     if (!name) {
       isShowNewCloudList.value = false
+      // 名字空 = 用户放弃这次新建，选好的封面也一起丢掉（否则会粘到下一次"+"上）
+      clearNewListCover()
       return
     }
     try {
-      await createCloudList(name)
+      // 有封面就先直传拿地址，再带着它建歌单：**上传失败就不建**——
+      // 建出一个没有封面的歌单比让用户重试一次更糟（用户要的是"带封面新建"）
+      const cover = newListCover.value
+      const dirPicUrl = cover ? await uploadListCover(cover.file) : undefined
+      await createCloudList(name, dirPicUrl)
     } catch (err: any) {
       void dialog({ message: err?.message || String(err), type: 'error' })
     }
+    clearNewListCover()
     isNewCloudListLeave.value = true
     void nextTick(() => { isShowNewCloudList.value = false })
   }
@@ -115,6 +163,9 @@ export default ({ cloudDirId, tab }: { cloudDirId: Ref<string>, tab: Ref<TabId> 
     handleSelect,
     isShowNewCloudList,
     isNewCloudListLeave,
+    newListCover,
+    handleCoverPicked,
+    handleCoverRemove,
     handleCreateCloudList,
     cloudMenus,
     isShowCloudMenu,

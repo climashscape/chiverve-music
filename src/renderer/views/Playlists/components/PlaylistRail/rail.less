@@ -174,11 +174,32 @@
 }
 
 .listsNew {
+  // flex：让「封面缩略图 + 名字输入」同排（缩略图只在选了封面时出现）
+  display: flex;
+  align-items: center;
+  gap: 6px;
   padding: 0 10px;
   background-color: var(--color-primary-background-hover) !important;
   .listsInput {
     display: block;
+    // 与缩略图同排时宽度交给 flex：`.listsInput` 自己的 `width: 100%` 在 flex 行里会撑破行
+    flex: auto;
+    min-width: 0;
+    width: auto;
   }
+}
+// 新建行里的封面缩略图：尺寸与行首封面一致（26px / @radius-border），点它 = 去掉封面
+.listsNewCover {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: @radius-border;
+  object-fit: cover;
+  cursor: pointer;
+}
+// 隐藏的文件选择器（靠按钮 .click() 唤起）：不进布局
+.coverPicker {
+  display: none;
 }
 .newLeave {
   margin-top: -@lists-item-height;

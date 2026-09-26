@@ -1,7 +1,9 @@
 <template>
   <!-- QQ 云端自建歌单（工单 06 / 拆 tab 见工单 09）：这组改的是 QQ 云端（与本地组是两套数据、
-       两种写语义），只放开已实现的能力（建 / 删）——重命名、排序、导入导出不出现，
-       点了没反应比没有更糟。加歌 / 删歌 / 刷新在右栏的 CloudListPane。 -->
+       两种写语义），只放开已实现的能力（建 / 带封面建 / 删）——重命名、排序、导入导出不出现，
+       点了没反应比没有更糟。加歌 / 删歌 / 刷新在右栏的 CloudListPane。
+       「带封面」只做在**新建**上（封面直传 COS 后随 AddPlaylist 一起提交）：
+       改已有歌单封面的端点实测不可用，见 useCloudLists.ts 的注释与 tx/songList.js。 -->
   <div :class="$style.lists">
     <div :class="$style.listHeader">
       <h2 :class="$style.listsTitle">{{ $t('playlists__cloud_group') }}</h2>
@@ -11,8 +13,20 @@
             <use xlink:href="#icon-list-add" />
           </svg>
         </button>
+        <!-- 带封面新建：先选图（系统文件框），再在下面的输入行里起名。
+             封面只能在"新建时"给——改已有歌单封面的端点实测不可用，见 useCloudLists.ts 的注释 -->
+        <button
+          :class="$style.listsAdd" :aria-label="$t('playlists__cloud_new_with_cover')" :title="$t('playlists__cloud_new_with_cover')"
+          @click="$refs.dom_coverPicker.click()"
+        >
+          <svg version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" height="70%" viewBox="0 0 24 24" space="preserve">
+            <use xlink:href="#icon-list-add-cover" />
+          </svg>
+        </button>
       </div>
     </div>
+    <!-- 隐藏的文件选择器：由上面那个按钮唤起（`.coverPicker` 是 display:none，不占布局） -->
+    <input ref="dom_coverPicker" :class="$style.coverPicker" type="file" accept="image/png,image/jpeg,image/gif,image/webp" @change="handleCoverPicked">
     <ul class="scroll" :class="$style.listsContent">
       <li v-if="cloudLists.length === 0 && !isShowNewCloudList" :class="$style.railTip">
         <span v-text="cloudListsLabel" />
@@ -36,6 +50,11 @@
       </li>
       <transition enter-active-class="animated-fast slideInLeft" leave-active-class="animated-fast fadeOut" @after-leave="isNewCloudListLeave = false" @after-enter="$refs.dom_cloudNewInput.focus()">
         <li v-if="isShowNewCloudList" :class="[$style.listsItem, $style.listsNew, {[$style.newLeave]: isNewCloudListLeave}]">
+          <!-- 选好的封面：看得见才不会被忘掉；点它 = 去掉封面（回到不带封面建） -->
+          <img
+            v-if="newListCover" :class="$style.listsNewCover" :src="newListCover.url" alt=""
+            :aria-label="$t('playlists__cloud_cover_clear')" :title="$t('playlists__cloud_cover_clear')" @click="handleCoverRemove"
+          >
           <base-input
             ref="dom_cloudNewInput" :class="$style.listsInput" type="text" :placeholder="$t('playlists__cloud_new_input')"
             @keyup.enter="handleCreateCloudList" @blur="handleCreateCloudList"

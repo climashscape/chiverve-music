@@ -359,11 +359,29 @@ export const loadCloudListSongs = async(id: string, page = 1, more = false): Pro
   }
 }
 
-/** 新建云端歌单（返回服务端给的 dirId/tid）。 */
-export const createCloudList = async(name: string): Promise<{ dirId: number, tid: number }> => {
-  const res = await music.tx.songList.createList(name)
+/**
+ * 新建云端歌单（返回服务端给的 dirId/tid）。
+ *
+ * `dirPicUrl` 是**可选的自定义封面**——调用方先把图片传成 CDN 地址
+ * （`music.tx.upload.uploadImage`），再在建歌单时带上。为什么必须在"建的时候"给：
+ * 改已有歌单封面的端点（`EditPlaylist`）实测不可用，理由与证据见
+ * `tx/songList.js` 的 `createList` 注释。
+ */
+export const createCloudList = async(name: string, dirPicUrl?: string): Promise<{ dirId: number, tid: number }> => {
+  const res = await music.tx.songList.createList(name, dirPicUrl)
   await refreshCreatedLists()
   return res
+}
+
+/**
+ * 上传歌单封面（图片直传 QQ 的 COS 桶），返回可直接用的 CDN 地址。
+ *
+ * 与建歌单分成两个动作：上传可能因体积/网络失败，失败要**原样抛给调用方**并保留"重选封面"
+ * 的机会，而不是让整个建歌单流程静默吃掉。`createCloudList` 收这个地址当 `dirPicUrl`。
+ */
+export const uploadListCover = async(file: File): Promise<string> => {
+  const { url } = await music.tx.upload.uploadImage(file)
+  return url
 }
 
 /** 删除云端歌单（传卡片：dirId 给接口，id=tid 用于比对当前正在看的歌单）。 */
