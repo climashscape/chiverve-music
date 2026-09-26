@@ -10,10 +10,10 @@
       <div :class="[$style.pages, 'scroll']">
         <img
           v-for="(pic, index) in sheet.images"
-          :key="`${index}_${pic}`"
+          :key="index"
           :class="$style.page"
           :src="pic"
-          :alt="$t('pagination__page', { num: index + 1 })"
+          :alt="$t('pagination__page', { num: Number(index) + 1 })"
           loading="lazy"
           decoding="async"
         >

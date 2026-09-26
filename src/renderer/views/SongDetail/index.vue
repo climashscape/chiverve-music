@@ -51,10 +51,10 @@
       <section v-if="producers.list.length" :class="$style.section">
         <h3 :class="$style.title">{{ $t('song_detail__producers') }}</h3>
         <ul :class="$style.creditList">
-          <li v-for="(group, groupIndex) in producers.list" :key="`${groupIndex}_${group.title}`" :class="$style.creditRow">
+          <li v-for="(group, groupIndex) in producers.list" :key="groupIndex" :class="$style.creditRow">
             <span :class="$style.creditRole" :title="group.title">{{ group.title }}</span>
             <ul :class="$style.creditNames">
-              <li v-for="(item, index) in group.producers" :key="`${index}_${item.name}`" :class="$style.creditName">
+              <li v-for="(item, index) in group.producers" :key="index" :class="$style.creditName">
                 <img v-if="item.icon" :class="$style.creditAvatar" loading="lazy" decoding="async" :src="item.icon" alt="">
                 <span :class="$style.creditText" :title="item.name">{{ item.name }}</span>
               </li>
