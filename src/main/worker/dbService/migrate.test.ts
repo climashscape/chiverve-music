@@ -8,6 +8,7 @@ import tables, { DB_VERSION } from './tables'
 import { getDB, init } from './db'
 import verifyDB from './verifyDB'
 import { musicUrlCount, musicUrlRecycle, musicUrlRemove, musicUrlSave } from './modules/music_url'
+import { followFeedBaselineAll, followFeedItemsGet } from './modules/follow_feed'
 
 /**
  * 旧库迁移实测（`dbService.init` 的硬要求，AGENTS §2.4 / 票 08 验收第一条）。
@@ -18,13 +19,14 @@ import { musicUrlCount, musicUrlRecycle, musicUrlRemove, musicUrlSave } from './
  * `init` 返回 `true`，或者没验证过。这里就是把那次实测变成可复跑的用例。
  *
  * 四组用例：
- * 1. `v2 → v4`：库的 `music_url` 是票 08 之前的定义（两列、无 `created_at`），版本号 `'2'`；
- * 2. `v1 → v4`：再老一版（缺 `dislike_list`，版本号 `'1'`），要连做三版迁移；
+ * 1. `v2 → v5`：库的 `music_url` 是票 08 之前的定义（两列、无 `created_at`），版本号 `'2'`；
+ * 2. `v1 → v5`：再老一版（缺 `dislike_list`，版本号 `'1'`），要连做四版迁移；
  * 3. 半迁移状态：`created_at` 已在但定义带 `DEFAULT`（手写 `ALTER TABLE` 会留下的样子）、版本号还是 `'2'`
  *    —— 重建要把它归一化回 `tables` 的原文，且已写入的时间戳不能被抹掉；
  * 4. 空目录（没有库文件）：新建的库自带 `created_at` 且直接通过校验。
- * 外加两组：一是「迁移后的库上回收 / 精确删真的能跑通」（验语句绑定的列名对不对，光看结构比不出来），
- * 二是「旧库实测：试听列表行被真删、其余列表数据一行不少」（票 08 的 v3 → v4 清行迁移）。
+ * 外加三组：一是「迁移后的库上回收 / 精确删真的能跑通」（验语句绑定的列名对不对，光看结构比不出来），
+ * 二是「旧库实测：试听列表行被真删、其余列表数据一行不少」（票 08 的 v3 → v4 清行迁移），
+ * 三是「v4 库补关注动态两张表」（关注动态票 02 的 v4 → v5 建表迁移）。
  *
  * **旧库夹具**：默认用**合成旧库**（v3 结构 + 真实体量的行数，见 `legacyFixture`），所以这组用例
  * **每次都跑**。要用一份**真库的副本**复验（结构与数据量是真的，合成库只能证明「我按我以为的旧结构
@@ -153,7 +155,7 @@ afterAll(() => {
   fs.rmSync(tmpRoot, { recursive: true, force: true })
 })
 
-describe('v2 → v4：`music_url` 加 `created_at`', () => {
+describe('v2 → v5：`music_url` 加 `created_at`', () => {
   let dir: string
   let file: string
 
@@ -178,7 +180,7 @@ describe('v2 → v4：`music_url` 加 `created_at`', () => {
   })
 
   it('版本号升到 DB_VERSION；别的表一行没动；没留下迁移用的临时表', () => {
-    expect(DB_VERSION).toBe('4')
+    expect(DB_VERSION).toBe('5')
     expect(readVersion(file)).toBe(DB_VERSION)
     expect(readLyricCount(file)).toBe(1)
     // 迁移中途改名出来的表必须收干净。`sqlite_stat*` 是 `init` 里 `PRAGMA optimize` 建的，不算数
@@ -187,6 +189,8 @@ describe('v2 → v4：`music_url` 加 `created_at`', () => {
       'db_info',
       'dislike_list',
       'download_list',
+      'follow_feed_baseline',
+      'follow_feed_item',
       'lyric',
       'music_info_other_source',
       'music_url',
@@ -205,7 +209,7 @@ describe('v2 → v4：`music_url` 加 `created_at`', () => {
   })
 })
 
-describe('v1 → v4：连做三版迁移（`dislike_list` 与 `created_at` 一起补）', () => {
+describe('v1 → v5：连做四版迁移（`dislike_list` 与 `created_at` 一起补）', () => {
   let dir: string
   let file: string
 
@@ -258,7 +262,7 @@ describe('半迁移状态（列已在、定义与 `tables` 不同、版本号还
   })
 })
 
-describe('空目录（没有库文件）：新建的库直接是 v4 结构', () => {
+describe('空目录（没有库文件）：新建的库直接是 v5 结构', () => {
   let dir: string
   let file: string
 
@@ -397,7 +401,10 @@ describe('旧库（合成件；设 CHIVERVE_LEGACY_DB 时用真库副本）：db
       legacyDbPath ? '真库副本' : '合成件', versionBefore, rowsBefore.length, bytesBefore, columnsBefore.join('/'))
     console.log('[migrate.test] 迁移前列表行数：%s（my_list 里的自建列表：%s）',
       JSON.stringify(listCountsBefore), JSON.stringify(userListIdsBefore))
-    expect(versionBefore).toBe('3')
+    // 前提：这份库确实是**比当前旧**的库。合成件固定是 `'3'`；真库副本随用户手上那份走
+    // （票 08 之后、关注动态票 02 之前是 `'4'`），所以这里只要求「旧于 DB_VERSION」。
+    expect(['3', '4']).toContain(versionBefore)
+    expect(versionBefore).not.toBe(DB_VERSION)
     expect(columnsBefore).toEqual(['id', 'url', 'created_at'])
 
     expect(init(dir)).toBe(true)
@@ -533,6 +540,63 @@ describe('缺 music_url 表的库：按当前定义直接建表，不再抛 Sqli
 
     expect(init(dir)).toBe(true)
     expect(readColumns(file)).toContain('created_at')
+    expect(readVersion(file)).toBe(DB_VERSION)
+  })
+})
+
+/**
+ * v4 → v5（关注动态票 02）：补 `follow_feed_baseline` / `follow_feed_item` 两张表。
+ *
+ * 这份夹具的形态就是**用户手上那个 v4 库**：其余表齐全、只差关注动态这两种。
+ * 两张都是新表、没有旧数据要搬，所以判据是：`init` 返回 true、两张表按 `tables` 的定义建出来
+ * （`verifyDB` 的逐字符校验会验）、既有数据一行不少、且**不预置任何行**（空基线 = 「还没建过基线」，
+ * 首次检查会静默建立它——首次静默是用户明确要的行为）。
+ * 另钉一条幂等：版本号被回写成 `'4'` 时再跑一次不许因为「表已存在」而抛错
+ * （抛错会让 `init` 收成 `null` → 用户库被改名备份后重建空库）。
+ */
+describe('v4 → v5：补关注动态两张表', () => {
+  /** 造一份只差关注动态两张表的 v4 库（其余表全用当前定义，另塞两行既有数据证明迁移没碰它们） */
+  const createV4Db = (dir: string) => {
+    const file = dbFileOf(dir)
+    const db = new Database(file)
+    db.exec(Array.from(tables.entries())
+      .filter(([name]) => name != 'follow_feed_baseline' && name != 'follow_feed_item')
+      .map(([, sql]) => sql)
+      .join('\n'))
+    db.exec('INSERT INTO "main"."db_info" ("field_name", "field_value") VALUES (\'version\', \'4\');')
+    db.prepare('INSERT INTO "main"."my_list" ("id", "name", "source", "sourceListId", "position", "locationUpdateTime") VALUES (?, ?, ?, ?, ?, ?)')
+      .run('userlist_v4', 'v4 库里的自建列表', null, null, 0, 0)
+    db.prepare('INSERT INTO "main"."dislike_list" ("type", "content") VALUES (\'music\', ?)').run('旧库里的不喜欢@singer')
+    db.close()
+    return file
+  }
+
+  it('init 返回 true；两张表建出来；旧数据一行不少；基线为空', () => {
+    const dir = newCaseDir()
+    const file = createV4Db(dir)
+    expect(readTableNames(file)).not.toContain('follow_feed_baseline')
+    const listIdsBefore = readUserListIds(file)
+
+    expect(init(dir)).toBe(true)
+    expect(verifyDB(getDB())).toBe(true)
+    expect(readVersion(file)).toBe(DB_VERSION)
+    expect(readTableNames(file)).toContain('follow_feed_baseline')
+    expect(readTableNames(file)).toContain('follow_feed_item')
+    expect(readUserListIds(file)).toEqual(listIdsBefore)
+    expect(followFeedBaselineAll()).toEqual([])
+    expect(followFeedItemsGet()).toEqual([])
+  })
+
+  it('幂等：版本号被回写成 4 再跑一次不抛错（表已存在时不许 CREATE 硬撞）', () => {
+    const dir = newCaseDir()
+    const file = createV4Db(dir)
+    expect(init(dir)).toBe(true)
+    // 模拟「从旧备份还原了配置」把版本号带回 v4 的场景
+    inspect(file, db => {
+      db.prepare('UPDATE "main"."db_info" SET "field_value"=? WHERE "field_name"=?').run('4', 'version')
+    })
+    expect(init(dir)).toBe(true)
+    expect(verifyDB(getDB())).toBe(true)
     expect(readVersion(file)).toBe(DB_VERSION)
   })
 })

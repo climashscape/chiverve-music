@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import singer, { clearFollowSingerCache } from './singer'
+import singer, { clearFollowSingerCache, FOLLOW_FEED_BATCH_SIZE } from './singer'
 
 /**
  * 歌手页「关注态」（读侧，票 02 的读侧那一半）的钉子（node project）。
@@ -19,7 +19,7 @@ import singer, { clearFollowSingerCache } from './singer'
  * 真实接口不在测试里打（本机约定：不伪造凭证、不打真接口）。
  */
 
-const { getFollowSingers } = vi.hoisted(() => ({ getFollowSingers: vi.fn() }))
+const { getFollowSingers, httpFetch } = vi.hoisted(() => ({ getFollowSingers: vi.fn(), httpFetch: vi.fn() }))
 
 // `./user` 是整个模块被替掉：这一票不碰账号接口本身的取数（那有它自己的测试）
 vi.mock('./user', () => ({ default: { getFollowSingers } }))
@@ -43,7 +43,7 @@ const respondWith = (...pages: unknown[]) => {
 // `singer.js` 顶层还 import 了 `../../request` / `../../index` / `./utils/song`：
 // 前者拉 needle + `@renderer/store`，后者顶层就碰 `document`——node 环境里都要挡掉
 // （`singer.js` 的这一票只测 getFollowState，那些模块不参与）
-vi.mock('../../request', () => ({ httpFetch: vi.fn() }))
+vi.mock('../../request', () => ({ httpFetch }))
 vi.mock('../../index', async() => {
   const common = await import('@common/utils/common')
   return { ...common, decodeName: (str: unknown) => str }
@@ -149,5 +149,106 @@ describe('tx/singer 的关注态：会话缓存', () => {
     clearFollowSingerCache()
     await expect(singer.getFollowState('m2')).resolves.toBe(true)
     expect(getFollowSingers).toHaveBeenCalledTimes(2)
+  })
+})
+
+/**
+ * 关注动态的**批量取歌**（票 04 的数据层那一半）。
+ *
+ * 这一处是三张票都依赖的缝：一轮扫描 604 位歌手必须压成 21 个请求——`GetSingerSongList` 一次只问
+ * 一位歌手，靠的是 `musicu.fcg` 的 body 顶层能放多个 `req_N` 模块（`getInfo` 就是一次发三个）。
+ * 协议上限是硬的：30 个 module 全成，**31 个整个请求被拒**（顶层 `code=500000`），所以分块粒度
+ * 与 `ok` 的语义都要被钉住——调用方靠 `ok` 决定「这位歌手的基线能不能推进」。
+ */
+
+/** 一个「整包成功」的响应体：请求体里每个 `req_N` 都回一个模块节点（一条歌） */
+const okBody = (options: { body: Record<string, any> }) => {
+  const body: Record<string, any> = { code: 0 }
+  for (const key of Object.keys(options.body).filter(key => key.startsWith('req_'))) {
+    const mid = options.body[key]?.param?.singerMid
+    body[key] = {
+      code: 0,
+      data: { songList: [{ songInfo: { mid: `s_${mid}`, title: `歌_${mid}`, time_public: '2026-09-20', singer: [], file: {} } }] },
+    }
+  }
+  return body
+}
+
+/**
+ * `httpFetch` 的契约是**同步返回** `{ promise, cancelHttp }`（needle 的形状），调用方写的是
+ * `await httpFetch(...).promise` ——所以桩**不能**写成 `async`（那样返回的是 Promise，
+ * `.promise` 会是 undefined，现象是 `Cannot read properties of undefined (reading 'statusCode')`）。
+ */
+const respondFetch = (bodyOf: (options: { body: Record<string, any> }) => Record<string, any>) => {
+  httpFetch.mockImplementation((_url: string, options: { body: Record<string, any> }) => ({
+    promise: Promise.resolve({ statusCode: 200, body: bodyOf(options) }),
+  }))
+}
+
+const mids = (count: number, prefix = 'm') => Array.from({ length: count }, (_, index) => `${prefix}${index}`)
+
+describe('tx/singer 的关注动态批量取歌：分块与请求体', () => {
+  it('604 位 → 21 个请求；每请求 ≤ 30 个 module，req_N 与 mid 一一对应', async() => {
+    respondFetch(okBody)
+
+    const result = await singer.getLatestSongs(mids(604), 1)
+
+    expect(FOLLOW_FEED_BATCH_SIZE).toBe(30)
+    expect(httpFetch).toHaveBeenCalledTimes(21)
+    // 请求体里除了 30 个 `req_N` 还有 `comm`，所以按前缀数
+    expect(Object.keys(httpFetch.mock.calls[0][1].body).filter(key => key.startsWith('req_')).length).toBe(30)
+    expect(httpFetch.mock.calls[0][1].body.req_0.param.singerMid).toBe('m0')
+    expect(httpFetch.mock.calls[0][1].body.req_29.param.singerMid).toBe('m29')
+    expect(httpFetch.mock.calls[1][1].body.req_0.param.singerMid).toBe('m30')
+    // 最后一块是余数：604 = 20×30 + 4
+    expect(Object.keys(httpFetch.mock.calls[20][1].body).filter(key => key.startsWith('req_')).length).toBe(4)
+    expect(httpFetch.mock.calls[20][1].body.req_3.param.singerMid).toBe('m603')
+    expect(result).toHaveLength(604)
+    expect(result.every(entry => entry.ok && entry.songs.length == 1)).toBe(true)
+  })
+
+  it('参数是 `order: 0`（发布时间倒序），不是歌手页歌曲 tab 用的 `order: 1`（热度序）', async() => {
+    respondFetch(okBody)
+
+    await singer.getLatestSongs(['m1'], 10)
+
+    expect(httpFetch.mock.calls[0][1].body.req_0).toMatchObject({
+      module: 'musichall.song_list_server',
+      method: 'GetSingerSongList',
+      param: { singerMid: 'm1', order: 0, begin: 0, num: 10 },
+    })
+  })
+
+  it('条目带上发布时间（`time_public`）——`createSong` 不带这个字段，条目行要显示它', async() => {
+    respondFetch(okBody)
+
+    const [entry] = await singer.getLatestSongs(['m1'], 1)
+
+    expect(entry.songs[0].publishTime).toBe('2026-09-20')
+    expect((entry.songs[0].song as { mid?: string }).mid).toBe('s_m1')
+  })
+
+  it('整包被拒（顶层 code != 0）→ 这一块歌手全 `ok: false`，别的块不受影响', async() => {
+    // 第一块整包失败（探针实测的形状：31 个 module 会回 code=500000）
+    respondFetch(options => options.body.req_0?.param?.singerMid.startsWith('x') ? okBody(options) : { code: 500000 })
+
+    const result = await singer.getLatestSongs([...mids(30), ...mids(30, 'x')], 1)
+
+    expect(result.slice(0, 30).every(entry => !entry.ok && entry.songs.length == 0)).toBe(true)
+    expect(result.slice(30).every(entry => entry.ok)).toBe(true)
+  })
+
+  it('某个模块节点自己报错 → 只有那一位歌手 `ok: false`（同块其它人正常）', async() => {
+    respondFetch(options => ({ ...okBody(options), req_1: { code: 10006 } }))
+
+    const result = await singer.getLatestSongs(['m0', 'm1'], 1)
+
+    expect(result[0]).toMatchObject({ mid: 'm0', ok: true })
+    expect(result[1]).toMatchObject({ mid: 'm1', ok: false, songs: [] })
+  })
+
+  it('空列表 → 一个请求都不打', async() => {
+    await singer.getLatestSongs([], 1)
+    expect(httpFetch).not.toHaveBeenCalled()
   })
 })

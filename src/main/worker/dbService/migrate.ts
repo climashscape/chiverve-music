@@ -93,6 +93,24 @@ const migrateV3 = (db: Database.Database) => {
   deleteUserLists([LIST_IDS.DEFAULT])
 }
 
+/**
+ * v4 → v5：补关注动态的两张表（`follow_feed_baseline` / `follow_feed_item`，票 02）。
+ *
+ * 三个刻意的做法：
+ * 1. **两张都是新表，没有旧数据要搬**：只建表，所以拿 `tables.get(...)` 的原样文本 `exec` 即可
+ *    （`verifyDB` 就是拿这份文本逐字符比对的，手写建表语句迟早会漂）。
+ * 2. **建表前判存在**（同 `migrateV1` 的套路）：版本号被回写（例如从旧备份还原了 `config_v2.json`）
+ *    时会重跑本版，而 `CREATE TABLE` 撞上已存在的表会抛 `SqliteError` ——
+ *    那会让整个 `init` 失败（`db.ts` 收成 `null` → 用户库被改名备份后重建）。
+ * 3. **不初始化任何行**：空基线 = 「还没建过基线」，关注动态的首次检查会静默建立它
+ *    （首次静默是用户明确要的行为，见 spec）。
+ */
+const migrateV4 = (db: Database.Database) => {
+  for (const name of ['follow_feed_baseline', 'follow_feed_item'] as const) {
+    if (!hasTable(db, name)) db.exec(tables.get(name)!)
+  }
+}
+
 /** 表是否存在（迁移里要按库的实际形态分流，不能假设某张表一定在）。 */
 const hasTable = (db: Database.Database, name: string) =>
   db.prepare('SELECT name FROM "main".sqlite_master WHERE type=\'table\' AND name=?').get(name) != null
@@ -144,6 +162,9 @@ export default (db: Database.Database) => {
       // eslint-disable-next-line no-fallthrough -- 同上
     case '3':
       migrateV3(db)
+      // eslint-disable-next-line no-fallthrough -- 同上
+    case '4':
+      migrateV4(db)
       break
     default:
       // 未知版本（比 DB_VERSION 新，或字段被写坏）：不动库、只留一条日志。

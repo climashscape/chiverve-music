@@ -2,6 +2,7 @@ import { getEnvParams, sendInited } from '@renderer/utils/ipc'
 
 import { proxy, isFullscreen, themeId } from '@renderer/store'
 import { appSetting } from '@renderer/store/setting'
+import { startFollowFeedSchedule } from '@renderer/store/followFeed/action'
 import { restoreTimeoutStop } from '@renderer/core/player/timeoutStop'
 
 import useSync from './useSync'
@@ -71,6 +72,9 @@ export default () => {
       void initSyncService()
       void initOpenAPI()
       void initStatusbarLyric()
+      // 关注动态：启动后跑一轮，之后每 30 分钟一轮（连续失败自动降频，见 core/followFeed/schedule.ts）。
+      // 放在 initData 之后：那一轮要读本地库（基线 / 条目），也要写回去。
+      void startFollowFeedSchedule()
       sendInited()
 
       handleListAutoUpdate()

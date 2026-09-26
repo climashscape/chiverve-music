@@ -1,5 +1,5 @@
 import { rendererSend, rendererInvoke, rendererOn, rendererOff } from '@common/rendererIpc'
-import { HOTKEY_RENDERER_EVENT_NAME, WIN_MAIN_RENDERER_EVENT_NAME, CMMON_EVENT_NAME, QQ_AUTH_EVENT_NAME } from '@common/ipcNames'
+import { HOTKEY_RENDERER_EVENT_NAME, WIN_MAIN_RENDERER_EVENT_NAME, CMMON_EVENT_NAME, QQ_AUTH_EVENT_NAME, FOLLOW_FEED_EVENT_NAME } from '@common/ipcNames'
 import { markRaw } from '@common/utils/vueTools'
 import * as hotKeys from '@common/hotKey'
 import { APP_EVENT_NAMES, DATA_KEYS, DEFAULT_SETTING } from '@common/constants'
@@ -835,4 +835,29 @@ export const downloadTasksRemove = async(ids: string[]) => {
 }
 export const downloadListClear = async() => {
   return rendererInvoke(WIN_MAIN_RENDERER_EVENT_NAME.download_list_clear)
+}
+
+// ---------------------------------------------------------------- 关注动态（票 02）
+// 数据全在本地库里（基线 / 时间线条目 / 未读数），主进程只做搬运。
+// `rendererInvoke` 的重载：无入参取返回值用 `<返回值>(name)`，有入参用 `<入参>(name, params)`。
+export const getFollowFeedBaseline = async(): Promise<LX.FollowFeed.Baseline[]> => {
+  return rendererInvoke<LX.FollowFeed.Baseline[]>(FOLLOW_FEED_EVENT_NAME.get_baseline)
+}
+export const saveFollowFeedBaseline = async(rows: LX.FollowFeed.BaselineInput[]) => {
+  return rendererInvoke<LX.FollowFeed.BaselineInput[]>(FOLLOW_FEED_EVENT_NAME.save_baseline, rows)
+}
+export const getFollowFeedItems = async(): Promise<LX.FollowFeed.Item[]> => {
+  return rendererInvoke<LX.FollowFeed.Item[]>(FOLLOW_FEED_EVENT_NAME.get_items)
+}
+export const addFollowFeedItems = async(items: LX.FollowFeed.ItemInput[]) => {
+  return rendererInvoke<LX.FollowFeed.ItemInput[]>(FOLLOW_FEED_EVENT_NAME.add_items, items)
+}
+export const getFollowFeedUnreadCount = async(): Promise<number> => {
+  return rendererInvoke<number>(FOLLOW_FEED_EVENT_NAME.get_unread_count)
+}
+export const getFollowFeedSummary = async(): Promise<LX.FollowFeed.Summary> => {
+  return rendererInvoke<LX.FollowFeed.Summary>(FOLLOW_FEED_EVENT_NAME.get_summary)
+}
+export const markFollowFeedAllRead = async() => {
+  return rendererInvoke(FOLLOW_FEED_EVENT_NAME.mark_all_read)
 }

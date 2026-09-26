@@ -113,6 +113,8 @@ type Tables = 'db_info'
 | 'music_url'
 | 'download_list'
 | 'dislike_list'
+| 'follow_feed_baseline'
+| 'follow_feed_item'
 
 const tables = new Map<Tables, string>()
 
@@ -226,6 +228,49 @@ tables.set('dislike_list', `
     "meta" TEXT
   );
 `)
+/**
+ * 关注动态的**基线**：每位关注歌手一行，「我知道他到哪了」。
+ *
+ * `PRIMARY KEY("singer_mid")` 让写入可以走 `INSERT OR REPLACE`（一个歌手永远只有一行）；
+ * `latest_song_id` 是判新的**唯一标记**（下一轮从列表头部往下走，撞到它就停）。
+ * 两个判据列都可为 `null`（此前没有任何作品的歌手就是这样）。
+ */
+tables.set('follow_feed_baseline', `
+  CREATE TABLE "follow_feed_baseline" (
+    "singer_mid" TEXT NOT NULL,
+    "latest_song_id" TEXT,
+    "latest_song_time" TEXT,
+    "updated_at" INTEGER NOT NULL,
+    PRIMARY KEY("singer_mid")
+  );
+`)
+/**
+ * 关注动态的**时间线条目**（新歌行 / 新专行）。
+ *
+ * `UNIQUE("kind","item_id")` 是去重键：同一首歌 / 同一张专辑只会被报一次
+ * （`INSERT OR IGNORE` 撞上它就安静跳过）。`music` 存新式歌曲对象的 JSON——**只有歌曲行有**，
+ * 它是「点歌直接播」的载荷（时间线里的歌可能早已不在接口的最新列表里）。
+ * 容量由 `modules/follow_feed` 的 `ITEM_KEEP` 控制（写入后清理，优先删最旧的已读）。
+ */
+tables.set('follow_feed_item', `
+  CREATE TABLE "follow_feed_item" (
+    "id" INTEGER NOT NULL UNIQUE,
+    "kind" TEXT NOT NULL,
+    "singer_mid" TEXT NOT NULL,
+    "singer_name" TEXT NOT NULL,
+    "item_id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "album_mid" TEXT,
+    "album_name" TEXT,
+    "track_count" INTEGER,
+    "publish_time" TEXT NOT NULL,
+    "found_at" INTEGER NOT NULL,
+    "read" INTEGER NOT NULL,
+    "music" TEXT,
+    PRIMARY KEY("id" AUTOINCREMENT),
+    UNIQUE("kind","item_id")
+  );
+`)
 
 export default tables
 
@@ -242,6 +287,8 @@ export default tables
  * - 起始 `'1'`：补 `dislike_list` 表（上游 v2.4.0 的默认版本号出错遗留）；
  * - 起始 `'2'`：`music_url` 加 `created_at`（设置页重构票 08：URL 缓存回收的时间依据，0 = 加列之前写的行）；
  * - 起始 `'3'`：删掉「试听列表」（`LIST_IDS.DEFAULT`）在库里的全部数据行（票 08：数据层删除，
- *   真删、不迁进「我的收藏」；表结构不变，只是清行）。
+ *   真删、不迁进「我的收藏」；表结构不变，只是清行）；
+ * - 起始 `'4'`：补 `follow_feed_baseline` 与 `follow_feed_item` 两张表（关注动态票 02）；
+ *   两张都是新表、没有旧数据要搬，所以只是建表。
  */
-export const DB_VERSION = '4'
+export const DB_VERSION = '5'

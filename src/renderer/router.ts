@@ -119,6 +119,16 @@ const router = createRouter({
         name: 'Playlists',
       },
     },
+    // 关注动态：左栏「我的」组末位（`NavBar.vue` 的 menuGroups）。`meta.name` 与路由 name
+    // 同值——侧栏高亮按 `meta.name` 匹配（与其余一级导航一致）
+    {
+      path: '/follow',
+      name: 'Follow',
+      component: require('./views/Follow/index.vue').default,
+      meta: {
+        name: 'Follow',
+      },
+    },
     // 旧「我的列表」页退场（工单 07）：歌曲类列表归「我的收藏」，自建列表归「我的歌单」。
     // 播放栏点进度区、旧书签都还在用 `/list?id=…`，所以按 id 分派而不是留死链。
     // `id=default`（试听列表）界面已退场（ADR 0006）：与无 id 一样落到「我收藏的歌曲」，

@@ -42,6 +42,15 @@ const modules = {
     overwrite_dislike_music_infos: 'overwrite_dislike_music_infos',
     clear_dislike_music_infos: 'clear_dislike_music_infos',
   },
+  followFeed: {
+    get_baseline: 'get_baseline',
+    save_baseline: 'save_baseline',
+    get_items: 'get_items',
+    add_items: 'add_items',
+    get_unread_count: 'get_unread_count',
+    get_summary: 'get_summary',
+    mark_all_read: 'mark_all_read',
+  },
   winMain: {
     focus: 'focus',
     close: 'close',
@@ -197,6 +206,7 @@ for (const moduleName of Object.keys(modules) as Array<keyof typeof modules>) {
 export const CMMON_EVENT_NAME = modules.common
 export const PLAYER_EVENT_NAME = modules.player
 export const DISLIKE_EVENT_NAME = modules.dislike
+export const FOLLOW_FEED_EVENT_NAME = modules.followFeed
 export const WIN_MAIN_RENDERER_EVENT_NAME = modules.winMain
 export const WIN_LYRIC_RENDERER_EVENT_NAME = modules.winLyric
 export const HOTKEY_RENDERER_EVENT_NAME = modules.hotKey

@@ -265,6 +265,15 @@
         <!-- 0 0 24 24  下载：Material `download`（托盘 + 实心箭头，原先是细描边的托盘箭头） -->
         <path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z" />
       </g>
+      <g id="icon-nav-follow" fill="currentColor">
+        <!-- 0 0 24 24  关注动态：Material `dynamic_feed`（错位叠放的两张卡片 = 动态流语义，
+             与「下载」（箭头）/「我的收藏」（心）都不同形）。该图标的 baseline 变体本身就是
+             这套 2px 笔画（官方 `filled` 与 `outlined` 导出逐字节相同，已渲染核对），
+             与同排 #icon-radar 同属描边式——但同在 24 网格、同一套笔画规范
+             （左栏那一排的统一口径见 #icon-radar 的说明） -->
+        <path d="M8 8H6v7c0 1.1.9 2 2 2h9v-2H8V8z" />
+        <path d="M20 3h-8c-1.1 0-2 .9-2 2v6c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 8h-8V7h8v4zM4 12H2v7c0 1.1.9 2 2 2h9v-2H4v-7z" />
+      </g>
       <g id="icon-locate-playing" fill="currentColor">
         <!-- 0 0 24 24  定位到正在播放（播放栏那枚准星）：外环 + 四向刻度 + 圆心。
              外环挖空靠**两段反向的圆弧**（外圈顺时针、内圈逆时针，nonzero 填充规则下形成环），

@@ -1,0 +1,205 @@
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import FeedTimeline from './components/FeedTimeline.vue'
+import type * as PlayerCore from '@renderer/core/player'
+import { FOLLOW_FEED_TIMELINE_ID } from './useTimelineActions'
+
+/**
+ * 时间线行上的交互（dom project）——**接线**用例，算法不在这一层：
+ * 队列怎么装、点哪首从哪首开始是 `material/OnlineList/usePlay` 的实现（本页不改它，只传对参数）。
+ *
+ * 钉五件事：
+ *   1. 点歌曲行 → 以**本页全部歌曲行**（按时间线顺序）为队列、从被点那首开始播；
+ *   2. 专辑行**点了不播**（它的播放载荷是 null，不造假载荷）；点专辑名进专辑页；
+ *   3. 点歌手名 = 跳歌手页（`/singer?mid=…`），**且不会顺带触发整行的播放**（`.stop`）；
+ *   4. 行右键 → 在线歌曲表那套菜单（播放 / 稍后播放 / 添加到… / 复制链接…），菜单里点播放也播；
+ *   5. 专辑行右键 → 打开专辑 / 复制专辑链接 / 在 QQ 音乐打开，点「打开专辑」进专辑页。
+ *
+ * 走真件：`usePlay`（只桩掉它的终点 `core/player.playMusicList`）、`useMenu` 的菜单构建、
+ * `useMusicJump` 的跳转（`useRouter` 桩起来断言参数）。播放载荷按 `core/followFeed/diff.ts`
+ * 落库的形状给（`toNewMusicInfo` 的 JSON）。
+ */
+const mocks = vi.hoisted(() => ({
+  push: vi.fn(),
+  playMusicList: vi.fn(),
+}))
+
+vi.mock('@common/utils/vueRouter', () => ({
+  useRouter: () => ({ push: mocks.push, replace: vi.fn(), back: vi.fn() }),
+  useRoute: () => ({ path: '/follow', query: {} }),
+}))
+// 只换掉终点（真实现会灌临时列表 + 起播，要音频与一堆 store）；其余导出保持原样
+vi.mock('@renderer/core/player', async(importOriginal) => ({
+  ...await importOriginal<typeof PlayerCore>(),
+  playMusicList: mocks.playMusicList,
+}))
+// 「我喜欢」的菜单项一构建就会 `loadFavState()`（真实现会去拉 QQ 云端的收藏 id 集合，
+// 测试里必然「未登录」并打一行 console）——本文件不测它，桩掉保持测试安静、也不碰网络
+vi.mock('@renderer/utils/compositions/useFavSong', () => ({
+  default: () => ({
+    canFav: () => true,
+    favTitle: () => 'fav',
+    toggleFav: vi.fn(),
+    loadFavState: vi.fn(),
+  }),
+}))
+
+/** `base-menu` 替身：真件 teleport 到 #root（jsdom 里没有那个锚点），这里渲染出项名与 action */
+const BaseMenuStub = {
+  name: 'MenuToolBar',
+  props: {
+    modelValue: { type: Boolean, default: false },
+    menus: { type: Array, default: () => [] },
+    xy: { type: Object, default: () => ({}) },
+    itemName: { type: String, default: 'name' },
+  },
+  emits: ['update:modelValue', 'menu-click'],
+  template: `<ul v-if="modelValue" class="menu-stub">
+    <li v-for="menu in menus" :key="menu.action" :data-action="menu.action" @click="$emit('menu-click', menu)">{{ menu.name }}</li>
+  </ul>`,
+}
+
+const $t = (key: string) => key
+
+/** 播放载荷：`toNewMusicInfo` 的输出（新式歌曲对象） */
+const musicOf = (songmid: string, name: string) => JSON.stringify({
+  id: `tx_${songmid}`,
+  name,
+  singer: '歌手甲',
+  source: 'tx',
+  interval: '03:00',
+  meta: { songId: songmid, albumMid: 'album-mid-1', qualitys: [], _qualitys: {} },
+})
+
+/** 一条条目（形状见 `common/types/follow_feed.d.ts`） */
+const item = (over: Partial<LX.FollowFeed.Item>): LX.FollowFeed.Item => ({
+  id: 1,
+  kind: 'song',
+  singerMid: 'mid-a',
+  singerName: '歌手甲',
+  itemId: 'tx_s1',
+  name: '新歌一',
+  albumMid: null,
+  albumName: null,
+  trackCount: null,
+  publishTime: '2026-09-20',
+  foundAt: 1758300000000,
+  read: 1,
+  music: musicOf('s1', '新歌一'),
+  ...over,
+})
+
+/** 时间线：歌(1) → 专(2) → 歌(3)；可播队列应当是 [歌1, 歌3] */
+const items = () => [
+  item({ id: 1, name: '新歌一', itemId: 'tx_s1', music: musicOf('s1', '新歌一') }),
+  item({
+    id: 2,
+    kind: 'album',
+    itemId: 'album-mid-2',
+    name: '专辑二',
+    singerName: '歌手乙',
+    singerMid: 'mid-b',
+    albumMid: 'album-mid-2',
+    albumName: '专辑二',
+    trackCount: 12,
+    publishTime: '2026-09-18',
+    music: null,
+  }),
+  item({ id: 3, name: '新歌三', itemId: 'tx_s3', music: musicOf('s3', '新歌三') }),
+]
+
+const mountTimeline = (list = items()) => mount(FeedTimeline, {
+  props: { items: list, freshIds: [] },
+  global: {
+    stubs: { 'base-menu': BaseMenuStub, 'common-list-add-modal': true, 'common-download-modal': true },
+    mocks: { $t },
+  },
+})
+
+/** 点一行（`contextmenu` 打开菜单是右键，别和左键搞混） */
+const rightClick = async(wrapper: ReturnType<typeof mountTimeline>, index: number) => {
+  await wrapper.findAll('li')[index].trigger('contextmenu')
+  await flushPromises()
+}
+
+enableAutoUnmount(afterEach)
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  mocks.playMusicList.mockResolvedValue(undefined)
+})
+
+describe('关注动态：时间线的行交互', () => {
+  it('点歌曲行：队列 = 本页全部歌曲行（按顺序），从被点那首开始', async() => {
+    const wrapper = mountTimeline()
+    const rows = wrapper.findAll('li')
+
+    await rows[0].trigger('click')
+    expect(mocks.playMusicList).toHaveBeenCalledTimes(1)
+    expect(mocks.playMusicList).toHaveBeenCalledWith(FOLLOW_FEED_TIMELINE_ID, [
+      expect.objectContaining({ id: 'tx_s1' }),
+      expect.objectContaining({ id: 'tx_s3' }),
+    ], 0)
+
+    // 第三行（队列里的第 2 首）——专辑行不占队列位置
+    mocks.playMusicList.mockClear()
+    await wrapper.findAll('li')[2].trigger('click')
+    expect(mocks.playMusicList).toHaveBeenCalledWith(FOLLOW_FEED_TIMELINE_ID, [
+      expect.objectContaining({ id: 'tx_s1' }),
+      expect.objectContaining({ id: 'tx_s3' }),
+    ], 1)
+  })
+
+  it('专辑行：点行不播（载荷是 null，不造假载荷），点专辑名进专辑页', async() => {
+    const wrapper = mountTimeline()
+    const albumRow = wrapper.findAll('li')[1]
+
+    await albumRow.trigger('click')
+    expect(mocks.playMusicList).not.toHaveBeenCalled()
+
+    await albumRow.find('[aria-label="专辑二"]').trigger('click')
+    expect(mocks.push).toHaveBeenCalledWith({ path: '/album', query: { mid: 'album-mid-2' } })
+    expect(mocks.playMusicList).not.toHaveBeenCalled()
+  })
+
+  it('点歌手名进歌手页（用条目自带的 mid，不请求接口），且不顺带播整行', async() => {
+    const wrapper = mountTimeline()
+    const songRow = wrapper.findAll('li')[0]
+
+    await songRow.find('[aria-label="歌手甲"]').trigger('click')
+
+    expect(mocks.push).toHaveBeenCalledWith({ path: '/singer', query: { mid: 'mid-a' } })
+    // `.stop` 的意义：点名字是跳转，不该把整行的「播放」也带出来
+    expect(mocks.playMusicList).not.toHaveBeenCalled()
+  })
+
+  it('歌曲行右键：出行菜单（在线歌曲表那套），菜单里点播放也以本页歌曲行为队列', async() => {
+    const wrapper = mountTimeline()
+    await rightClick(wrapper, 2)
+
+    const actions = wrapper.findAll('.menu-stub [data-action]').map(item => item.attributes('data-action'))
+    // 工单要求的几项都在（播放 / 我喜欢 / 稍后播放 / 添加到… / 复制链接）
+    expect(actions).toEqual(expect.arrayContaining(['play', 'fav', 'playLater', 'addTo', 'copyLink']))
+    // 专辑行没有的项（跳转专辑）在歌曲行上要有——它就是在线歌曲表那一套
+    expect(actions).toContain('jumpAlbum')
+
+    await wrapper.find('.menu-stub [data-action="play"]').trigger('click')
+    expect(mocks.playMusicList).toHaveBeenCalledWith(FOLLOW_FEED_TIMELINE_ID, [
+      expect.objectContaining({ id: 'tx_s1' }),
+      expect.objectContaining({ id: 'tx_s3' }),
+    ], 1)
+  })
+
+  it('专辑行右键：菜单是专辑那三项，点「打开专辑」进专辑页', async() => {
+    const wrapper = mountTimeline()
+    await rightClick(wrapper, 1)
+
+    const actions = wrapper.findAll('.menu-stub [data-action]').map(item => item.attributes('data-action'))
+    expect(actions).toEqual(['open', 'copy', 'openInQq'])
+    // 歌曲表那套菜单没被带出来（两个菜单互斥）
+    expect(actions).not.toContain('play')
+
+    await wrapper.find('.menu-stub [data-action="open"]').trigger('click')
+    expect(mocks.push).toHaveBeenCalledWith({ path: '/album', query: { mid: 'album-mid-2' } })
+  })
+})

@@ -80,13 +80,32 @@ const FOLLOW_PAGE_SIZE = 1000
 /** 页数硬上限（防 `HasMore` 异常时死循环；5000 位歌手远超出正常用量，撞上会留日志）。 */
 const FOLLOW_MAX_PAGES = 5
 
-/** 会话内缓存：关注歌手的 mid 集合。`null` = 还没拉过（失败或写侧改动后也清回 null）。 */
+/**
+ * 关注动态一轮扫描里，**一个请求最多塞几个 module**。
+ *
+ * **30 是实测上限**（2026-09-26 探针，记录在 `scripts/verify/artifacts/2026-09-26-new-release-probe/`）：
+ * 20/25/30 个条目全数返回各自的数据，**31 起整个请求失败**——顶层 `code=500000`，
+ * 所有键都只回 `{code:500000}` 且不带 `data`（不是「部分键缺失」，是整包被拒）。
+ * 604 位关注歌手因此是 21 个请求；别把它当成「越大越省」的起点去试。
+ */
+export const FOLLOW_FEED_BATCH_SIZE = 30
+
+/**
+ * 会话内缓存：关注歌手的**行**（mid + name）。
+ * `null` = 还没拉过（失败或写侧改动后也清回 null）。
+ *
+ * 存行而不是只存一个 mid 集合：关注动态的条目要写歌手的**名字**，而名字**不能**用来判成员
+ * （见 `fetchFollowedSingers` 里的注释）——两份数据同源同缓存，别为名字再拉一次关注列表。
+ */
+let followedSingers = null
+/** 由上面那批行派生的 mid 集合（关注态判成员走它；热路径不必每次重建 Set） */
 let followedSingerMids = null
 /** 在途的那次拉取（单飞：同一次会话里多个歌手页同时开也只打一次接口）。 */
-let followedSingerMidsInflight = null
+let followedSingersInflight = null
 
-const fetchFollowedSingerMids = async() => {
-  const mids = new Set()
+const fetchFollowedSingers = async() => {
+  const rows = []
+  const seen = new Set()
   for (let page = 1; page <= FOLLOW_MAX_PAGES; page++) {
     // 复用账号模块（`user.js` 的 `getFollowSingers`）：端点与参数形状只留一处，
     // 别在这里再抄一遍 `music.concern.RelationList/GetFollowSingerList`（那会多一份要维护的拼写）
@@ -99,32 +118,65 @@ const fetchFollowedSingerMids = async() => {
         console.log('[tx] 关注列表有一行没有 mid，该歌手的关注态无法判定')
         return
       }
-      mids.add(String(item.id))
+      const mid = String(item.id)
+      // 跨页去重：判停用的是 `seen.size`，重复行会让它永远够不到总数而多翻几页
+      if (seen.has(mid)) return
+      seen.add(mid)
+      rows.push({ mid, name: String(item.name ?? '') })
     })
     // 停的三个条件：服务端说没有更多 / 空页（防服务端忽略游标把同一页又给一遍）/ 够数了
-    if (!res.hasMore || !res.list.length || (res.total && mids.size >= res.total)) return mids
+    if (!res.hasMore || !res.list.length || (res.total && seen.size >= res.total)) return rows
   }
-  console.log('[tx] 关注歌手的总数撞到页数上限，可能截断', { mids: mids.size, maxPages: FOLLOW_MAX_PAGES })
-  return mids
+  console.log('[tx] 关注歌手的总数撞到页数上限，可能截断', { singers: rows.length, maxPages: FOLLOW_MAX_PAGES })
+  return rows
 }
 
-const loadFollowedSingerMids = () => {
-  if (followedSingerMids) return Promise.resolve(followedSingerMids)
-  if (!followedSingerMidsInflight) {
-    followedSingerMidsInflight = fetchFollowedSingerMids().then(
-      mids => {
-        followedSingerMids = mids
-        followedSingerMidsInflight = null
-        return mids
+/**
+ * 关注歌手的**全量行**（mid + name）。
+ *
+ * 关注态（`getFollowState`）与关注动态共用这一处缓存与这**一个在途请求**：
+ * 一轮检查与一次歌手页打开都指到这里，所以 `GetFollowSingerList` 不会被打两遍。
+ */
+const loadFollowedSingers = () => {
+  if (followedSingers) return Promise.resolve(followedSingers)
+  if (!followedSingersInflight) {
+    followedSingersInflight = fetchFollowedSingers().then(
+      rows => {
+        followedSingers = rows
+        followedSingerMids = new Set(rows.map(row => row.mid))
+        followedSingersInflight = null
+        return rows
       },
       err => {
         // 失败**不留缓存**：下次进歌手页会重试（与 useSinger 的 loadedMid「失败不写」同一条纪律）
-        followedSingerMidsInflight = null
+        followedSingersInflight = null
         throw err
       },
     )
   }
-  return followedSingerMidsInflight
+  return followedSingersInflight
+}
+
+const loadFollowedSingerMids = async() => {
+  await loadFollowedSingers()
+  return followedSingerMids
+}
+
+/**
+ * 把 `GetSingerSongList` 的原始条目转成关注动态要的两样东西：**老式歌曲对象**（仍然交给
+ * `createSong`，别手写字段映射）+ **发布时间**。
+ *
+ * 为什么把 `publishTime` 单拎出来、而不是给 `createSong` 加一个字段：`time_public` 只有关注动态用，
+ * 而 `createSong` 是全应用共用的工厂——加了就得连带 `toNewMusicInfo` / `toOldMusicInfo` 一起补
+ * （见 CONTEXT 的「新增平台字段必须两边都补」），为一个字段动那三处不划算。
+ * 落库时 `publishTime` 本来就是独立的一列，所以这个形状与存储是对齐的。
+ */
+const toFeedSong = (raw) => {
+  if (!raw?.mid) return null
+  return {
+    song: createSong(raw),
+    publishTime: String(raw.time_public ?? ''),
+  }
 }
 
 /**
@@ -135,8 +187,9 @@ const loadFollowedSingerMids = () => {
  * 写侧还没落地（票 02 只做了读侧），这个导出是留给它的接口，不是死代码。
  */
 export const clearFollowSingerCache = () => {
+  followedSingers = null
   followedSingerMids = null
-  followedSingerMidsInflight = null
+  followedSingersInflight = null
 }
 
 export default {
@@ -318,6 +371,64 @@ export default {
         total: body.req.data.totalNum,
       }
     })
+  },
+  /**
+   * 关注歌手的全量行（mid + name）——关注动态用它写条目（条目里要歌手名）。
+   * 与 `getFollowState` 共用同一份缓存与同一个在途请求，见模块顶部的缓存注释。
+   */
+  getFollowedSingers() {
+    return loadFollowedSingers()
+  },
+  /**
+   * 关注动态：**批量**取多位歌手的「最新若干首」——一轮扫描（`num: 1`）与补查（`num: 10`）都走它。
+   *
+   * 与 `getSongList` 的三处不同，都是刻意的：
+   *   1. `order: 0`（实测大体是发布时间倒序）而不是 `order: 1`（热度序）——后者对「有没有新东西」
+   *      毫无意义；抽样复核的结论与反例形态见 `.scratch/follow-feed/spec.md` 的 Further Notes；
+   *   2. 一个请求塞多位歌手（每人一个 `req_N` 键——`createMusicuFetch` 的 body 顶层天然支持多模块，
+   *      `getInfo` 就是一次发三个），否则 604 位歌手要打 604 个请求；
+   *   3. 返回 `publishTime`（`time_public`）——`createSong` 不带这个字段，理由见 `toFeedSong`。
+   *
+   * ⚠️ `ok` 是**一整块**的成败：同一块里的 30 位歌手要么全 `ok`、要么全 `false`（31 个 module 会让
+   * 整个请求被拒）。调用方**只许对 `ok: true` 的歌手推进基线**——这样局部失败会在下一轮自然补上，
+   * 不需要重试队列。
+   *
+   * @param {string[]} mids 歌手 mid
+   * @param {number} num 每位歌手取几首（扫描用 1，补查用 10）
+   * @returns {Promise<Array<{ mid: string, ok: boolean, songs: Array<{ song: object, publishTime: string }> }>>}
+   */
+  async getLatestSongs(mids, num = 1) {
+    const out = []
+    for (let start = 0; start < mids.length; start += FOLLOW_FEED_BATCH_SIZE) {
+      const chunk = mids.slice(start, start + FOLLOW_FEED_BATCH_SIZE)
+      const body = {}
+      chunk.forEach((mid, index) => {
+        body[`req_${index}`] = {
+          module: 'musichall.song_list_server',
+          method: 'GetSingerSongList',
+          param: { singerMid: mid, order: 0, begin: 0, num },
+        }
+      })
+      try {
+        const res = await createMusicuFetch(body)
+        chunk.forEach((mid, index) => {
+          const node = res[`req_${index}`]
+          if (node?.code != successCode) {
+            out.push({ mid, ok: false, songs: [] })
+            return
+          }
+          out.push({
+            mid,
+            ok: true,
+            songs: (node.data?.songList ?? []).map(item => toFeedSong(item?.songInfo)).filter(Boolean),
+          })
+        })
+      } catch (err) {
+        console.log('[tx] 关注动态批量取歌失败，这一块歌手本轮跳过', err)
+        for (const mid of chunk) out.push({ mid, ok: false, songs: [] })
+      }
+    }
+    return out
   },
   /**
    * 相似歌手（QQ 不给分页，只有条数）。
