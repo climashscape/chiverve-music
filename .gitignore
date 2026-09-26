@@ -100,3 +100,5 @@ Desktop.ini
 /docs/
 /.agents/
 /.zcode/
+# ZCode 的本地搜索忽略规则（由「从 .gitignore 同步」生成，内容含上面这些不入库路径），同属本机工具状态
+/.zcodeignore
