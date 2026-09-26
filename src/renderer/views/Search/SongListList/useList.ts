@@ -42,6 +42,10 @@ export default () => {
           listRef.value.scrollTo(0)
         })
       }
+    }).catch((err: any) => {
+      // 收口：同 Search/MusicList/useList.ts——失败提示（noItemLabel = list__load_failed）已由 store
+      // 写入，这里只把 rejection 接住，别让它冒到顶层（dev 下会触发全屏浮层并吞掉真实鼠标输入，票 03b）
+      console.log('[search] songlist', err)
     })
   }
 

@@ -93,7 +93,12 @@ export default {
     const listInfo = computed(() => listInfos[props.type])
 
     const runSearch = () => {
-      void searchTyped(props.type, searchText.value, props.page, props.sourceId)
+      // 收口：`store/search/typed` 的 catch 是「写完可读提示（noItemLabel = list__load_failed）再重抛」，
+      // 调用方不接就成了未处理 rejection——dev 下 webpack-dev-server 据此弹全屏浮层（fixed; inset:0），
+      // 它会吞掉真实鼠标输入（票 03b）。提示已由 store 写入，这里只吞掉异常。
+      void searchTyped(props.type, searchText.value, props.page, props.sourceId).catch((err: any) => {
+        console.log(`[search] ${props.type}`, err)
+      })
     }
     watch(() => [props.sourceId, props.page, props.type], () => { setTimeout(runSearch) })
     watch(searchText, () => { setTimeout(runSearch) }, { immediate: true })

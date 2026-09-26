@@ -35,6 +35,11 @@ export default () => {
           if (listRef.value) listRef.value.scrollToTop()
         })
       }
+    }).catch((err: any) => {
+      // 收口：store 的 catch 是「写完可读提示（noItemLabel = list__load_failed）再把错重抛」，调用方不接
+      // 就会变成未处理 rejection——dev 下 webpack-dev-server 据此弹全屏浮层（fixed; inset:0），
+      // 它会吞掉真实鼠标输入（票 03b：界面看着正常却点不动）。提示已由 store 写入，这里只吞掉异常。
+      console.log('[search] music', err)
     })
   }
 
