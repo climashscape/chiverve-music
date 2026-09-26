@@ -33,7 +33,6 @@ declare namespace LX {
       expiresAt: number | null
       /** 距过期的剩余秒数，负数表示已过期 */
       expiresInSeconds: number | null
-      lastRefreshAt: number | null
       lastRefreshError: string | null
     }
 

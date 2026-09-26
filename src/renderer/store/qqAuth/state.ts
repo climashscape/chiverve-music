@@ -13,7 +13,6 @@ export const status = reactive<LX.QQAuth.Status>({
   musicidMasked: null,
   expiresAt: null,
   expiresInSeconds: null,
-  lastRefreshAt: null,
   lastRefreshError: null,
 })
 

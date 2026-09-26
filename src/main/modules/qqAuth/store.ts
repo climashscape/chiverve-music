@@ -15,7 +15,6 @@ import { log } from '@common/utils'
 // undefined = 尚未从磁盘加载；null = 已加载但未登录
 let credential: LX.QQAuth.Credential | null | undefined
 
-let lastRefreshAt: number | null = null
 let lastRefreshError: string | null = null
 
 export const getCredential = (): LX.QQAuth.Credential | null => {
@@ -33,12 +32,15 @@ export const saveCredential = (value: LX.QQAuth.Credential | null): void => {
   log.info('[qqAuth] credential saved:', value == null ? 'cleared' : 'present')
 }
 
-export const getLastRefreshAt = (): number | null => lastRefreshAt
-
 export const getLastRefreshError = (): string | null => lastRefreshError
 
+/**
+ * 记录最后一次刷新的结果（`null` = 成功/清除）。
+ *
+ * 只存错误文案：曾经还有一个 `lastRefreshAt` 时间戳，但全仓没有任何消费方（只有写与类型声明），
+ * 而 `setCredential` 走 `markRefresh(null)` 还会把它刷成「刚刷新过」的假象——2026-09-26 自审查时删掉。
+ */
 export const markRefresh = (error: string | null): void => {
-  lastRefreshAt = Date.now()
   lastRefreshError = error
 }
 

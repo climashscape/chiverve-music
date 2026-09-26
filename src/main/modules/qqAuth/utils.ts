@@ -4,7 +4,6 @@ import { log } from '@common/utils'
 import {
   getCredential,
   saveCredential,
-  getLastRefreshAt,
   getLastRefreshError,
   markRefresh,
   maskMusicid,
@@ -68,7 +67,6 @@ export const getStatus = (): LX.QQAuth.Status => {
     musicidMasked: maskMusicid(cred?.musicid),
     expiresAt,
     expiresInSeconds: expiresAt == null ? null : expiresAt - Math.floor(Date.now() / 1000),
-    lastRefreshAt: getLastRefreshAt(),
     lastRefreshError: getLastRefreshError(),
   }
 }
@@ -89,6 +87,9 @@ export const setCredential = (cred: LX.QQAuth.Credential): LX.QQAuth.Status => {
 
 export const logout = (): LX.QQAuth.Status => {
   saveCredential(null)
+  // 上一次刷新的失败文案属于「上一个账号」：不清掉的话登出后设置页还挂着它，
+  // 看起来像是当前（未登录）状态出的错
+  markRefresh(null)
   return broadcast()
 }
 
@@ -111,6 +112,16 @@ export const refresh = async(force = false): Promise<LX.QQAuth.RefreshResult> =>
   refreshing = true
   try {
     const next = await refreshCredential(cred)
+    /**
+     * 刷新是异步的，这期间用户可能已经登出、或换了账号（`logout()` / `setCredential()` 都会替换
+     * 内存里那份凭证）。此时旧凭证刷出来的结果**绝不能再写回**——否则表现为
+     * 「点了登出，凭证自己复活」「换号后被旧账号盖回去」，而且界面会被随后的广播翻回已登录。
+     * `getCredential()` 返回的就是内存里那个对象，引用不等即说明换过。
+     */
+    if (getCredential() !== cred) {
+      log.info('[qqAuth] 刷新期间凭证已变更，丢弃本次刷新结果')
+      return { ok: false, status: getStatus(), message: '凭证已变更，已丢弃本次刷新结果' }
+    }
     saveCredential(next)
     markRefresh(null)
     return { ok: true, status: broadcast() }

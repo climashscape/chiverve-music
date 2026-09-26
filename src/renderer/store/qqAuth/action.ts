@@ -7,6 +7,7 @@ import {
   refreshQQCredential,
   onQQAuthStatusChange,
 } from '@renderer/utils/ipc'
+import { resetUserCenter } from '@renderer/store/user/action'
 import { isShowLoginModal, loginError, loginState, qrcode, qrCreatedAt, status, isRefreshing } from './state'
 
 /**
@@ -44,7 +45,18 @@ export const initQQAuth = async(): Promise<void> => {
   }
 }
 
+/**
+ * 一轮轮询是否还在飞。
+ *
+ * `setInterval` 每 2 秒发起一次，而 `DONE` 那一轮在主进程里还要串行跑 authorize / 票据兑换，
+ * 比 2 秒长——没有这个闸就会叠第二轮：既可能撞上主进程的会话已被消费（旧代码会抛
+ * `TypeError: reading 'jar'`，被界面当成登录失败），又会让同一个二维码被重复兑换。
+ */
+let pollInFlight = false
+
 const poll = async(): Promise<void> => {
+  if (pollInFlight) return
+  pollInFlight = true
   try {
     const res = await checkQQLogin()
     loginState.value = res.event
@@ -52,6 +64,10 @@ const poll = async(): Promise<void> => {
       case 'DONE':
         stopPoll()
         if (res.status != null) Object.assign(status, res.status)
+        // 登录成功 = 换了一个会话：清掉账号中心的会话缓存（未登录时进过页面的话，`isInited`
+        // 已经被置 true，不清就永远不再取数）。清完由各页在登录信号到达时重拉——
+        // 见 store/user/action.ts 的 resetUserCenter 与 Favorites 各面板的 watch
+        resetUserCenter()
         // 登录成功后自动关闭弹窗
         isShowLoginModal.value = false
         qrcode.value = ''
@@ -69,6 +85,9 @@ const poll = async(): Promise<void> => {
     stopPoll()
     loginError.value = err?.message ?? String(err)
     loginState.value = 'idle'
+  } finally {
+    // eslint-disable-next-line require-atomic-updates -- 与开头的 `pollInFlight = true` 配对，必须清掉
+    pollInFlight = false
   }
 }
 
@@ -117,8 +136,13 @@ export const logout = async(): Promise<void> => {
   try {
     Object.assign(status, await logoutQQ())
   } catch (err: any) {
+    // 登出没成功：不动账号中心缓存（凭证可能仍有效，清了会留下没有任何数据可拉的空白页）
     console.log('[qqAuth] logout failed:', err?.message ?? err)
+    return
   }
+  // 换号 / 登出后绝不把上一个账号的列表与收藏态留在界面上：
+  // `favSongIds` 尤其要命（点收藏会按上一个人的数据判方向）
+  resetUserCenter()
 }
 
 /** 手动刷新凭证。主进程侧刷新有过渡期，失败也不影响已登录状态。 */

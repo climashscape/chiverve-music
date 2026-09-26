@@ -57,6 +57,9 @@ const EVENTS: Record<number, LX.QQAuth.LoginEvent> = {
  *  需要一整套登录态 cookie，只带 check_sig 那一步的会缺少前面几步种下的那些。 */
 let session: { qrsig: string, jar: Record<string, string>, createdAt: number } | null = null
 
+/** 是否正在兑换票据（③④⑤ 三步串行，比渲染侧 2 秒轮询间隔长）：并发轮询时让回，避免重复兑换 */
+let authorizing = false
+
 // ─────────────────────────────────────────────── 取值校验
 // 允许字符集取 RFC 6265 cookie-octet 的子集：不含分号、逗号、空白、控制字符。
 
@@ -286,13 +289,21 @@ export const startLogin = async(): Promise<LX.QQAuth.QrCode> => {
 
 /** ② 轮询状态；DONE 时自动完成 ③④⑤ 并把凭证交给 M1 的凭证层。 */
 export const checkLogin = async(): Promise<LX.QQAuth.LoginCheckResult> => {
-  if (session == null) throw new Error('尚未开始登录')
+  // 取一次快照：整个流程（多次 await）都用它，别在 await 之后再解引用模块级 `session`。
+  // 渲染侧每 2 秒轮询一次，`cancelLogin()`（关弹窗）或用户点了「刷新二维码」都会把它换掉/置空，
+  // 那时旧流程再读 `session.jar` 会抛 TypeError（界面当登录失败），同一个 ptsigx 还可能被兑换两次。
+  const current = session
+  if (current == null) throw new Error('尚未开始登录')
+
+  // DONE 之后还要串行跑 authorize / 票据兑换，比 2 秒的轮询间隔长：并发进来的这一轮直接让回，
+  // 由渲染侧的下一次轮询去读最终状态（那里也有在途守卫）。
+  if (authorizing) return { event: 'CONF' }
 
   const res = await httpFetch<string>(QR_CHECK_URL, {
     query: {
       u1: 'https://graph.qq.com/oauth2.0/login_jump',
       // ptqrtoken 约定：hash33(qrsig)，种子为 0（与 g_tk 的 5381 不同）
-      ptqrtoken: String(hash33(session.qrsig)),
+      ptqrtoken: String(hash33(current.qrsig)),
       ptredirect: '0',
       h: '1',
       t: '1',
@@ -309,12 +320,12 @@ export const checkLogin = async(): Promise<LX.QQAuth.LoginCheckResult> => {
       has_onekey: '1',
     },
     // qrsig 已在 mergeSetCookie 里过了字符集校验
-    headers: { Referer: XUI_REFERER, Cookie: 'qrsig='.concat(session.qrsig) },
+    headers: { Referer: XUI_REFERER, Cookie: 'qrsig='.concat(current.qrsig) },
     timeout: 15000,
   })
 
   // ptqrlogin 也会种 cookie，authorize 需要完整登录态
-  mergeSetCookie(session.jar, res.headers as unknown as Record<string, unknown>)
+  mergeSetCookie(current.jar, res.headers as unknown as Record<string, unknown>)
   const args = parsePtuiArgs(String(res.body ?? ''))
   const codeText = args[0] ?? ''
   if (!/^[0-9]{1,3}$/.test(codeText)) throw new Error('解析二维码状态失败：无效状态码')
@@ -327,11 +338,19 @@ export const checkLogin = async(): Promise<LX.QQAuth.LoginCheckResult> => {
   const rawUin = callback.match(/(?:\?|&)uin=(.+?)&service/)?.[1] ?? ''
   if (rawSigx === '' || rawUin === '') throw new Error('解析登录参数失败')
 
-  const credential = await authorize(rawUin, rawSigx, session.jar)
-  // eslint-disable-next-line require-atomic-updates -- 会话已消费完，这里清掉是刻意的
-  session = null
-  log.info('[qqAuth] login succeeded')
-  return { event, status: setCredential(credential) }
+  // eslint-disable-next-line require-atomic-updates -- 上一步是 await：这里是本轮开始兑换的标记，与 finally 的复位配对
+  authorizing = true
+  try {
+    const credential = await authorize(rawUin, rawSigx, current.jar)
+    // 只有会话仍是同一份时才清空：取消后用户可能已经点了新二维码，别把新一轮的会话抹掉
+    // eslint-disable-next-line require-atomic-updates -- 与上面的 snapshot 配对，是有意的赋值
+    if (session === current) session = null
+    log.info('[qqAuth] login succeeded')
+    return { event, status: setCredential(credential) }
+  } finally {
+    // eslint-disable-next-line require-atomic-updates -- 与开头的 `authorizing = true` 配对
+    authorizing = false
+  }
 }
 
 export const cancelLogin = (): void => {
