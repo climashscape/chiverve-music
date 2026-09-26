@@ -1,6 +1,8 @@
 import { httpFetch } from '../../request'
 import { formatPlayTime, dateFormat } from '../../index'
 import { requestMsg } from '../../message'
+import { getQQCredential } from '@renderer/utils/ipc'
+import { hash33 } from '@common/utils/qqSign'
 import { createSong } from './utils/song'
 import user from './user'
 
@@ -177,6 +179,54 @@ const toFeedSong = (raw) => {
     song: createSong(raw),
     publishTime: String(raw.time_public ?? ''),
   }
+}
+
+/**
+ * 关注 / 取关的老式 h5 端点——**写通道只有这一条**。
+ *
+ * 现代网关没有关注写方法（50 方法 × 22 模块枚举全灭，又用本机 fork 的全部 refs 复核过），
+ * 所以只能走 `c.y.qq.com` 的这两个老 fcgi：cookie 里要**网页会话**（`uin` + `p_skey`），
+ * CSRF 用 `g_tk = hash33(p_skey, 5381)`。决策与代价见
+ * `docs/adr/0010-persist-web-session-for-singer-follow.md`；端点细节见 `qq-music-native.md` §5.11。
+ */
+const H5_FOLLOW_ADD = 'https://c.y.qq.com/rsc/fcgi-bin/fcg_order_singer_add.fcg'
+const H5_FOLLOW_DEL = 'https://c.y.qq.com/rsc/fcgi-bin/fcg_order_singer_del.fcg'
+
+/** h5 通道用**普通浏览器 UA**（§8.1 请求身份：既不冒充官方客户端，更不自报第三方客户端）。 */
+const H5_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+
+/**
+ * h5 的响应可能是对象、也可能是字符串（老端点的 `outCharset` 是 gb2312，needle 未必按 JSON 解）。
+ * 解不出来就给空对象——调用方按「没有 code」处理成 unknown，不猜成成功。
+ */
+const parseH5Body = (body) => {
+  if (body == null) return {}
+  if (typeof body === 'string') {
+    try {
+      return JSON.parse(body)
+    } catch {
+      return {}
+    }
+  }
+  return body
+}
+
+/**
+ * 把 h5 的响应分类成界面能用的原因；`null` = 成功。
+ *
+ * ⚠️ **已知与未知**：`1006 g_token is wrong` 是 ADR-0010 记下的会话不对形状（本仓探针实测过）；
+ * `1000`（= 未登陆）来自参考实现 `jsososo/QQMusicApi` 的 `routes/user.js`（它按 `case 1000` 判未登录，
+ * **本仓没有实测过**，所以注释标明出处）。频控的 code 同样**没有实测过**（探针当时连写都没写进去），
+ * 这里只认 `104604`（登录/账号级限流的实测码）与文案里的「频繁/太快/rate」，
+ * 其余一律落 `unknown` 并把服务端原文带回去——**不猜、不假装知道**。
+ */
+const classifyH5Write = (resp) => {
+  const code = Number(resp?.code)
+  if (code === 0) return null
+  const msg = String(resp?.msg ?? resp?.message ?? '')
+  if (code === 1006 || code === 1000 || /g_token|未登[录陆]/i.test(msg)) return 'web-session-expired'
+  if (code === 104604 || /频繁|太快|rate/i.test(msg)) return 'rate-limited'
+  return 'unknown'
 }
 
 /**
@@ -378,6 +428,85 @@ export default {
    */
   getFollowedSingers() {
     return loadFollowedSingers()
+  },
+  /**
+   * 关注 / 取消关注歌手（老式 h5 写通道）。
+   *
+   * ## 为什么是这个形状
+   *
+   * 失败**不抛异常**，而是返回 `{ ok: false, reason }`：界面要按 reason 给**不同的引导**——
+   * 未登录 → 登录引导；没有 / 过期网页会话 → 就地发起重新扫码；频控与网络 → 只是可重试的失败。
+   * 混成一句「操作失败」等于让用户猜。类型见 `common/types/follow_singer.d.ts`。
+   *
+   * **没有网页会话时一个请求都不打**：那种情况打过去也只会被 `1006` 拒，白多一次可疑请求
+   * （边界：不做无谓的试探与重试）。
+   *
+   * 成功后调 `clearFollowSingerCache()`：关注态的会话缓存必须作废，否则整轮会话里标记停在旧值上
+   * （歌手页与之后铺开的每一处读的都是那份缓存）。
+   *
+   * @param {string} id 歌手 mid
+   * @param {boolean} follow true = 关注、false = 取关
+   * @returns {Promise<LX.FollowSinger.WriteResult>}
+   */
+  async setFollowSinger(id, follow) {
+    const mid = String(id ?? '').trim()
+    if (!mid) return { ok: false, reason: 'unknown', message: '缺少歌手 mid' }
+
+    let credential
+    try {
+      credential = await getQQCredential()
+    } catch (err) {
+      console.log('[tx] follow write: 读取凭证失败', err)
+      return { ok: false, reason: 'network', message: '读取登录凭证失败' }
+    }
+    if (credential == null) return { ok: false, reason: 'not-logged-in', message: 'QQ 音乐未登录' }
+
+    // uin 用**QQ 号**而不是 musicid：p_skey 是按 QQ 号签发的，两者必须配套（g_tk 才算得对）
+    const uin = String(credential.uin ?? '')
+    const pSkey = String(credential.p_skey ?? '')
+    if (!uin || !pSkey) {
+      return { ok: false, reason: 'no-web-session', message: '需要重新扫码以启用关注' }
+    }
+
+    let resp
+    try {
+      resp = parseH5Body((await httpFetch(follow ? H5_FOLLOW_ADD : H5_FOLLOW_DEL, {
+        method: 'POST',
+        form: {
+          g_tk: String(hash33(pSkey, 5381)),
+          format: 'json',
+          singermid: mid,
+        },
+        headers: {
+          'User-Agent': H5_UA,
+          // cookie 的组成（`uin` 的形态**待重扫后的真机往返定形**）：
+          //   - `p_skey` 是这条通道的关键（探针实测：**没有它**时连 `g_tk=5381` 都被 `1006` 拒）
+          //   - `qm_keyst` 是老式 h5 那边音乐会话的 cookie 名（spec 的「必要时」）
+          //   - `uin` 在 QQ 的老 h5 上有**带 `o` 前缀**的历史形态（页面上一般是 `p_uin`/`pt2gguin`
+          //     那种形态），这里三种一起给，服务端取它认识的那个；哪个才是它要的，
+          //     等票 05 的真机往返跑通后收敛（现在没有可用会话，无法实测）
+          Cookie: [
+            `uin=${uin}`,
+            `p_uin=o${uin}`,
+            `pt2gguin=o${uin}`,
+            `p_skey=${pSkey}`,
+            `qm_keyst=${String(credential.musickey ?? '')}`,
+          ].join('; '),
+        },
+        timeout: 15000,
+      }).promise).body)
+    } catch (err) {
+      console.log('[tx] follow write failed', err)
+      return { ok: false, reason: 'network', message: err?.message ?? '网络请求失败' }
+    }
+
+    const reason = classifyH5Write(resp)
+    if (reason != null) {
+      return { ok: false, reason, message: String(resp?.msg ?? resp?.message ?? `code=${String(resp?.code ?? '?')}`) }
+    }
+
+    clearFollowSingerCache()
+    return { ok: true }
   },
   /**
    * 关注动态：**批量**取多位歌手的「最新若干首」——一轮扫描（`num: 1`）与补查（`num: 10`）都走它。

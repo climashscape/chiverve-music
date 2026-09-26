@@ -22,6 +22,23 @@ declare namespace LX {
       encryptUin?: string
       /** 1=微信，2=QQ */
       loginType?: number
+      /**
+       * 网页侧会话 cookie（`p_skey`）：登录第 ③ 步 `check_sig` 拿到、随凭证一起落盘。
+       *
+       * **为什么存它**：关注 / 取消关注歌手只有老式 h5
+       * （`c.y.qq.com/rsc/fcgi-bin/fcg_order_singer_add.fcg` / `_del.fcg`）这一条写通道，
+       * 那条通道用 `g_tk = hash33(p_skey, 5381)` 做 CSRF。不存的话，每次重启后第一次关注都要重新扫码。
+       * 决策与代价见 `docs/adr/0010-persist-web-session-for-singer-follow.md`。
+       *
+       * ⚠️ **生命周期与 `musickey` 不同**：**不能**用 musickey 的刷新链去续（刷新接口认 `refresh_key`），
+       * 过期后只能请用户重新扫码；`refresh` 必须原样保留它，别把它当成可刷新的字段。
+       */
+      p_skey?: string
+      /**
+       * 登录用的 QQ 号。与 `musicid` **不是**同一个东西——老式 h5 的 cookie 要的是这个（`uin`），
+       * 而 `p_skey` 也是按它签发的，两者必须配套使用（`g_tk` 才算得对）。
+       */
+      uin?: string
     }
 
     /** 渲染侧可见的登录状态。刻意不含任何密钥值。 */

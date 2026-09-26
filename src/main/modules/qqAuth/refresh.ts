@@ -81,6 +81,11 @@ export const toCredential = (data: Record<string, any>, prev: LX.QQAuth.Credenti
   musickeyCreateTime: data.musickeyCreateTime ?? prev.musickeyCreateTime,
   loginType: data.loginType ?? prev.loginType,
   encryptUin: data.encryptUin ?? prev.encryptUin,
+  // 网页会话与 QQ 号走同一套「响应里有就用新的、没有就保留旧值」的映射：刷新响应**不带**它们，
+  // 于是刷新时它们被原样保留（`p_skey` 不能靠 musickey 续期，更不能在刷新里被清掉——
+  // 清掉了「关注」按钮就会莫名其妙地要求重新扫码）。见 ADR-0010。
+  p_skey: data.p_skey ?? prev.p_skey,
+  uin: data.uin ?? prev.uin,
 })
 
 export const refreshCredential = async(cred: LX.QQAuth.Credential): Promise<LX.QQAuth.Credential> => {

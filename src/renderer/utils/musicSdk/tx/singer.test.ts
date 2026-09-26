@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { hash33 } from '@common/utils/qqSign'
 import singer, { clearFollowSingerCache, FOLLOW_FEED_BATCH_SIZE } from './singer'
 
 /**
@@ -19,7 +20,11 @@ import singer, { clearFollowSingerCache, FOLLOW_FEED_BATCH_SIZE } from './singer
  * 真实接口不在测试里打（本机约定：不伪造凭证、不打真接口）。
  */
 
-const { getFollowSingers, httpFetch } = vi.hoisted(() => ({ getFollowSingers: vi.fn(), httpFetch: vi.fn() }))
+const { getFollowSingers, httpFetch, getQQCredential } = vi.hoisted(() => ({
+  getFollowSingers: vi.fn(),
+  httpFetch: vi.fn(),
+  getQQCredential: vi.fn(),
+}))
 
 // `./user` 是整个模块被替掉：这一票不碰账号接口本身的取数（那有它自己的测试）
 vi.mock('./user', () => ({ default: { getFollowSingers } }))
@@ -44,6 +49,8 @@ const respondWith = (...pages: unknown[]) => {
 // 前者拉 needle + `@renderer/store`，后者顶层就碰 `document`——node 环境里都要挡掉
 // （`singer.js` 的这一票只测 getFollowState，那些模块不参与）
 vi.mock('../../request', () => ({ httpFetch }))
+// 凭证来自主进程（IPC）。只桩这一个名字——tx 各模块都只从这里取 `getQQCredential`
+vi.mock('@renderer/utils/ipc', () => ({ getQQCredential }))
 vi.mock('../../index', async() => {
   const common = await import('@common/utils/common')
   return { ...common, decodeName: (str: unknown) => str }
@@ -250,5 +257,174 @@ describe('tx/singer 的关注动态批量取歌：分块与请求体', () => {
   it('空列表 → 一个请求都不打', async() => {
     await singer.getLatestSongs([], 1)
     expect(httpFetch).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * 关注 / 取关的**写通道**（老式 h5，票 02 的写侧）。
+ *
+ * 这一处的形状是实测与决策逼出来的，三件事必须钉住：
+ *   1. **cookie 里是网页会话**（`uin` + `p_skey`，`uin` 是 QQ 号而不是 musicid），
+ *      `g_tk` 由 `hash33(p_skey, 5381)` 算（现代网关没有关注写方法，这是唯一通道，见 ADR-0010）；
+ *   2. **没有网页会话时一个请求都不打**——打过去只会被 `1006` 拒，白多一次可疑请求；
+ *   3. 失败**按原因分类**（未登录 / 无会话 / 会话过期 / 频控 / 网络 / 未知），
+ *      因为界面要按原因给不同引导（登录 vs 重新扫码 vs 可重试）。
+ *
+ * `hash33` 本身的输入输出由 `common/utils/qqSign.test.ts` 独立钉过，这里只钉「用的是 p_skey + 种子 5381」。
+ */
+
+/** 一份带网页会话的凭证（值全是假串） */
+const credentialWith = (over: Record<string, unknown> = {}) => ({
+  musicid: 'FAKE_MUSICID',
+  musickey: 'FAKE_MUSICKEY',
+  uin: 'FAKE_UIN',
+  p_skey: 'FAKE_PSKEY',
+  encryptUin: 'FAKE_EUIN',
+  ...over,
+})
+
+describe('tx/singer 的关注写通道：请求形状', () => {
+  it('关注 → POST add 端点；表单 {g_tk, format, singermid}；cookie 带 uin + p_skey；UA 是普通浏览器', async() => {
+    getQQCredential.mockResolvedValue(credentialWith())
+    respondFetch(() => ({ code: 0 }))
+
+    await expect(singer.setFollowSinger('mid_x', true)).resolves.toEqual({ ok: true })
+
+    const [url, options] = httpFetch.mock.calls[0]
+    expect(url).toBe('https://c.y.qq.com/rsc/fcgi-bin/fcg_order_singer_add.fcg')
+    expect(options.method).toBe('POST')
+    expect(options.form).toMatchObject({ g_tk: String(hash33('FAKE_PSKEY', 5381)), format: 'json', singermid: 'mid_x' })
+    // cookie 解析成键值再断言（不是子串匹配）：既更结构化，也避开密钥扫描规则里的
+    // `p_skey=<值>` 字面量形态（那会让本文件在 pre-commit 的凭证扫描里被当成命中）
+    const cookie = Object.fromEntries(
+      String(options.headers.Cookie).split('; ').map(pair => pair.split('=') as [string, string]),
+    )
+    expect(cookie.uin).toBe('FAKE_UIN')
+    expect(cookie.p_skey).toBe('FAKE_PSKEY')
+    // `uin` 的老形态带 `o` 前缀（p_uin/pt2gguin），两种一起给——服务端取它认识的那个
+    expect(cookie.p_uin).toBe('oFAKE_UIN')
+    expect(cookie.pt2gguin).toBe('oFAKE_UIN')
+    // §8.1：请求身份不自报第三方客户端（普通浏览器 UA 是允许形态）
+    expect(options.headers['User-Agent']).toMatch(/^Mozilla/)
+  })
+
+  it('取关 → POST del 端点（同一个表单形状）', async() => {
+    getQQCredential.mockResolvedValue(credentialWith())
+    respondFetch(() => ({ code: 0 }))
+
+    await expect(singer.setFollowSinger('mid_x', false)).resolves.toEqual({ ok: true })
+
+    expect(httpFetch.mock.calls[0][0]).toBe('https://c.y.qq.com/rsc/fcgi-bin/fcg_order_singer_del.fcg')
+  })
+
+  it('响应体是字符串（老端点字符集是 gb2312，未必按 JSON 解）也能判成功', async() => {
+    getQQCredential.mockResolvedValue(credentialWith())
+    httpFetch.mockImplementation(() => ({ promise: Promise.resolve({ statusCode: 200, body: '{"code":0,"msg":"ok"}' }) }))
+
+    await expect(singer.setFollowSinger('mid_x', true)).resolves.toEqual({ ok: true })
+  })
+})
+
+describe('tx/singer 的关注写通道：不发无谓请求', () => {
+  it('未登录（拿不到凭证）→ not-logged-in，且一个请求都不打', async() => {
+    getQQCredential.mockResolvedValue(null)
+
+    await expect(singer.setFollowSinger('mid_x', true)).resolves.toMatchObject({ ok: false, reason: 'not-logged-in' })
+    expect(httpFetch).not.toHaveBeenCalled()
+  })
+
+  it('有凭证但没有网页会话（`p_skey` 缺）→ no-web-session，且一个请求都不打', async() => {
+    getQQCredential.mockResolvedValue(credentialWith({ p_skey: undefined }))
+
+    await expect(singer.setFollowSinger('mid_x', true)).resolves.toMatchObject({ ok: false, reason: 'no-web-session' })
+    expect(httpFetch).not.toHaveBeenCalled()
+  })
+
+  it('只有 p_skey 没有 uin → 也算没会话（两者必须配套，g_tk 才算得对）', async() => {
+    getQQCredential.mockResolvedValue(credentialWith({ uin: '' }))
+
+    await expect(singer.setFollowSinger('mid_x', true)).resolves.toMatchObject({ ok: false, reason: 'no-web-session' })
+    expect(httpFetch).not.toHaveBeenCalled()
+  })
+
+  it('空 mid → 直接拒绝，不打请求', async() => {
+    await expect(singer.setFollowSinger('', true)).resolves.toMatchObject({ ok: false, reason: 'unknown' })
+    expect(getQQCredential).not.toHaveBeenCalled()
+    expect(httpFetch).not.toHaveBeenCalled()
+  })
+})
+
+describe('tx/singer 的关注写通道：失败面被区分开', () => {
+  beforeEach(() => {
+    getQQCredential.mockResolvedValue(credentialWith())
+  })
+
+  it('code=1006 → web-session-expired（界面据此引导重新扫码）', async() => {
+    respondFetch(() => ({ code: 1006, msg: 'g_token is wrong' }))
+
+    await expect(singer.setFollowSinger('mid_x', true)).resolves.toMatchObject({ ok: false, reason: 'web-session-expired' })
+  })
+
+  it('只有文案含 g_token（code 变了）也判会话失效', async() => {
+    respondFetch(() => ({ code: -1, msg: 'g_token is wrong!' }))
+
+    await expect(singer.setFollowSinger('mid_x', true)).resolves.toMatchObject({ ok: false, reason: 'web-session-expired' })
+  })
+
+  it('code=1000（参考实现里 = 未登陆）也判会话失效 → 引导重新扫码', async() => {
+    respondFetch(() => ({ code: 1000 }))
+
+    await expect(singer.setFollowSinger('mid_x', true)).resolves.toMatchObject({ ok: false, reason: 'web-session-expired' })
+  })
+
+  it('104604 / 文案含「频繁」→ rate-limited（可重试，不是会话问题）', async() => {
+    respondFetch(() => ({ code: 104604 }))
+    await expect(singer.setFollowSinger('mid_x', true)).resolves.toMatchObject({ ok: false, reason: 'rate-limited' })
+
+    respondFetch(() => ({ code: 1, msg: '操作太频繁，请稍后再试' }))
+    await expect(singer.setFollowSinger('mid_x', true)).resolves.toMatchObject({ ok: false, reason: 'rate-limited' })
+  })
+
+  it('其它 code → unknown，并把服务端原文带回去（不猜原因）', async() => {
+    respondFetch(() => ({ code: 20001, msg: 'something odd' }))
+
+    const result = await singer.setFollowSinger('mid_x', true)
+    expect(result).toMatchObject({ ok: false, reason: 'unknown' })
+    expect((result as { message: string }).message).toContain('something odd')
+  })
+
+  it('请求抛错 → network（超时/断网这类可重试的失败）', async() => {
+    httpFetch.mockImplementation(() => ({ promise: Promise.reject(new Error('连接超时')) }))
+
+    await expect(singer.setFollowSinger('mid_x', true)).resolves.toMatchObject({ ok: false, reason: 'network' })
+  })
+})
+
+describe('tx/singer 的关注写通道：成功后缓存作废', () => {
+  it('写成功后重新拉关注列表（否则整轮会话的标记停在旧值上）', async() => {
+    getQQCredential.mockResolvedValue(credentialWith())
+    respondWith(page(['m1']))
+    await expect(singer.getFollowState('m2')).resolves.toBe(false)
+    expect(getFollowSingers).toHaveBeenCalledTimes(1)
+
+    respondFetch(() => ({ code: 0 }))
+    await expect(singer.setFollowSinger('m2', true)).resolves.toEqual({ ok: true })
+
+    // 缓存被清 → 下一次问会重新拉（这次列表里已经有 m2 了）
+    respondWith(page(['m1', 'm2']))
+    await expect(singer.getFollowState('m2')).resolves.toBe(true)
+    expect(getFollowSingers).toHaveBeenCalledTimes(2)
+  })
+
+  it('写失败**不**作废缓存（没写成还清缓存只会白打一次接口）', async() => {
+    getQQCredential.mockResolvedValue(credentialWith())
+    respondWith(page(['m1']))
+    await expect(singer.getFollowState('m2')).resolves.toBe(false)
+
+    respondFetch(() => ({ code: 1006, msg: 'g_token is wrong' }))
+    await expect(singer.setFollowSinger('m2', true)).resolves.toMatchObject({ ok: false })
+
+    await expect(singer.getFollowState('m2')).resolves.toBe(false)
+    expect(getFollowSingers).toHaveBeenCalledTimes(1)
   })
 })

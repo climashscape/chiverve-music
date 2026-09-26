@@ -251,9 +251,11 @@ const authorize = async(rawUin: string, rawSigx: string, jar: Record<string, str
   }
   if (!data.musickey) throw new Error('登录响应未包含 musickey')
 
-  // 登录与刷新的响应同源（上游都走 _validate_result），故复用同一套字段映射
+  // 登录与刷新的响应同源（上游都走 _validate_result），故复用同一套字段映射。
+  // `p_skey`（第 ③ 步拿到的网页会话）与 `uin`（QQ 号，与 musicid 不是一回事）**只能从这里带进去**：
+  // ⑤ 的响应里没有它们，而「关注 / 取关」那条老 h5 通道正靠它们算 g_tk 与 cookie（ADR-0010）。
   const { toCredential } = await import('./refresh')
-  return toCredential(data, { musicid: '', musickey: '' })
+  return toCredential(data, { musicid: '', musickey: '', p_skey: pSkey, uin })
 }
 
 /** ① 取二维码。返回 data URL 供渲染侧直接显示。 */
