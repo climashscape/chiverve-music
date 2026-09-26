@@ -89,6 +89,55 @@ const getPlaylistsRaw = async() => {
 }
 
 /**
+ * 「关注关系」的一行 → 用户条目（粉丝 / 关注用户 / 好友三处的**行同构**，但键名拼法有出入）。
+ *
+ * ❗**没有可跳转的 id**：`MID` 实测恒为空串（2026-09-26 探针，见
+ * `scripts/verify/artifacts/2026-09-26-capabilities/NOTES-friends.md`），唯一身份键是 `EncUin`；
+ * 而 `EncUin` 目前没有已知的站内路由。所以 `id` 只作列表去重/key 用，**别拿它拼跳转**。
+ *
+ * 多认 `EncryptUin`/`UserName`/`NickName` 等拼法：好友列表本账号 0 条、**字段名无法实证**，
+ * 只能照 fork 模型（`models/user.py:412-437`）映射并留同义键兜底——多认一个键无副作用，
+ * 少认一个就是整列空。真机出数据后按实测收紧。
+ *
+ * `isFollow` = 我关注了 TA；`isFollowed` = TA 关注了我（两者都真 = 互相关注）。
+ * ⚠️ 服务端给的是**布尔**（不是 0/1 数字），所以判据写成 `=== true`，不要用真值判断
+ * （`0`/`'0'` 之类的字符串形态一旦出现，真值判断会把「没关注」判成「关注」）。
+ */
+const toUserInfo = raw => ({
+  id: String(raw?.EncUin ?? raw?.EncryptUin ?? ''),
+  name: raw?.Name ?? raw?.UserName ?? raw?.NickName ?? '',
+  img: raw?.AvatarUrl ?? raw?.Avatar ?? '',
+  desc: raw?.Desc ?? '',
+  fans: Number(raw?.FanNum ?? 0),
+  isFollow: raw?.IsFollow === true,
+  isFollowed: raw?.BeFollowed === true,
+  source: 'tx',
+})
+
+/**
+ * 粉丝 / 关注用户的公共取数：两个方法在同一个模块、响应同构，**只有方法名不同**。
+ *
+ * 参数与分页都是 2026-09-26 探针实测的（记录：`scripts/verify/artifacts/2026-09-26-capabilities/NOTES-friends.md`）：
+ * `HostUin` 要 `encryptUin`；`From`/`Size` 是**偏移量**分页（`From = (page-1)*num`，实测两页行指纹不同）；
+ * `Total` 是总数，`HasMore` 是**布尔**（`Size=30` 一次拿全 12 条时转 `false`）。WEB 档案够用——
+ * 与主页 / 听歌基因不同，**不需要** android 档案。
+ *
+ * ⚠️ `HostUin` 传空串服务端**照样回 `code=0`**：别把 code 当成「拿到了目标用户的列表」，
+ * 空列表就是空列表（调用方按空态处理）。
+ */
+const getRelationUsers = async(method, page, num) => {
+  const credential = await requireCredential()
+  const data = await txCgi({
+    module: 'music.concern.RelationList',
+    method,
+    param: { HostUin: credential.encryptUin, From: (page - 1) * num, Size: num },
+  }, webComm(credential)).promise
+  const d = data?.data ?? {}
+  const list = (d.List ?? []).map(toUserInfo)
+  return { list, total: Number(d.Total ?? list.length), page, limit: num, source: 'tx', hasMore: d.HasMore === true }
+}
+
+/**
  * 卡片「总数」的取值。**字段名跨端点不统一，两种拼法都认**——别只留一个：
  *
  *   - `GetPlaylistByUin`（自建歌单，含「我喜欢」那一行）的行实测是 **`songNum`（驼峰）**：
@@ -290,6 +339,48 @@ export default {
       source: 'tx',
     }))
     return { list, total: Number(d.Total ?? list.length), page, limit: num, source: 'tx', hasMore: d.HasMore === true }
+  },
+
+  /**
+   * 粉丝 / 关注用户（`music.concern.RelationList` 的两个方法，响应同构）——**只有方法名不同**。
+   *
+   * 参数与分页都是 2026-09-26 探针实测的（`NOTES-friends.md`）：`HostUin` 要 `encryptUin`，
+   * `From`/`Size` 是**偏移量**分页（`From = (page-1)*num`，两页指纹确实不同），
+   * `Total` 是总数、`HasMore` 是**布尔**（`Size=30` 拿全 12 条时转 false）。WEB 档案够用，
+   * 与主页/基因不同**不需要** android 档案。
+   */
+  async getFans(page = 1, num = PAGE_SIZE) {
+    return getRelationUsers('GetFansList', page, num)
+  },
+
+  /**
+   * 我关注的**用户**（不是歌手——歌手在同模块的 `GetFollowSingerList`，见 `getFollowSingers`）。
+   * 两个桶分开计数：实测本账号关注用户 9 + 关注歌手 603 ≈ 主页头部的 `FollowNum=614`。
+   */
+  async getFollowUsers(page = 1, num = PAGE_SIZE) {
+    return getRelationUsers('GetFollowUserList', page, num)
+  },
+
+  /**
+   * QQ 好友（QQ 音乐侧的好友关系，不是关注关系）。
+   *
+   * 与上面两口的差异都是实测的（`NOTES-friends.md`）：
+   *   1. 分页是**页码**：`Page` 从 **0** 起（照 fork 的 `PageStrategy(start_page=page-1)`），`PageSize` 是本页条数。
+   *   2. **没有 `Total`**——只有 `HasMore`（实测是 **int 0/1**，不是布尔，所以判据要 `=== 1`）。
+   *      返回的 `total` 因此是 `null`（= 服务端不给），界面别显示成「共 0 位」。
+   *   3. **0 好友时 `Friends` 是 `null`（不是空数组）**，直接 `.map` 会炸。
+   * 条目字段名照 fork 模型 + 同义键兜底（本账号 0 好友，实机字段名尚未实证，见 `toUserInfo`）。
+   */
+  async getFriends(page = 1, num = PAGE_SIZE) {
+    const credential = await requireCredential()
+    const data = await txCgi({
+      module: 'music.homepage.Friendship',
+      method: 'GetFriendList',
+      param: { Page: page - 1, PageSize: num },
+    }, webComm(credential)).promise
+    const d = data?.data ?? {}
+    const list = (d.Friends ?? []).map(toUserInfo)
+    return { list, total: null, page, limit: num, source: 'tx', hasMore: Number(d.HasMore ?? 0) === 1 }
   },
 
   /** 会员信息：`music_lev_*` 为 "1" 表示有该档权益。 */

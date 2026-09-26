@@ -15,7 +15,7 @@ import music from '@renderer/utils/musicSdk'
  *   3. 每个块独立三段式文案（loading / 空 / 失败），互不阻塞
  */
 
-const t = (key: string) => window.i18n.t(key as any)
+const t = (key: string, named?: Record<string, unknown>) => window.i18n.t(key as any, named as any)
 
 /** 详情页里可播放的歌曲块（相似歌曲 / 其他版本）。 */
 export interface SongBlock {
@@ -24,6 +24,24 @@ export interface SongBlock {
   page: number
   limit: number
   noItemLabel: string
+}
+
+/** 制作人（幕后名单）：按职责分组，空数组 = 这块不渲染。 */
+export interface ProducerGroup {
+  title: string
+  producers: Array<{ name: string, icon: string, singerMid: string }>
+}
+
+/** 曲谱条目：可展示形态就是 `images[]`（乐谱图片直链，见数据层 `getSheetMusic`）。 */
+export interface SheetMusicItem {
+  id: string
+  name: string
+  subName: string
+  instrument: string
+  scoreType: string
+  cover: string
+  images: string[]
+  pageCount: number
 }
 
 const createSongBlock = (): SongBlock => ({ list: [], total: 0, page: 1, limit: 1, noItemLabel: '' })
@@ -68,6 +86,26 @@ const otherVersions = reactive<SongBlock>(createSongBlock())
 export const relatedPlaylists = reactive<{ list: any[], noItemLabel: string }>({ list: [], noItemLabel: '' })
 export const relatedMvs = reactive<{ list: any[], noItemLabel: string }>({ list: [], noItemLabel: '' })
 
+/** 制作人块：**空数组时整块不渲染**（QQ 侧没有资料就是没有，不留一个空标题占位）。 */
+export const producers = reactive<{ list: ProducerGroup[] }>({ list: [] })
+
+/** 曲谱块：与相关歌单/相关 MV 同一套三段式（loading / 空 / 失败 都落在 `noItemLabel`）。 */
+export const sheets = reactive<{ list: SheetMusicItem[], noItemLabel: string }>({ list: [], noItemLabel: '' })
+
+/**
+ * 「演唱」组不进制作人块：它是页面头部那行歌手名（而且头部那份可点、能跳歌手页），
+ * 同屏再抄一遍只是噪音。`演唱` 是 **QQ 响应里的分组标题**（实测「晴天」「孤勇者」「夜的钢琴曲五」
+ * 都用它），不是本仓的 i18n 文案。
+ */
+const SINGER_ROLE_TITLE = '演唱'
+
+/** 卡片与弹窗共用的副标题：乐器 · 谱型 · 共 N 页，空字段跳过。 */
+export const sheetMeta = (item: SheetMusicItem) => [
+  item.instrument,
+  item.scoreType,
+  t('song_detail__sheet_pages', { num: item.pageCount }),
+].filter(Boolean).join(' · ')
+
 const setSongs = (block: SongBlock, list: any[]) => {
   const next = markRawList(deduplicationList(list.map(item => toNewMusicInfo(item)) as LX.Music.MusicInfoOnline[]))
   block.list.splice(0, block.list.length, ...next)
@@ -80,13 +118,17 @@ const errorLabel = (err: any) =>
 
 let detailKey = ''
 
-/** 取详情 + 四个关联块（关联块在拿到 songId 后并发，各自兜自己的失败）。 */
+/** 取详情 + 六个块（相似/其他版本要等数字 songId，制作人/曲谱只要有 mid 就并发，各自兜自己的失败）。 */
 const load = async(mid: string) => {
   if (!mid) return
   const key = `songdetail__${mid}`
   detailKey = key
   detail.isLoading = true
   detail.errorLabel = ''
+  // 换 mid 时先清掉上一首的资料，别让旧的制作人/曲谱挂在新歌上
+  producers.list.splice(0, producers.list.length)
+  sheets.list.splice(0, sheets.list.length)
+  sheets.noItemLabel = t('list__loading')
   similar.noItemLabel = t('list__loading')
   otherVersions.noItemLabel = t('list__loading')
   relatedPlaylists.noItemLabel = t('list__loading')
@@ -111,6 +153,8 @@ const load = async(mid: string) => {
       info: res.info,
     })
     detail.isLoading = false
+    // 制作人 / 曲谱只认 mid，不必等数字 songId（关联能力才需要它）
+    const jobs = [loadProducers(), loadSheets()]
     if (!detail.songId) {
       // 没有数字 id 就没法取关联能力——不装作能取，四个块各自落空态
       const empty = t('no_item')
@@ -118,14 +162,10 @@ const load = async(mid: string) => {
       otherVersions.noItemLabel = empty
       relatedPlaylists.noItemLabel = empty
       relatedMvs.noItemLabel = empty
-      return
+    } else {
+      jobs.push(loadSimilar(), loadOtherVersions(), loadRelatedPlaylists(), loadRelatedMvs())
     }
-    await Promise.all([
-      loadSimilar(),
-      loadOtherVersions(),
-      loadRelatedPlaylists(),
-      loadRelatedMvs(),
-    ])
+    await Promise.all(jobs)
   } catch (err: any) {
     if (detailKey !== key) return
     console.log('[songDetail]', err)
@@ -136,6 +176,31 @@ const load = async(mid: string) => {
     otherVersions.noItemLabel = label
     relatedPlaylists.noItemLabel = label
     relatedMvs.noItemLabel = label
+    sheets.noItemLabel = label
+  }
+}
+
+/** 制作人：失败只清空（这块没有空态文案，清空即隐藏）。 */
+const loadProducers = async() => {
+  try {
+    const list: ProducerGroup[] = await music.tx.songDetail.getProducer(detail.mid)
+    const visible = list.filter(group => group.title != SINGER_ROLE_TITLE)
+    producers.list.splice(0, producers.list.length, ...visible)
+  } catch (err: any) {
+    console.log('[songDetail] producers', err)
+    producers.list.splice(0, producers.list.length)
+  }
+}
+
+const loadSheets = async() => {
+  try {
+    const list: SheetMusicItem[] = await music.tx.songDetail.getSheetMusic(detail.mid)
+    sheets.list.splice(0, sheets.list.length, ...list)
+    sheets.noItemLabel = sheets.list.length ? '' : t('no_item')
+  } catch (err: any) {
+    console.log('[songDetail] sheets', err)
+    sheets.list.splice(0, sheets.list.length)
+    sheets.noItemLabel = errorLabel(err)
   }
 }
 

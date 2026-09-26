@@ -14,6 +14,7 @@
       </p>
       <p v-if="labels.profile" :class="$style.tip">{{ labels.profile }}</p>
     </div>
+    <base-btn min :class="$style.action" @click="toFriends">{{ $t('friends__entry') }}</base-btn>
     <base-btn min :disabled="isLoading" @click="handleRefresh">{{ $t('user_center__refresh') }}</base-btn>
   </div>
 </template>
@@ -21,17 +22,24 @@
 <script lang="ts">
 import { isLoading, labels, profile, vip } from '@renderer/store/user/state'
 import { initUserCenter } from '@renderer/store/user/action'
+import { useRouter } from '@common/utils/vueRouter'
 
 /**
  * 我的音乐页 → 账号卡（昵称/头像/关注粉丝访客 + VIP + 刷新）。
  *
  * 刷新走 `initUserCenter(true)`：整页数据（概览 + 基因）一起重拉，与页面上唯一的
  * 那个刷新按钮语义一致——只刷卡片会留下「卡片新、基因旧」的错位。
+ *
+ * 「粉丝与好友」按钮是本页通往 `/friends` 的**唯一入口**（2026-09-26 资料类能力）：
+ * 那一页三块关系列表与账号数据同源，放账号卡上比塞进左侧一级导航自然；
+ * 未登录时点进去也有引导（那一页会显示「请先登录 QQ 音乐」+ 登录按钮）。
  */
 export default {
   name: 'UserCenterProfileCard',
   setup() {
+    const router = useRouter()
     const handleRefresh = () => { void initUserCenter(true) }
+    const toFriends = () => { void router.push({ path: '/friends' }) }
 
     return {
       profile,
@@ -39,6 +47,7 @@ export default {
       labels,
       isLoading,
       handleRefresh,
+      toFriends,
     }
   },
 }
@@ -111,5 +120,9 @@ export default {
   margin-top: 4px;
   font-size: 12px;
   color: var(--color-font-label);
+}
+// 两个按钮之间的间距：账号卡是 flex 行，不给就会贴在一起
+.action {
+  margin-right: 8px;
 }
 </style>

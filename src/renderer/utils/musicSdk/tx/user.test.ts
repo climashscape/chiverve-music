@@ -204,3 +204,139 @@ describe('tx/user 的「我喜欢」总数（getFavSong）', () => {
     expect(res.total).toBe(0)
   })
 })
+
+/**
+ * 粉丝 / 关注用户 / 好友（资料类能力·读侧，2026-09-26）。
+ *
+ * 期望形状全部来自真机探针（记录见
+ * `scripts/verify/artifacts/2026-09-26-capabilities/NOTES-friends.md`），三条最容易写错的：
+ *   1. **分页键不同**：粉丝 / 关注用户是 `From`（偏移量 = (page-1)*num），好友是 `Page`（**0 起**）。
+ *   2. **`HasMore` 的类型不同**：关注关系是布尔，好友是 int（0/1）——判据写错会让「加载更多」永远不出现。
+ *   3. **好友 0 条时 `Friends` 是 `null`（不是 `[]`）**——直接 `.map` 会炸。
+ */
+describe('tx/user 的粉丝 / 关注用户（GetFansList / GetFollowUserList）', () => {
+  /** 一行关注关系（字段名照真机响应；`MID` 实测恒为空串）。 */
+  const ROW = {
+    EncUin: 'enc_uin_1',
+    Name: '昵称',
+    AvatarUrl: 'https://pic6.y.qq.com/x.jpg',
+    Desc: '简介',
+    FanNum: 8,
+    IsFollow: false,
+    BeFollowed: true,
+    MID: '',
+  }
+
+  it('getFans：走 RelationList/GetFansList，From 是偏移量（第 3 页 / 每页 30 → From=60）', async() => {
+    txCgi.mockReturnValue(node({ code: 0, data: { List: [ROW], Total: 12, HasMore: false } }))
+
+    const res = await user.getFans(3, 30)
+
+    expect(txCgi.mock.calls.at(-1)![0]).toMatchObject({
+      module: 'music.concern.RelationList',
+      method: 'GetFansList',
+      param: { HostUin: 'e', From: 60, Size: 30 },
+    })
+    expect(res).toMatchObject({ total: 12, page: 3, limit: 30, hasMore: false })
+  })
+
+  it('getFollowUsers：同一模块的另一个方法（与「关注的歌手」不是一口）', async() => {
+    txCgi.mockReturnValue(node({ code: 0, data: { List: [], Total: 9, HasMore: true } }))
+
+    const res = await user.getFollowUsers(1, 30)
+
+    expect(txCgi.mock.calls.at(-1)![0]).toMatchObject({
+      module: 'music.concern.RelationList',
+      method: 'GetFollowUserList',
+    })
+    expect(res.hasMore).toBe(true)
+  })
+
+  it('行映射：id 取 EncUin（**不是恒空的 MID**）、关注态两个布尔分得很清', async() => {
+    txCgi.mockReturnValue(node({ code: 0, data: { List: [ROW], Total: 1, HasMore: false } }))
+
+    const [item] = (await user.getFans(1, 30)).list
+
+    expect(item).toEqual({
+      id: 'enc_uin_1',
+      name: '昵称',
+      img: 'https://pic6.y.qq.com/x.jpg',
+      desc: '简介',
+      fans: 8,
+      isFollow: false,
+      isFollowed: true,
+      source: 'tx',
+    })
+  })
+
+  it('关注态是**严判**：`0` / 字符串这类真值形态不会被当成「已关注」', async() => {
+    txCgi.mockReturnValue(node({
+      code: 0,
+      data: { List: [ROW, { EncUin: 'x', IsFollow: 1, BeFollowed: '1' }], Total: 2, HasMore: false },
+    }))
+
+    const list = (await user.getFans(1, 30)).list
+
+    expect(list.map((item: any) => [item.isFollow, item.isFollowed])).toEqual([[false, true], [false, false]])
+    // 缺 Name/AvatarUrl 时落空串而不是 undefined（界面直接绑，undefined 会渲染成 "undefined"）
+    expect(list[1]).toMatchObject({ name: '', img: '', fans: 0 })
+  })
+
+  it('空列表：`List` 缺失也算空，不炸', async() => {
+    txCgi.mockReturnValue(node({ code: 0, data: {} }))
+
+    const res = await user.getFans(1, 30)
+
+    expect(res.list).toEqual([])
+    expect(res.total).toBe(0)
+  })
+})
+
+describe('tx/user 的 QQ 好友（GetFriendList——页码 0 起、无总数）', () => {
+  it('分页是页码：第 1 页 → Page=0（不是 1），PageSize 是本页条数', async() => {
+    txCgi.mockReturnValue(node({ code: 0, data: { Friends: null, HasMore: 0 } }))
+
+    const res = await user.getFriends(1, 30)
+
+    expect(txCgi.mock.calls.at(-1)![0]).toMatchObject({
+      module: 'music.homepage.Friendship',
+      method: 'GetFriendList',
+      param: { Page: 0, PageSize: 30 },
+    })
+    expect(res).toMatchObject({ total: null, page: 1, hasMore: false })
+  })
+
+  it('第 2 页 → Page=1', async() => {
+    txCgi.mockReturnValue(node({ code: 0, data: { Friends: null, HasMore: 1 } }))
+
+    await user.getFriends(2, 30)
+
+    expect(txCgi.mock.calls.at(-1)![0].param).toMatchObject({ Page: 1 })
+  })
+
+  it('0 好友：`Friends` 是 null（不是 []）→ 空列表；`HasMore` 是 int，`=== 1` 才算有更多', async() => {
+    txCgi.mockReturnValue(node({ code: 0, data: { Friends: null, HasMore: 0 } }))
+    await expect(user.getFriends(1, 30)).resolves.toMatchObject({ list: [], hasMore: false })
+
+    txCgi.mockReturnValue(node({ code: 0, data: { Friends: [], HasMore: 1 } }))
+    await expect(user.getFriends(1, 30)).resolves.toMatchObject({ list: [], hasMore: true })
+  })
+
+  it('行映射：认 fork 模型的 EncryptUin/UserName，也认关注关系那套拼法', async() => {
+    txCgi.mockReturnValue(node({
+      code: 0,
+      data: {
+        Friends: [
+          { EncryptUin: 'friend_1', UserName: '好友甲', AvatarUrl: 'https://thirdqq.qlogo.cn/a.jpg', IsFollow: true },
+          { EncUin: 'friend_2', Name: '好友乙' },
+        ],
+        HasMore: 0,
+      },
+    }))
+
+    const res = await user.getFriends(1, 30)
+
+    expect(res.list[0]).toMatchObject({ id: 'friend_1', name: '好友甲', isFollow: true, isFollowed: false })
+    expect(res.list[1]).toMatchObject({ id: 'friend_2', name: '好友乙', isFollow: false, fans: 0 })
+  })
+})

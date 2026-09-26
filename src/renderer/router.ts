@@ -39,6 +39,16 @@ const router = createRouter({
         name: 'UserCenter',
       },
     },
+    // 粉丝与好友（只读的关系列表）：入口在「我的音乐」页的账号卡上，
+    // `meta.name` 故意取 'UserCenter'——它不在左侧一级导航里，高亮该落在入口那一项上
+    {
+      path: '/friends',
+      name: 'Friends',
+      component: require('./views/friends/index.vue').default,
+      meta: {
+        name: 'UserCenter',
+      },
+    },
     {
       path: '/musicHall',
       name: 'MusicHall',

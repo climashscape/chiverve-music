@@ -47,6 +47,36 @@
         <p v-if="detail.desc" :class="$style.desc">{{ detail.desc }}</p>
       </section>
 
+      <!-- 制作人（幕后名单）：按职责分组；没有数据时整块不渲染（`producers.list` 空） -->
+      <section v-if="producers.list.length" :class="$style.section">
+        <h3 :class="$style.title">{{ $t('song_detail__producers') }}</h3>
+        <ul :class="$style.creditList">
+          <li v-for="(group, groupIndex) in producers.list" :key="`${groupIndex}_${group.title}`" :class="$style.creditRow">
+            <span :class="$style.creditRole" :title="group.title">{{ group.title }}</span>
+            <ul :class="$style.creditNames">
+              <li v-for="(item, index) in group.producers" :key="`${index}_${item.name}`" :class="$style.creditName">
+                <img v-if="item.icon" :class="$style.creditAvatar" loading="lazy" decoding="async" :src="item.icon" alt="">
+                <span :class="$style.creditText" :title="item.name">{{ item.name }}</span>
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </section>
+
+      <!-- 曲谱：卡片（封面 + 乐器·谱型·页数）→ 弹窗看乐谱图片；无数据与其它块同一套空态文案 -->
+      <section :class="$style.section">
+        <h3 :class="$style.title">{{ $t('song_detail__sheets') }}</h3>
+        <p v-if="sheets.noItemLabel" :class="$style.empty" v-text="sheets.noItemLabel" />
+        <ul v-else :class="$style.cards">
+          <li v-for="item in sheets.list" :key="item.id" :class="$style.card" @click="openSheet(item)">
+            <!-- 封面缺了就退到第一张谱面（列表里封面与谱面都是同一份数据的两个字段，没必要再留一个空框） -->
+            <img :class="$style.cardImg" loading="lazy" decoding="async" :src="item.cover || item.images[0]" alt="">
+            <h4 :class="$style.cardName" :title="item.name">{{ item.name }}</h4>
+            <p :class="$style.cardMeta" :title="sheetMeta(item)">{{ sheetMeta(item) }}</p>
+          </li>
+        </ul>
+      </section>
+
       <!-- 相似歌曲：可播（点单曲 = 从这首开始连播本列表，与在线列表同一套） -->
       <section :class="$style.section">
         <h3 :class="$style.title">{{ $t('song_detail__similar') }}</h3>
@@ -121,6 +151,8 @@
       @close="closePlayer"
       @retry="retryUrl"
     />
+    <!-- 曲谱弹窗：视图内弹窗照 §2.5.1 显式 teleport="#view"（在 SheetMusicModal 里） -->
+    <sheet-music-modal :show="sheetModal.show" :sheet="sheetModal.sheet" @close="closeSheet" />
     <!-- 多位歌手时让用户挑（工单 02）：与歌曲表同一套 base-menu -->
     <base-menu v-model="isShowSingerPicker" :menus="singerPickerMenus()" :xy="singerPickerXy" item-name="name" @menu-click="handleSingerPickerClick" />
   </div>
@@ -131,22 +163,25 @@ import { computed, ref, watch } from '@common/utils/vueTools'
 import { useRoute, useRouter } from '@common/utils/vueRouter'
 import usePlay from '@renderer/components/material/OnlineList/usePlay'
 import MvPlayerModal from '@renderer/components/common/MvPlayerModal.vue'
+import SheetMusicModal from './components/SheetMusicModal.vue'
 import { player, openMv as openMvPlayer, closePlayer, retryUrl, type MvInfo } from '@renderer/store/mv'
 import { playMusicInfo } from '@renderer/store/player/state'
 import { setShowPlayerDetail } from '@renderer/store/player/action'
 import useMusicJump from '@renderer/utils/compositions/useMusicJump'
-import useSongDetail, { relatedMvs, relatedPlaylists } from './useSongDetail'
+import useSongDetail, { producers, relatedMvs, relatedPlaylists, sheetMeta, sheets, type SheetMusicItem } from './useSongDetail'
 
 /**
  * 歌曲详情页（工单 09）：`/songDetail?source=tx&mid=<songmid>`。
  *
  * 从歌曲右键菜单的「歌曲详情」进来（原来那一项是**打开 QQ 网页**，现在进本页）。
- * 五个块各自独立三段式：详情失败时四个关联块不发请求、只落空态；某个关联块失败不拖累其它块。
+ * 七个块各自独立三段式：详情失败时六个关联块不发请求、只落空态；某个关联块失败不拖累其它块。
+ * 制作人 / 曲谱是 2026-09-26 追加的资料类块（制作人无数据时整块不渲染，见 useSongDetail）。
  */
 export default {
   name: 'SongDetail',
   components: {
     MvPlayerModal,
+    SheetMusicModal,
   },
   setup() {
     const route = useRoute()
@@ -237,6 +272,16 @@ export default {
       openMvPlayer(info)
     }
 
+    // 曲谱弹窗：`show` 与 `sheet` 放在**同一个对象**里整体换（分两次赋值会出现
+    // 「弹窗已开、内容为空」的一帧：弹窗的 v-if 只认 sheet）
+    const sheetModal = ref<{ show: boolean, sheet: SheetMusicItem | null }>({ show: false, sheet: null })
+    const openSheet = (item: SheetMusicItem) => {
+      sheetModal.value = { show: true, sheet: item }
+    }
+    const closeSheet = () => {
+      sheetModal.value = { ...sheetModal.value, show: false }
+    }
+
     return {
       // 两个在线列表的 `:list-id` 要它（队列身份带 songmid，ui-polish-followups 工单 09）
       mid,
@@ -245,6 +290,10 @@ export default {
       otherVersions,
       relatedPlaylists,
       relatedMvs,
+      producers,
+      sheets,
+      sheetMeta,
+      sheetModal,
       infoRows,
       player,
       handlePlaySimilar,
@@ -253,6 +302,8 @@ export default {
       toAlbum,
       toPlaylist,
       openMv,
+      openSheet,
+      closeSheet,
       closePlayer,
       retryUrl,
       handleSingerClick,
@@ -368,6 +419,44 @@ export default {
 .songList {
   height: 320px;
   position: relative;
+}
+
+// 制作人：角色列定宽 + 名字列换行（与 .infoRow 同一套「标签 72px + 值」语法）
+.creditList {
+  font-size: 12px;
+}
+.creditRow {
+  display: flex;
+  margin-bottom: 8px;
+}
+.creditRole {
+  flex: none;
+  width: 72px;
+  color: var(--color-font-label);
+}
+.creditNames {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  min-width: 0;
+}
+.creditName {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.creditAvatar {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin-right: 6px;
+  border-radius: 50%;
+  object-fit: cover;
+  background-color: var(--color-button-background);
+}
+.creditText {
+  min-width: 0;
+  .mixin-ellipsis-1();
 }
 
 .empty {

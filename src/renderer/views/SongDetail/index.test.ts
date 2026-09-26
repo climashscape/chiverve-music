@@ -22,6 +22,8 @@ const mocks = vi.hoisted(() => {
     replace: vi.fn(),
     setShowPlayerDetail: vi.fn(),
     getDetail: vi.fn(),
+    getProducer: vi.fn(),
+    getSheetMusic: vi.fn(),
     dialog: vi.fn(),
     route,
   }
@@ -51,6 +53,8 @@ vi.mock('@renderer/utils/musicSdk', () => ({
         getOtherVersions: vi.fn(async() => []),
         getRelatedPlaylists: vi.fn(async() => []),
         getRelatedMv: vi.fn(async() => []),
+        getProducer: mocks.getProducer,
+        getSheetMusic: mocks.getSheetMusic,
       },
       getAlbumDetailPageUrl: () => '',
     },
@@ -58,6 +62,15 @@ vi.mock('@renderer/utils/musicSdk', () => ({
 }))
 
 const ENTRY_TEXT = 'song_detail__open_play_detail'
+const PRODUCER_TITLE = 'song_detail__producers'
+const SHEET_TITLE = 'song_detail__sheets'
+
+/** 曲谱弹窗的桩：**只验父组件递给它哪一条、有没有收起**（弹窗自身的渲染不在本文件范围） */
+const SheetMusicModalStub = {
+  name: 'SheetMusicModal',
+  props: ['show', 'sheet'],
+  template: '<div v-if="show" class="sheet-modal">{{ sheet && sheet.name }}</div>',
+}
 
 const stubs = {
   'common-toolbar-actions': { template: '<div><slot /></div>' },
@@ -65,6 +78,7 @@ const stubs = {
   'material-online-list': { template: '<div />' },
   'mv-player-modal': { template: '<div />' },
   'base-menu': { template: '<div />' },
+  'sheet-music-modal': SheetMusicModalStub,
 }
 
 const txMusic = (songId: string): LX.Music.MusicInfoOnline => ({
@@ -95,21 +109,106 @@ const mountDetailPage = async() => {
   return wrapper
 }
 
-describe('views/SongDetail/index.vue 的「打开播放详情页」入口', () => {
-  beforeEach(() => {
-    // 歌单间会串：每个用例都从「什么都没在播」起步
-    playMusicInfo.musicInfo = null
-    mocks.route.query.mid = 'abc'
-    vi.clearAllMocks()
-    mocks.getDetail.mockResolvedValue({
-      // songmid 才是 mid（本页身份）；trackRaw.id = 0 → 四个关联块不再发请求，本测试不关心它们
-      track: { songmid: 'abc', name: '歌名', singer: '歌手', albumMid: '', albumName: '', img: '', interval: '03:00' },
-      trackRaw: { singer: [{ mid: 's1', name: '歌手' }], id: 0, type: 0 },
-      desc: '',
-      info: { company: '', genre: '', lan: '', pubTime: '' },
-    })
+/** 两个 describe 共用的起点：没在播 + 同一条详情 + 制作人/曲谱两个新块没有资料 */
+beforeEach(() => {
+  // 用例间会串：每个用例都从「什么都没在播」起步
+  playMusicInfo.musicInfo = null
+  mocks.route.query.mid = 'abc'
+  vi.clearAllMocks()
+  mocks.getProducer.mockResolvedValue([])
+  mocks.getSheetMusic.mockResolvedValue([])
+  mocks.getDetail.mockResolvedValue({
+    // songmid 才是 mid（本页身份）；trackRaw.id = 0 → 四个关联块不再发请求，本用例组不关心它们
+    track: { songmid: 'abc', name: '歌名', singer: '歌手', albumMid: '', albumName: '', img: '', interval: '03:00' },
+    trackRaw: { singer: [{ mid: 's1', name: '歌手' }], id: 0, type: 0 },
+    desc: '',
+    info: { company: '', genre: '', lan: '', pubTime: '' },
+  })
+})
+
+describe('views/SongDetail/index.vue 的制作人块与曲谱块', () => {
+  it('制作人：有数据时渲染职责分组与姓名，`演唱` 组不在块里重抄（头部已有歌手名）', async() => {
+    mocks.getProducer.mockResolvedValue([
+      { title: '演唱', producers: [{ name: '周杰伦', icon: '', singerMid: 's1' }] },
+      { title: '编曲', producers: [{ name: '钟兴民', icon: 'https://img/1.jpg', singerMid: '' }] },
+    ])
+    const wrapper = await mountDetailPage()
+
+    expect(wrapper.text()).toContain(PRODUCER_TITLE)
+    expect(wrapper.text()).toContain('编曲')
+    expect(wrapper.text()).toContain('钟兴民')
+    // 组标题 `演唱` 只可能来自这一块（头部那行是歌手名 `歌手`），所以整页文本都不该出现它
+    expect(wrapper.text()).not.toContain('演唱')
+    wrapper.unmount()
   })
 
+  it('制作人：没有数据时整块不渲染（连标题都不出现，不留空标题占位）', async() => {
+    mocks.getProducer.mockResolvedValue([])
+    const wrapper = await mountDetailPage()
+
+    expect(wrapper.text()).not.toContain(PRODUCER_TITLE)
+    wrapper.unmount()
+  })
+
+  it('制作人：接口失败只清空、不落文案（这块没有空态），也不拖累其它块', async() => {
+    mocks.getProducer.mockRejectedValue(new Error('boom'))
+    const wrapper = await mountDetailPage()
+
+    expect(wrapper.text()).not.toContain(PRODUCER_TITLE)
+    // 详情块照常渲染（失败是这一块自己的事）
+    expect(wrapper.text()).toContain('song_detail__info')
+    wrapper.unmount()
+  })
+
+  it('曲谱：有数据时卡片带名称与乐器，点卡片把这一条递给弹窗，关闭后弹窗收起', async() => {
+    mocks.getSheetMusic.mockResolvedValue([{
+      id: 'score1',
+      name: '晴天钢琴谱',
+      subName: '',
+      instrument: '钢琴',
+      scoreType: '五线谱',
+      cover: 'https://img/cover.png',
+      images: ['https://img/1.jpg', 'https://img/2.jpg'],
+      pageCount: 2,
+    }])
+    const wrapper = await mountDetailPage()
+
+    expect(wrapper.text()).toContain(SHEET_TITLE)
+    expect(wrapper.text()).toContain('晴天钢琴谱')
+    expect(wrapper.text()).toContain('钢琴')
+    // 没点之前弹窗是收起的（桩里的 `.sheet-modal` 只在 show 为真时渲染）
+    expect(wrapper.find('.sheet-modal').exists()).toBe(false)
+
+    const card = wrapper.findAll('li').find(node => node.text().includes('晴天钢琴谱'))
+    await card!.trigger('click')
+    expect(wrapper.find('.sheet-modal').text()).toBe('晴天钢琴谱')
+
+    await wrapper.findComponent(SheetMusicModalStub).vm.$emit('close')
+    expect(wrapper.find('.sheet-modal').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('曲谱：没有数据时落空态文案（与相关歌单/MV 同一套），不渲染卡片', async() => {
+    mocks.getSheetMusic.mockResolvedValue([])
+    const wrapper = await mountDetailPage()
+
+    expect(wrapper.text()).toContain(SHEET_TITLE)
+    expect(wrapper.text()).toContain('no_item')
+    expect(wrapper.find('.sheet-modal').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('曲谱：接口失败落失败文案（不是空态），页面其它块照常', async() => {
+    mocks.getSheetMusic.mockRejectedValue(new Error('boom'))
+    const wrapper = await mountDetailPage()
+
+    expect(wrapper.text()).toContain('list__load_failed')
+    expect(wrapper.text()).toContain('song_detail__info')
+    wrapper.unmount()
+  })
+})
+
+describe('views/SongDetail/index.vue 的「打开播放详情页」入口', () => {
   it('什么都没在播时，入口不出现', async() => {
     const wrapper = await mountDetailPage()
 
