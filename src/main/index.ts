@@ -11,7 +11,7 @@ import {
   registerDeeplink,
   listenerAppEvent,
 } from './app'
-import { isLinux } from '@common/utils'
+import { isLinux, log } from '@common/utils'
 import { initAppSetting } from '@main/app'
 import registerModules from '@main/modules'
 
@@ -19,10 +19,14 @@ import registerModules from '@main/modules'
 const init = () => {
   console.log('init')
   if (process.env.BUILD_WIN7 == 'true') import('./utils/winLegacy')
-  void initAppSetting().then(() => {
-    registerModules()
-    global.lx.event_app.app_inited()
-  })
+  void initAppSetting()
+    // 初始化失败也必须把窗口开起来：`initAppSetting` 跑在 `registerModules()` 之前，它 reject 的后果是
+    // 「点图标什么都没发生」——连错误都看不见。日志留下线索、界面照常可用。
+    .catch((error) => { log.error('[main] 初始化失败（仍会尝试打开窗口）：', error) })
+    .then(() => {
+      registerModules()
+      global.lx.event_app.app_inited()
+    })
 }
 
 initGlobalData()

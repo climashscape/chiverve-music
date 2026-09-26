@@ -496,3 +496,43 @@ describe('旧库（合成件；设 CHIVERVE_LEGACY_DB 时用真库副本）：�
     expect(idsAfterMaxSize.length).toBeLessThan(rowsBeforeMaxSize)
   })
 })
+
+/**
+ * 两种「历史库形态」的兜底（2026-09-26 全历史自审查发现）。
+ *
+ * 两条在旧实现里都会**抛异常**，而 `init` 的异常会一路冒到 `initAppSetting`（那里没有 catch）→
+ * 建窗口的代码永不执行、界面根本不出现、也没有任何弹窗。所以各钉一条，保证走的是
+ * 「迁移/建表 → 校验」而不是「崩在 `init` 里」。
+ */
+describe('缺 version 行的库（比 v1 更早的形态）：按 v1 起迁移，不再抛 TypeError', () => {
+  it('init 返回 true，且版本号被写成 DB_VERSION', () => {
+    const dir = newCaseDir()
+    const file = dbFileOf(dir)
+    const db = new Database(file)
+    // 当前结构、但不写 db_info 的 version 行——旧实现读 `.field_value` 时在这里 TypeError
+    db.exec(Array.from(tables.values()).join('\n'))
+    db.close()
+
+    expect(init(dir)).toBe(true)
+    expect(readVersion(file)).toBe(DB_VERSION)
+  })
+})
+
+describe('缺 music_url 表的库：按当前定义直接建表，不再抛 SqliteError', () => {
+  it('init 返回 true，建出来的表自带 created_at', () => {
+    const dir = newCaseDir()
+    const file = dbFileOf(dir)
+    const db = new Database(file)
+    // v1 形态：只差 music_url 这张表（旧实现的 `ALTER TABLE ... RENAME` 会在这里抛错）
+    db.exec(Array.from(tables.entries())
+      .filter(([name]) => name != 'music_url')
+      .map(([, sql]) => sql)
+      .join('\n'))
+    db.exec('INSERT INTO "main"."db_info" ("field_name", "field_value") VALUES (\'version\', \'1\');')
+    db.close()
+
+    expect(init(dir)).toBe(true)
+    expect(readColumns(file)).toContain('created_at')
+    expect(readVersion(file)).toBe(DB_VERSION)
+  })
+})

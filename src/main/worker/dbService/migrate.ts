@@ -54,6 +54,12 @@ const migrateV1 = (db: Database.Database) => {
  *    如带 DEFAULT）会被这次重建**归一化**成 `tables.ts` 的定义，而不是被跳过。
  */
 const migrateV2 = (db: Database.Database) => {
+  // 极老的库（`music_url` 表还没出现）没有可迁移的数据，直接按当前定义建表——
+  // 否则下面的 `ALTER TABLE ... RENAME` 会抛 SqliteError，而那条异常会让整个 `init` 失败。
+  if (!hasTable(db, 'music_url')) {
+    db.exec(tables.get('music_url')!)
+    return
+  }
   const hasCreatedAt = (db.pragma('table_info("music_url")') as Array<{ name: string }>)
     .some(column => column.name == 'created_at')
   const createdAtExpr = hasCreatedAt ? '"created_at"' : '0'
@@ -87,27 +93,65 @@ const migrateV3 = (db: Database.Database) => {
   deleteUserLists([LIST_IDS.DEFAULT])
 }
 
+/** 表是否存在（迁移里要按库的实际形态分流，不能假设某张表一定在）。 */
+const hasTable = (db: Database.Database, name: string) =>
+  db.prepare('SELECT name FROM "main".sqlite_master WHERE type=\'table\' AND name=?').get(name) != null
+
+/**
+ * 读取库版本号。
+ *
+ * `db_info` 里没有 `version` 行（或值为空）时**按 '1' 处理**，不是报错：
+ * 1. 这种库本来就来自比 v1 更早的版本，`migrateV1` 正是为它写的（补 `dislike_list` 表）；
+ * 2. 旧实现直接 `.field_value` 会在缺失时抛 TypeError —— 那会让 `init` 失败、窗口都建不出来
+ *    （2026-09-26 全历史自审查发现，配合 `db.ts` 的 try/catch 一起收敛）。
+ */
+const readVersion = (db: Database.Database): string => {
+  const row = db.prepare('SELECT "field_value" FROM "main"."db_info" WHERE "field_name" = ?').get('version') as
+    | { field_value?: unknown }
+    | undefined
+  const value = row?.field_value
+  return value == null || value === '' ? '1' : String(value)
+}
+
+/**
+ * 写入版本号。
+ *
+ * 用「先 UPDATE、没改到行就 INSERT」而不是一条 UPDATE：`db_info` 里可能**根本没有 version 行**
+ * （比 v1 更早的库就长这样），而 UPDATE 打空时不会报错、只是静默什么都没写——
+ * 结果就是迁移跑完了版本号还是缺的，下次启动再跑一遍（或校验不过 → 备份 + 重建空库）。
+ */
+const writeVersion = (db: Database.Database, version: string) => {
+  const result = db.prepare('UPDATE "main"."db_info" SET "field_value"=@value WHERE "field_name"=@name').run({ name: 'version', value: version })
+  if (result.changes === 0) {
+    db.prepare('INSERT INTO "main"."db_info" ("field_name", "field_value") VALUES (@name, @value)').run({ name: 'version', value: version })
+  }
+}
+
 export default (db: Database.Database) => {
   // PRAGMA user_version = x
   // console.log(db.prepare('PRAGMA user_version').get().user_version)
   // https://github.com/WiseLibs/better-sqlite3/issues/668#issuecomment-1145285728
-  const version = (db.prepare<[string]>('SELECT "field_value" FROM "main"."db_info" WHERE "field_name" = ?').get('version') as { field_value: string }).field_value
+  const version = readVersion(db)
   switch (version) {
     case '1':
       migrateV1(db)
-      // '1' 的库要连做后面每一版迁移：版本号直接写成 DB_VERSION 会漏掉 v2 的加列 → 校验不过 → 重建空库
-      migrateV2(db)
-      migrateV3(db)
-      db.prepare('UPDATE "main"."db_info" SET "field_value"=@value WHERE "field_name"=@name').run({ name: 'version', value: DB_VERSION })
-      break
+      // 落穿（fall-through）到下一版：每个 case 只负责自己那一版，版本号在 switch 之后统一写一次。
+      // 旧写法是「每个 case 各自把版本号写成 DB_VERSION」，加新版时漏挂进旧臂 → 旧库被盖章成新版本、
+      // 新迁移没跑 → 校验不过 → 备份后**重建空库**（本文件注释里反复警告的那个灾难）。
+      // eslint-disable-next-line no-fallthrough -- 落穿是本迁移链的设计（见上）
     case '2':
       migrateV2(db)
-      migrateV3(db)
-      db.prepare('UPDATE "main"."db_info" SET "field_value"=@value WHERE "field_name"=@name').run({ name: 'version', value: DB_VERSION })
-      break
+      // eslint-disable-next-line no-fallthrough -- 同上
     case '3':
       migrateV3(db)
-      db.prepare('UPDATE "main"."db_info" SET "field_value"=@value WHERE "field_name"=@name').run({ name: 'version', value: DB_VERSION })
       break
+    default:
+      // 未知版本（比 DB_VERSION 新，或字段被写坏）：不动库、只留一条日志。
+      // 不能假装成功，也不能自己回退版本号——该不该重建由调用方按 verifyDB 的结果决定。
+      if (version !== DB_VERSION) {
+        console.error(`[dbService] 未知的数据库版本号 "${version}"（当前代码为 "${DB_VERSION}" ），跳过迁移`)
+      }
+      return
   }
+  writeVersion(db, DB_VERSION)
 }

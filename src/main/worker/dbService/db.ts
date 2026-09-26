@@ -21,27 +21,51 @@ export const init = (lxDataPath: string): boolean | null => {
   const nativeBinding = path.join(__dirname, '../node_modules/better-sqlite3/build/Release/better_sqlite3.node')
   let dbFileExists = true
 
+  /**
+   * 打开之后的每一步都可能抛错（建表 / pragma / 迁移 / 校验），而 `init` 的调用方
+   * （`main/app.ts` 的 `initAppSetting`）只认识三种返回值：`true`/`false` = 库可用、
+   * `null` = 校验不过（它会弹窗 + 把旧库改名备份后重建空库）。一个未捕获的异常会直接让
+   * `initAppSetting` 的 promise reject，而那里的调用点（`main/index.ts` 的
+   * `void initAppSetting().then(...)`）**没有 catch** → 建窗口的代码永不执行、界面根本不出现、
+   * 也没有任何弹窗提示（只留一条日志）——比"备份后重建"糟糕得多。
+   * 所以这里把异常统一收敛成 `null`，交给调用方走它已经设计好的恢复路径。
+   *
+   * 已知会走到这里的两种历史库形态由 migrate.ts 自己兜住（缺 version 行 / 缺 music_url 表），
+   * 这里的 catch 是最后一道网，不是唯一一道。
+   */
   try {
-    db = new Database(databasePath, {
-      fileMustExist: true,
-      nativeBinding,
-      // verbose: process.env.NODE_ENV !== 'production' ? console.log : undefined,
-    })
+    try {
+      db = new Database(databasePath, {
+        fileMustExist: true,
+        nativeBinding,
+        // verbose: process.env.NODE_ENV !== 'production' ? console.log : undefined,
+      })
+    } catch (error) {
+      // 文件不存在（首次运行）或文件损坏（不是合法的 SQLite 库）都会走到这里：
+      // 前者是正常路径，后者会在 initTables 抛错、由外层 catch 收成 `null` 交给调用方重建。
+      console.log(error)
+      db = new Database(databasePath, {
+        nativeBinding,
+        // verbose: process.env.NODE_ENV !== 'production' ? console.log : undefined,
+      })
+      initTables(db)
+      dbFileExists = false
+    }
+
+    db.pragma('journal_mode = WAL')
+
+    if (dbFileExists) migrateData(db)
+
+    // https://www.sqlite.org/pragma.html#pragma_optimize
+    if (dbFileExists) db.exec('PRAGMA optimize;')
   } catch (error) {
-    console.log(error)
-    db = new Database(databasePath, {
-      nativeBinding,
-      // verbose: process.env.NODE_ENV !== 'production' ? console.log : undefined,
-    })
-    initTables(db)
-    dbFileExists = false
+    console.error('[dbService] 数据库打开后初始化失败（建表 / 迁移 / pragma），将按「校验失败」处理：', error)
+    try {
+      db.close()
+    } catch {}
+    return null
   }
-  db.pragma('journal_mode = WAL')
 
-  if (dbFileExists) migrateData(db)
-
-  // https://www.sqlite.org/pragma.html#pragma_optimize
-  if (dbFileExists) db.exec('PRAGMA optimize;')
   if (!verifyDB(db)) {
     db.close()
     return null

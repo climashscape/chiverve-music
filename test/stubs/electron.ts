@@ -127,18 +127,37 @@ const rendererListenerMap = new Map<string, Set<Listener>>()
 /** `webContents.send` / `ipcRenderer.send` 落到这里，供测试取用 */
 const emittedMap = new Map<string, any[]>()
 
+/**
+ * `once` 的包装器要带 `.listener` 指向原始 listener——这不是装饰，是 Node / Electron 的
+ * EventEmitter 语义：`removeListener(name, 原始引用)` 靠 `wrapper.listener` 才匹配得到包装器。
+ * （2026-09-26 实测：桩原先不带这个字段，于是「注册 once → 在触发前摘掉」在桩里删不掉、
+ * 真机却能删——测试与真实行为不一致，比没有测试更危险。）
+ */
 const addTo = (map: Map<string, Set<Listener>>, name: string, listener: Listener, once = false) => {
   const set = map.get(name) ?? new Set<Listener>()
   map.set(name, set)
   if (once) {
     const wrapper: Listener = (...args) => {
-      set.delete(wrapper)
+      removeFrom(map, name, wrapper)
       return listener(...args)
     }
+    ;(wrapper as any).listener = listener
     set.add(wrapper)
     return
   }
   set.add(listener)
+}
+
+/** 与 EventEmitter 一致：命中 `listener` 本身或它的 `once` 包装器（`.listener`）都算匹配 */
+const removeFrom = (map: Map<string, Set<Listener>>, name: string, listener: Listener) => {
+  const set = map.get(name)
+  if (set == null) return
+  for (const item of set) {
+    if (item === listener || (item as any).listener === listener) {
+      set.delete(item)
+      return
+    }
+  }
 }
 
 const recordEmit = (name: string, params?: any) => {
@@ -163,8 +182,8 @@ export const ipcMain = {
   removeHandler: vi.fn((name: string) => { mainHandlerMap.delete(name) }),
   on: vi.fn((name: string, listener: Listener) => { addTo(mainListenerMap, name, listener) }),
   once: vi.fn((name: string, listener: Listener) => { addTo(mainListenerMap, name, listener, true) }),
-  off: vi.fn((name: string, listener: Listener) => { mainListenerMap.get(name)?.delete(listener) }),
-  removeListener: vi.fn((name: string, listener: Listener) => { mainListenerMap.get(name)?.delete(listener) }),
+  off: vi.fn((name: string, listener: Listener) => { removeFrom(mainListenerMap, name, listener) }),
+  removeListener: vi.fn((name: string, listener: Listener) => { removeFrom(mainListenerMap, name, listener) }),
   removeAllListeners: vi.fn((name?: string) => {
     if (name == null) mainListenerMap.clear()
     else mainListenerMap.delete(name)
@@ -182,8 +201,8 @@ export const ipcRenderer = {
   }),
   on: vi.fn((name: string, listener: Listener) => { addTo(rendererListenerMap, name, listener) }),
   once: vi.fn((name: string, listener: Listener) => { addTo(rendererListenerMap, name, listener, true) }),
-  off: vi.fn((name: string, listener: Listener) => { rendererListenerMap.get(name)?.delete(listener) }),
-  removeListener: vi.fn((name: string, listener: Listener) => { rendererListenerMap.get(name)?.delete(listener) }),
+  off: vi.fn((name: string, listener: Listener) => { removeFrom(rendererListenerMap, name, listener) }),
+  removeListener: vi.fn((name: string, listener: Listener) => { removeFrom(rendererListenerMap, name, listener) }),
   removeAllListeners: vi.fn((name?: string) => {
     if (name == null) rendererListenerMap.clear()
     else rendererListenerMap.delete(name)

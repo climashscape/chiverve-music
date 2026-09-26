@@ -287,15 +287,17 @@ const backupDB = (backupPath: string) => {
 }
 
 let isInitialized = false
-export const initAppSetting = async() => {
-  if (!global.lx.inited) {
-    const config = await initHotKey()
-    global.lx.hotKey.config.local = config.local
-    global.lx.hotKey.config.global = config.global
-    global.lx.inited = true
-  }
 
-  if (!isInitialized) {
+/**
+ * 初始化数据库；校验失败（`init` 返回 `null`）时走既有恢复口径：弹窗告知 → 旧库改名备份 → 重建空库。
+ *
+ * **本函数保证不抛出**：它被 `initAppSetting` 调用，而后者跑在 `registerModules()`（建窗口）之前，
+ * 一旦 reject，界面永远不会出现（`main/index.ts` 的 `void initAppSetting().then(...)` 没有 catch）。
+ * 宁可带着一个降级的库把窗口开起来、把错误写进日志，也不要「点了图标什么都没发生」。
+ * （2026-09-26 全历史自审查发现：`db.init` 里的 pragma/migrate 曾在 try/catch 之外，任一处抛错即此后果。）
+ */
+const initDBWithRecovery = async(): Promise<boolean | null> => {
+  try {
     let dbFileExists = await global.lx.worker.dbService.init(global.lxDataPath)
     if (dbFileExists === null) {
       const backupPath = path.join(global.lxDataPath, `lx.data.db.${Date.now()}.bak`)
@@ -307,6 +309,23 @@ export const initAppSetting = async() => {
       backupDB(backupPath)
       dbFileExists = await global.lx.worker.dbService.init(global.lxDataPath)
     }
+    return dbFileExists
+  } catch (error) {
+    log.error('[db] 初始化失败（已跳过，界面仍会打开；数据库相关功能不可用）：', error)
+    return null
+  }
+}
+
+export const initAppSetting = async() => {
+  if (!global.lx.inited) {
+    const config = await initHotKey()
+    global.lx.hotKey.config.local = config.local
+    global.lx.hotKey.config.global = config.global
+    global.lx.inited = true
+  }
+
+  if (!isInitialized) {
+    const dbFileExists = await initDBWithRecovery()
     global.lx.appSetting = (await initSetting()).setting
     if (!dbFileExists) await migrateDBData().catch(err => { log.error(err) })
     // URL 缓存回收（设置页重构票 08）：设置与库都就绪之后回收一次。
