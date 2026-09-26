@@ -89,8 +89,12 @@ export const relatedMvs = reactive<{ list: any[], noItemLabel: string }>({ list:
 /** 制作人块：**空数组时整块不渲染**（QQ 侧没有资料就是没有，不留一个空标题占位）。 */
 export const producers = reactive<{ list: ProducerGroup[] }>({ list: [] })
 
-/** 曲谱块：与相关歌单/相关 MV 同一套三段式（loading / 空 / 失败 都落在 `noItemLabel`）。 */
-export const sheets = reactive<{ list: SheetMusicItem[], noItemLabel: string }>({ list: [], noItemLabel: '' })
+/**
+ * 曲谱块：**没有曲谱就整块不渲染**（票 03：QQ 侧 `code=10007`「这类歌没有曲谱」是常态，
+ * 空标题 + `no_item` 会被当成「加载失败/坏掉」）；只有**取数失败**才留一行提示
+ * （失败不能伪装成「这首歌没有曲谱」）。loading 期间也整块不出——不留占位标题。
+ */
+export const sheets = reactive<{ list: SheetMusicItem[], errorLabel: string }>({ list: [], errorLabel: '' })
 
 /**
  * 「演唱」组不进制作人块：它是页面头部那行歌手名（而且头部那份可点、能跳歌手页），
@@ -128,7 +132,7 @@ const load = async(mid: string) => {
   // 换 mid 时先清掉上一首的资料，别让旧的制作人/曲谱挂在新歌上
   producers.list.splice(0, producers.list.length)
   sheets.list.splice(0, sheets.list.length)
-  sheets.noItemLabel = t('list__loading')
+  sheets.errorLabel = ''
   similar.noItemLabel = t('list__loading')
   otherVersions.noItemLabel = t('list__loading')
   relatedPlaylists.noItemLabel = t('list__loading')
@@ -176,7 +180,7 @@ const load = async(mid: string) => {
     otherVersions.noItemLabel = label
     relatedPlaylists.noItemLabel = label
     relatedMvs.noItemLabel = label
-    sheets.noItemLabel = label
+    sheets.errorLabel = label
   }
 }
 
@@ -196,11 +200,12 @@ const loadSheets = async() => {
   try {
     const list: SheetMusicItem[] = await music.tx.songDetail.getSheetMusic(detail.mid)
     sheets.list.splice(0, sheets.list.length, ...list)
-    sheets.noItemLabel = sheets.list.length ? '' : t('no_item')
+    sheets.errorLabel = ''
   } catch (err: any) {
     console.log('[songDetail] sheets', err)
     sheets.list.splice(0, sheets.list.length)
-    sheets.noItemLabel = errorLabel(err)
+    // 失败与「没有曲谱」分开（票 03）：空数组 = 无谱 = 整块不渲染，失败要留下原因
+    sheets.errorLabel = errorLabel(err)
   }
 }
 

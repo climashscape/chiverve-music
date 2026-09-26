@@ -65,11 +65,12 @@ const ENTRY_TEXT = 'song_detail__open_play_detail'
 const PRODUCER_TITLE = 'song_detail__producers'
 const SHEET_TITLE = 'song_detail__sheets'
 
-/** 曲谱弹窗的桩：**只验父组件递给它哪一条、有没有收起**（弹窗自身的渲染不在本文件范围） */
+/** 曲谱弹窗的桩：**只验父组件递给它哪一条、有没有收起**（弹窗自身的渲染不在本文件范围）。
+ *  真组件的 `sheet` 是非空 prop（父组件 `v-if` 兜，见票 04），桩里照此写。 */
 const SheetMusicModalStub = {
   name: 'SheetMusicModal',
   props: ['show', 'sheet'],
-  template: '<div v-if="show" class="sheet-modal">{{ sheet && sheet.name }}</div>',
+  template: '<div v-if="show" class="sheet-modal">{{ sheet.name }}</div>',
 }
 
 const stubs = {
@@ -126,6 +127,21 @@ beforeEach(() => {
   })
 })
 
+/** 某个块的文本：按块的标题找 `<section>`（页面级 `wrapper.text()` 会串进别的块的 `no_item`） */
+const sectionText = (wrapper: { findAll: (s: string) => Array<{ text: () => string }> }, title: string) =>
+  wrapper.findAll('section').find(node => node.text().includes(title))?.text() ?? ''
+
+const SHEET_ITEM = {
+  id: 'score1',
+  name: '晴天钢琴谱',
+  subName: '',
+  instrument: '钢琴',
+  scoreType: '五线谱',
+  cover: 'https://img/cover.png',
+  images: ['https://img/1.jpg', 'https://img/2.jpg'],
+  pageCount: 2,
+}
+
 describe('views/SongDetail/index.vue 的制作人块与曲谱块', () => {
   it('制作人：有数据时渲染职责分组与姓名，`演唱` 组不在块里重抄（头部已有歌手名）', async() => {
     mocks.getProducer.mockResolvedValue([
@@ -161,16 +177,7 @@ describe('views/SongDetail/index.vue 的制作人块与曲谱块', () => {
   })
 
   it('曲谱：有数据时卡片带名称与乐器，点卡片把这一条递给弹窗，关闭后弹窗收起', async() => {
-    mocks.getSheetMusic.mockResolvedValue([{
-      id: 'score1',
-      name: '晴天钢琴谱',
-      subName: '',
-      instrument: '钢琴',
-      scoreType: '五线谱',
-      cover: 'https://img/cover.png',
-      images: ['https://img/1.jpg', 'https://img/2.jpg'],
-      pageCount: 2,
-    }])
+    mocks.getSheetMusic.mockResolvedValue([SHEET_ITEM])
     const wrapper = await mountDetailPage()
 
     expect(wrapper.text()).toContain(SHEET_TITLE)
@@ -188,21 +195,25 @@ describe('views/SongDetail/index.vue 的制作人块与曲谱块', () => {
     wrapper.unmount()
   })
 
-  it('曲谱：没有数据时落空态文案（与相关歌单/MV 同一套），不渲染卡片', async() => {
+  it('曲谱：没有曲谱时整块不渲染（标题与 no_item 都不出现）——票 03 的判据', async() => {
     mocks.getSheetMusic.mockResolvedValue([])
     const wrapper = await mountDetailPage()
 
-    expect(wrapper.text()).toContain(SHEET_TITLE)
-    expect(wrapper.text()).toContain('no_item')
+    expect(sectionText(wrapper, SHEET_TITLE)).toBe('')
+    expect(wrapper.text()).not.toContain(SHEET_TITLE)
     expect(wrapper.find('.sheet-modal').exists()).toBe(false)
     wrapper.unmount()
   })
 
-  it('曲谱：接口失败落失败文案（不是空态），页面其它块照常', async() => {
+  it('曲谱：接口失败落失败文案（不是空态，也不能整块静默消失），页面其它块照常', async() => {
     mocks.getSheetMusic.mockRejectedValue(new Error('boom'))
     const wrapper = await mountDetailPage()
 
-    expect(wrapper.text()).toContain('list__load_failed')
+    // 失败必须可见：标题 + 原因都在，且不能被伪装成「没有曲谱」
+    const sheet = sectionText(wrapper, SHEET_TITLE)
+    expect(sheet).toContain(SHEET_TITLE)
+    expect(sheet).toContain('list__load_failed')
+    expect(sheet).not.toContain('no_item')
     expect(wrapper.text()).toContain('song_detail__info')
     wrapper.unmount()
   })

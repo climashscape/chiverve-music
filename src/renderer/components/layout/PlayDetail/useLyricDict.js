@@ -1,6 +1,7 @@
 import { ref, watch, onBeforeUnmount } from '@common/utils/vueTools'
 import { playMusicInfo } from '@renderer/store/player/state'
 import music from '@renderer/utils/musicSdk'
+import { toOldMusicInfo } from '@renderer/utils'
 // `matchDictEntries` 是纯匹配函数（词条 ↔ 歌词选区），留在原模块；**取数走统一入口** `music.tx.getLyricDict`
 import { matchDictEntries } from '@renderer/utils/musicSdk/tx/lyric'
 
@@ -19,7 +20,11 @@ import { matchDictEntries } from '@renderer/utils/musicSdk/tx/lyric'
  * 2. **失败静默**：词典是可选装饰。请求失败/超时只 `console.warn`，不弹提示、不打断播放
  *    （`isLyricDictAvailable` 保持 false，等于这首歌没有词典）。
  * 3. **缓存按 songmid**：切走再切回不重复请求；模块级 Map 让「开关播放详情页」也不重取。
- * 4. 本地音乐没有 songmid，直接跳过（`getSongId` 会抛，这里不发请求）。
+ * 4. **mid 取 `meta.songId`，请求前转回老式模型**：`watch` 拿到的 musicInfo 是新式模型
+ *    （`{id,name,singer,source,interval,meta}`），mid 存在 `meta.songId`（老式平铺对象才叫 `songmid`，
+ *    见 `@common/utils/tools` 的映射）；而数据层 `getSongId({songId, songmid})` 读的是**老式**两个键，
+ *    新式对象上取不到 → 必须 `toOldMusicInfo()` 一次（与 `core/music/utils.ts` 取歌词那条路一致）。
+ *    本地音乐直接跳过：它的 `meta.songId` 是文件路径，`getSongId` 会抛，这里不发请求。
  */
 const dictCache = new Map()
 
@@ -42,7 +47,8 @@ export default () => {
   }
 
   const loadDict = (musicInfo) => {
-    const mid = musicInfo?.songmid ?? null
+    // 新式模型里 mid 是 `meta.songId`（不是顶层 `songmid`——那是老式平铺对象的字段，见文件头第 4 条）
+    const mid = musicInfo?.meta?.songId ?? null
     holder?.cancelHttp()
     holder = null
     pending = null
@@ -52,7 +58,8 @@ export default () => {
     // 切歌时把上一次的查询结果一起丢掉：留着会在新歌上闪一下旧歌的释义
     lyricDictVisible.value = false
     lyricDictLoading.value = false
-    if (!mid) return
+    // 本地音乐没有 songmid（`meta.songId` 是文件路径），`getSongId` 会抛——不发请求
+    if (!mid || musicInfo?.source == 'local') return
 
     const cached = dictCache.get(mid)
     if (cached) {
@@ -61,7 +68,8 @@ export default () => {
     }
 
     const targetMid = mid
-    const request = music.tx.getLyricDict(musicInfo)
+    // 取数层要老式对象（`getSongId` 读 `songmid` / 数字 `songId`），见文件头第 4 条
+    const request = music.tx.getLyricDict(toOldMusicInfo(musicInfo))
     holder = request
     const wrapper = request.promise.then((list) => {
       dictCache.set(targetMid, list)

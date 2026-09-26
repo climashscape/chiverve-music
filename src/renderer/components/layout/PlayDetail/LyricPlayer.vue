@@ -70,6 +70,7 @@ import { appSetting } from '@renderer/store/setting'
 import { setLyricOffset } from '@renderer/core/lyric'
 import useSelectAllLrc from './useSelectAllLrc'
 import useLyricDict from './useLyricDict'
+import { wordAtPoint } from './lyricWordAtPoint'
 
 export default {
   components: {
@@ -155,21 +156,22 @@ export default {
     /**
      * 双击歌词里的词 → 查释义。
      * 为什么是**双击**而不是单击：单击 / 按下已经被 `useLyric` 拿去拖拽滚动歌词了
-     * （`handleLyricMouseDown` + document 上的 mousemove），再叠单击必然误触。双击时浏览器会
-     * 自动选中光标下的词，所以「选中的文本」就是用户想查的词，直接用 `getSelection()` 读。
-     * 选区必须落在歌词区里：本页旁边还有封面/歌名/歌手，那里的选区不该当歌词查。
+     * （`handleLyricMouseDown` + document 上的 mousemove），再叠单击必然误触。
+     *
+     * 取词**不依赖浏览器选区**：整个应用 `user-select: none`（`App.vue`，拖拽滚动的前提），
+     * 双击建不起选区，旧写法（读 `getSelection()`）在真机上恒为空。改成按**点击坐标**取词
+     * （`wordAtPoint`，见 `lyricWordAtPoint.ts` 的文件头），所以不必放开可选、不动拖拽手感。
+     * 命中位置必须落在歌词区里：本页旁边还有封面/歌名，那里的双击不该当歌词查。
      *
      * **这首歌没有词典就整个不动**（与「悬停提示只在有词典时挂」同一条判据）：实测中文歌 / 日文歌
      * 都没有词典，让它们双击弹一个「无释义」既没用又多一次请求。词典还在路上时照走，
      * 弹窗自己给加载态（见 `useLyricDict` 的 `lookupWord`）。
      */
-    const handleLyricDblclick = () => {
+    const handleLyricDblclick = (event) => {
       if (!isLyricDictAvailable.value) return
-      const selection = window.getSelection()
-      const text = selection?.toString().trim()
-      if (!text || !selection.anchorNode) return
-      if (!dom_lyric.value?.contains(selection.anchorNode)) return
-      lookupLyricWord(text)
+      const word = wordAtPoint(event?.clientX, event?.clientY, dom_lyric.value)
+      if (!word) return
+      lookupLyricWord(word)
     }
 
     const lrcStyles = computed(() => {

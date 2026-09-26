@@ -63,10 +63,13 @@
         </ul>
       </section>
 
-      <!-- 曲谱：卡片（封面 + 乐器·谱型·页数）→ 弹窗看乐谱图片；无数据与其它块同一套空态文案 -->
-      <section :class="$style.section">
+      <!-- 曲谱：卡片（封面 + 乐器·谱型·页数）→ 弹窗看乐谱图片。
+           **没有曲谱就整块不渲染**（票 03）：QQ 侧 `code=10007`（很多歌就是没有谱）是常态，
+           出「曲谱 + 列表竟然是空的...」会被当成页面坏了；只有**取数失败**才留一行提示
+           （失败不能伪装成「没有曲谱」），所以显隐判据是「有列表 或 有失败原因」。 -->
+      <section v-if="sheets.list.length || sheets.errorLabel" :class="$style.section">
         <h3 :class="$style.title">{{ $t('song_detail__sheets') }}</h3>
-        <p v-if="sheets.noItemLabel" :class="$style.empty" v-text="sheets.noItemLabel" />
+        <p v-if="sheets.errorLabel" :class="$style.empty" v-text="sheets.errorLabel" />
         <ul v-else :class="$style.cards">
           <li v-for="item in sheets.list" :key="item.id" :class="$style.card" @click="openSheet(item)">
             <!-- 封面缺了就退到第一张谱面（列表里封面与谱面都是同一份数据的两个字段，没必要再留一个空框） -->
@@ -151,8 +154,10 @@
       @close="closePlayer"
       @retry="retryUrl"
     />
-    <!-- 曲谱弹窗：视图内弹窗照 §2.5.1 显式 teleport="#view"（在 SheetMusicModal 里） -->
-    <sheet-music-modal :show="sheetModal.show" :sheet="sheetModal.sheet" @close="closeSheet" />
+    <!-- 曲谱弹窗：视图内弹窗照 §2.5.1 显式 teleport="#view"（在 SheetMusicModal 里）。
+         `v-if` 是**类型要求**（票 04）：`sheet` prop 不能是可空类型，否则 vue-loader 生成
+         `type: [Object, null]` 让 ts-loader 报 TS2769、dev/build 双带错。 -->
+    <sheet-music-modal v-if="sheetModal.sheet" :show="sheetModal.show" :sheet="sheetModal.sheet" @close="closeSheet" />
     <!-- 多位歌手时让用户挑（工单 02）：与歌曲表同一套 base-menu -->
     <base-menu v-model="isShowSingerPicker" :menus="singerPickerMenus()" :xy="singerPickerXy" item-name="name" @menu-click="handleSingerPickerClick" />
   </div>

@@ -1,6 +1,6 @@
 <template>
   <material-modal :show="show" :max-width="'78%'" :max-height="'88%'" teleport="#view" @close="$emit('close')">
-    <div v-if="sheet" :class="$style.container">
+    <div :class="$style.container">
       <h2 :class="$style.title" :title="sheet.name">{{ sheet.name }}</h2>
       <!-- 副标题里已经有「乐器 · 谱型 · 共 N 页」，所以图片只按页序编号，不重复说明 -->
       <p :class="$style.meta">
@@ -34,15 +34,21 @@ import { sheetMeta, type SheetMusicItem } from '../useSongDetail'
  * 键盘/按钮两组入口，收益不成比例。
  *
  * `material-modal` 自带关闭键与背景压暗（§2.5.1 第 2 条），这里不自造 teleport/遮罩。
+ *
+ * ⚠️ `sheet` 的类型**不能写 `SheetMusicItem | null`**（票 04）：vue-loader 会把可空对象编成
+ * `{ type: [Object, null], required: true }`，而本仓的 Vue 3.3 类型面里 `null` 不是合法的
+ * `PropConstructor` → ts-loader 报 TS2769，dev 编译每次带错（全屏错误浮层 + HMR 被拒），
+ * `npm run build` 也非 0 退出。改成非空 + 父组件 `v-if="sheetModal.sheet"` 兜（本仓的
+ * `defineProps<{...}>()` 纯类型写法是其惯例，`PropType` 全仓无先例，别为此新造一种写法）。
  */
 const props = defineProps<{
   show: boolean
-  /** 没有选中曲谱时为 null（弹窗不显示内容） */
-  sheet: SheetMusicItem | null
+  /** 当前选中的曲谱；父组件只在有值时渲染本组件（所以这里不需要 `| null`） */
+  sheet: SheetMusicItem
 }>()
 defineEmits(['close'])
 
-const meta = computed(() => (props.sheet ? sheetMeta(props.sheet) : ''))
+const meta = computed(() => sheetMeta(props.sheet))
 </script>
 
 <style lang="less" module>
