@@ -99,4 +99,13 @@ describe('layout/PlayBar/ControlBtns 的「我喜欢」心形与「添加到…�
     // 「添加到…」下面挂一颗心（原 `#icon-add-2` 就是心形带加号）正是用户报的那条
     expect(addBtn.find('use').element.outerHTML).not.toContain('love')
   })
+
+  it('没有歌在播时：灰掉 + 悬停说明「为什么灰」（不再是无提示的空 title）', () => {
+    playMusicInfo.musicInfo = null
+    const wrapper = mountBtns()
+
+    const btn = favBtn(wrapper)
+    expect(btn.attributes('disabled')).toBeDefined()
+    expect(btn.attributes('title')).toBe(t('player__love_disabled_no_music'))
+  })
 })

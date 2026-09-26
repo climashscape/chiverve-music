@@ -59,6 +59,15 @@ export default () => {
   const handlePlayPrev = () => {
     void playPrev()
   }
+  // 「不喜欢」：`dislikeMusic` 里两次 await 都可能 reject（写云端不喜欢 / 切下一首），快捷键这条
+  // 链路没人接就会漏成未处理 rejection——dev 下 webpack-dev-server 据此弹全屏浮层（fixed; inset:0）
+  // 吞掉真实鼠标输入（票 03b）。与 deeplink 的 usePlayerAction.ts 同口径：收口 + 留上下文日志。
+  // （`collectMusic` / `uncollectMusic` 不需要包：它们内部已 catch 并弹 dialog，不会 reject。）
+  const handleDislike = () => {
+    void dislikeMusic().catch((err: any) => {
+      console.log('[player] dislike', err)
+    })
+  }
 
   const addPowerSaveBlocker = () => {
     setPowerSaveBlocker(true)
@@ -139,7 +148,7 @@ export default () => {
   window.key_event.on(HOTKEY_PLAYER.toggle_play.action, togglePlay)
   window.key_event.on(HOTKEY_PLAYER.music_love.action, collectMusic)
   window.key_event.on(HOTKEY_PLAYER.music_unlove.action, uncollectMusic)
-  window.key_event.on(HOTKEY_PLAYER.music_dislike.action, dislikeMusic)
+  window.key_event.on(HOTKEY_PLAYER.music_dislike.action, handleDislike)
   window.key_event.on(HOTKEY_PLAYER.seekbackward.action, handleSeekbackward)
   window.key_event.on(HOTKEY_PLAYER.seekforward.action, handleSeekforward)
 
@@ -163,7 +172,7 @@ export default () => {
     window.key_event.off(HOTKEY_PLAYER.toggle_play.action, togglePlay)
     window.key_event.off(HOTKEY_PLAYER.music_love.action, collectMusic)
     window.key_event.off(HOTKEY_PLAYER.music_unlove.action, uncollectMusic)
-    window.key_event.off(HOTKEY_PLAYER.music_dislike.action, dislikeMusic)
+    window.key_event.off(HOTKEY_PLAYER.music_dislike.action, handleDislike)
     window.key_event.off(HOTKEY_PLAYER.seekbackward.action, handleSeekbackward)
     window.key_event.off(HOTKEY_PLAYER.seekforward.action, handleSeekforward)
 

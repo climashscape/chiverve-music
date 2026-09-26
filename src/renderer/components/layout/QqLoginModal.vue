@@ -4,7 +4,7 @@
       <h2 :class="$style.title">{{ $t('qq_auth__login_title') }}</h2>
 
       <div :class="$style.qrBox">
-        <img v-if="qrcode" :src="qrcode" :class="$style.qr" alt="QQ 登录二维码">
+        <img v-if="qrcode" :src="qrcode" :class="$style.qr" :alt="$t('qq_auth__qrcode_alt')">
         <span v-else :class="$style.qrPlaceholder">…</span>
       </div>
 
@@ -79,6 +79,9 @@ const tipText = computed(() => {
 }
 
 .qrPlaceholder {
+  // 硬编码灰而非 token：这块底被强制成白色（见上面 `.qrBox`），主题 token 在白底上的对比度
+  // 不可控——深色主题的 `--color-font` / `--color-font-label` 本身是浅色，压在白底上几乎看不见。
+  // 取一个两种主题下都能看见的中灰（#bbb ≈ 1.9:1，只是加载占位符，不承载信息）
   color: #bbb;
   font-size: 24px;
 }

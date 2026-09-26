@@ -62,7 +62,12 @@ if (appSetting['search.isShowHotSearch']) {
 }
 
 if (appSetting['search.isShowHistorySearch']) {
-  void getHistoryList()
+  // 收口：`getHistoryList` 走 IPC（搜不到历史文件也会 reject），setup 里的 `void` 没人接就会漏到
+  // 顶层——dev 下 webpack-dev-server 据此弹全屏浮层（fixed; inset:0）吞掉真实鼠标输入（票 03b）。
+  // 历史读不到不影响搜索本身（下面只是渲染热词/历史区），只留一行带上下文的日志。
+  void getHistoryList().catch((err) => {
+    console.log('[search] 获取搜索历史失败', err)
+  })
 }
 
 const router = useRouter()

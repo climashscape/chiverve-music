@@ -67,7 +67,9 @@ export default {
           mediaDeviceId.value = appSetting['player.mediaDeviceId']
         }
       } else {
-        appSetting['player.mediaDeviceId'] = mediaDeviceId.value
+        // 走 `updateSetting` 这条唯一会写进主进程配置的通道：直改 `appSetting[...]` 只动渲染侧的副本，
+        // 当次播放有效、**重启就丢**（2026-09-26 复核的缺陷 9）
+        updateSetting({ 'player.mediaDeviceId': mediaDeviceId.value })
       }
     }
     watch(() => appSetting['player.mediaDeviceId'], val => {

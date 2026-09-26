@@ -1,5 +1,7 @@
 <template>
   <ul ref="dom_lists_list" class="scroll" :class="$style.listsContent">
+    <!-- 榜单列表取不到时不能只留空左栏：复用既有的 list__load_failed（store 的歌单/榜单两处同款），不自造新 key -->
+    <li v-if="isLoadFailed" :class="$style.loadFailed">{{ $t('list__load_failed') }}</li>
     <li
       v-for="(item, index) in list"
       :key="item.id" :class="[$style.listsItem, { [$style.active]: item.id == boardId }, { [$style.clicked]: rightClickItemIndex == index }]"
@@ -46,6 +48,7 @@ const router = useRouter()
 const route = useRoute()
 
 const list = shallowReactive([])
+const isLoadFailed = ref(false)
 const rightClickItemIndex = ref(-1)
 
 const handleToggleList = (id) => {
@@ -83,7 +86,25 @@ const handleMenuClick = (action) => {
 watch(() => props.source, async(source) => {
   // const source = (await getLeaderboardSetting()).source as LX.OnlineSource
   let boardList = boards[source]
-  if (boardList == null) setBoard(boardList = await getBoardsList(source), source)
+  if (boardList == null) {
+    try {
+      boardList = await getBoardsList(source)
+    } catch (err) {
+      // 取榜单失败原来只会在控制台留一行：左栏全空、用户看不出是失败还是没数据。
+      // 这里收口 rejection（别漏到顶层弹全屏浮层，票 03b）并落一条可读文案，见模板的 isLoadFailed。
+      console.log('[leaderboard] 获取榜单列表失败', err)
+      isLoadFailed.value = true
+      return
+    }
+    if (!boardList?.list?.length) {
+      // 数据层取不到时会回退内置清单，正常不会走到这里；真走到了也按失败态给文案，别留空白左栏
+      console.log('[leaderboard] 榜单列表为空', source)
+      isLoadFailed.value = true
+      return
+    }
+    setBoard(boardList, source)
+  }
+  isLoadFailed.value = false
   list.splice(0, list.length, ...boardList.list)
   if (!props.boardId && boardList.list.length) handleToggleList(boardList.list[0].id)
 }, {
@@ -103,6 +124,13 @@ defineExpose({ hideMenu: handleMenuClick })
   overflow-y: scroll;
   // overflow-y: scroll !important;
   // border-right: 1px solid rgba(0, 0, 0, 0.12);
+}
+// 取榜单失败时的可读文案（与 store 的 list__load_failed 同款；别让左栏只剩空白）
+.loadFailed {
+  padding: 15px 10px;
+  font-size: 13px;
+  text-align: center;
+  color: var(--color-font-label);
 }
 .listsItem {
   position: relative;

@@ -5,7 +5,9 @@ div(:class="$style.hotKeyContainer" :style="{ opacity: enabled ? 1 : .6 }")
   div(v-for="(item, index) in items" :key="index" :class="$style.hotKeyItem")
     h4(:class="$style.hotKeyItemTitle") {{ $t('setting__hot_key_' + item.name) }}
     //- 录入靠 focus/blur + 直接写 input.value（键名由父组件的 keyDown 监听落到 hotKeyTargetInput），
-    //- 所以这里只把事件透出去，不自己改值
+    //- 所以这里只把事件透出去，不自己改值。
+    //- **必须把 `type`（组名）一起带上**：父组件按 `hotKeyConfig[type][info.name]` 取值，丢了组名就是
+    //- 拿 undefined 去索引、async 里抛 TypeError（真机表现为「focus 无提示、blur 不落盘、按键即抛」）。
     //- `data-setting-id` 由 `hotKeyItemId()`（元数据里登记同一项时用的同一个函数）拼出来，
     //- 搜索命中「上一首歌曲」这类项时就能闪到这个框上
     base-input(
@@ -14,7 +16,7 @@ div(:class="$style.hotKeyContainer" :style="{ opacity: enabled ? 1 : .6 }")
       readonly :auto-paste="false" :placeholder="$t('setting__hot_key_unset_input')"
       :value="config[item.name] && formatKey(config[item.name].key)"
       @keyup.prevent @input.prevent
-      @focus="$emit('focus', $event, item)" @blur="$emit('blur', $event, item)")
+      @focus="$emit('focus', $event, item, type)" @blur="$emit('blur', $event, item, type)")
 </template>
 
 <script>

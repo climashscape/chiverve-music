@@ -25,18 +25,26 @@ const route = useRoute()
 
 const getListData = async(source: LX.OnlineSource, tabId: string, sortId: string, page: number) => {
   // console.log(source, tabId, sortId, page)
-  await getAndSetList(source, tabId, sortId, page).then(() => {
-    if (listInfo.key == window.lx.songListInfo.songlistKey && window.lx.songListInfo.songlistPosition) {
-      void nextTick(() => {
-        list_ref.value?.scrollTo(window.lx.songListInfo.songlistPosition)
-      })
-    } else if (list_ref.value) {
-      window.lx.songListInfo.songlistKey = null
-      void nextTick(() => {
-        list_ref.value.scrollTo(0)
-      })
-    }
-  })
+  // 收口：store 的 catch 是「写完可读提示（listInfo.noItemLabel = list__load_failed）再重抛」，
+  // 调用方（下面的 watch 是 `void getListData(...)`）不接就成未处理 rejection——dev 下
+  // webpack-dev-server 据此弹全屏浮层（fixed; inset:0）吞掉真实鼠标输入（票 03b）。
+  // 提示已由 store 写入，这里只把 rejection 收口并留一行带上下文的日志。
+  try {
+    await getAndSetList(source, tabId, sortId, page).then(() => {
+      if (listInfo.key == window.lx.songListInfo.songlistKey && window.lx.songListInfo.songlistPosition) {
+        void nextTick(() => {
+          list_ref.value?.scrollTo(window.lx.songListInfo.songlistPosition)
+        })
+      } else if (list_ref.value) {
+        window.lx.songListInfo.songlistKey = null
+        void nextTick(() => {
+          list_ref.value.scrollTo(0)
+        })
+      }
+    })
+  } catch (err: any) {
+    console.log('[songlist] 获取歌单广场列表失败', err)
+  }
 }
 
 const togglePage = (page: number) => {

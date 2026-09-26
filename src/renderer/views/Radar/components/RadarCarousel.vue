@@ -111,7 +111,8 @@
     <!-- 多位歌手时让用户挑（工单 02）：与歌曲表同一套 base-menu -->
     <base-menu v-model="isShowSingerPicker" :menus="singerPickerMenus()" :xy="singerPickerXy" item-name="name" @menu-click="handleSingerPickerClick" />
     <common-list-add-modal v-model:show="isShowListAdd" :music-info="selectedAddMusicInfo" teleport="#view" />
-    <common-download-modal v-model:show="isShowDownload" :music-info="selectedDownloadMusicInfo" />
+    <!-- 视图内弹窗都要 teleport="#view"（§2.5.1 第 2 条）：漏了会落到默认的 #root、把整窗压暗 -->
+    <common-download-modal v-model:show="isShowDownload" :music-info="selectedDownloadMusicInfo" teleport="#view" />
   </div>
 </template>
 

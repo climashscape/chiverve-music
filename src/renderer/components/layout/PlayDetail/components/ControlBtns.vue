@@ -97,9 +97,12 @@ export default {
     const favIcon = computed(() => favIconOf(isFav.value))
     /** 键名（无障碍名）：说了要做什么，与行内/菜单/播放栏那三处同一套文案 */
     const favActionTitle = computed(() => isFav.value ? t('list__unlove') : t('list_add__cloud_fav'))
-    /** 悬停提示：灰掉时改说「为什么灰」（没歌 / 这首不能收藏） */
+    /**
+     * 悬停提示：灰掉时改说「为什么灰」（没歌 / 这首不能收藏）。
+     * 没歌时不能返回空串：禁用键没有任何提示，用户看不出是「坏了」还是「现在不能用」。
+     */
     const favTitle = computed(() => {
-      if (currentMusic.value == null) return ''
+      if (currentMusic.value == null) return t('player__love_disabled_no_music')
       return canFav.value ? favActionTitle.value : t('list_add__cloud_no_song_id')
     })
     // 状态不在这里拉：播放链路（usePlayStatus）已会拉一次并缓存住，

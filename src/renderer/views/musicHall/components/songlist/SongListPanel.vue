@@ -54,44 +54,52 @@ export default {
     const visibleOpenSongListModal = ref(false)
 
     const applyQuery = async() => {
-      const rawSource = route.query.source
-      const rawTagId = route.query.tagId
-      const rawSortId = route.query.sortId
-      const rawPage = route.query.page
+      // 收口：函数体里两处 `getSongListSetting` / `setSongListSetting` 是 IPC 调用，失败即 reject，
+      // 而调用方（下面的 watch）是 `void applyQuery()`——没人接就漏到顶层，dev 下 webpack-dev-server
+      // 据此弹全屏浮层（fixed; inset:0）吞掉真实鼠标输入（票 03b）。设置读不到时 query 仍照常驱动
+      // 视图（最坏是本次不写回默认值），所以只收口 + 留一行带上下文的日志。
+      try {
+        const rawSource = route.query.source
+        const rawTagId = route.query.tagId
+        const rawSortId = route.query.sortId
+        const rawPage = route.query.page
 
-      // query 里没有 source（外部直接进 /musicHall?tab=songlist）时，用上次的选择或设置里的默认值补齐
-      if (rawSource == null) {
-        let nextTagId = rawTagId
-        let nextSortId = rawSortId
-        let nextPage = rawPage
-        if (listInfo.key) {
-          nextTagId = listInfo.tagId
-          nextSortId = listInfo.sortId
-          nextPage = listInfo.page.toString()
-        } else {
-          const setting = await getSongListSetting()
-          nextTagId = setting.tagId
-          nextSortId = setting.sortId
-          nextPage = '1'
+        // query 里没有 source（外部直接进 /musicHall?tab=songlist）时，用上次的选择或设置里的默认值补齐
+        if (rawSource == null) {
+          let nextTagId = rawTagId
+          let nextSortId = rawSortId
+          let nextPage = rawPage
+          if (listInfo.key) {
+            nextTagId = listInfo.tagId
+            nextSortId = listInfo.sortId
+            nextPage = listInfo.page.toString()
+          } else {
+            const setting = await getSongListSetting()
+            nextTagId = setting.tagId
+            nextSortId = setting.sortId
+            nextPage = '1'
+          }
+          void router.replace({
+            path: route.path,
+            query: {
+              ...route.query,
+              source: normalizeSource(route.query.source as string | undefined),
+              tagId: nextTagId,
+              sortId: nextSortId,
+              page: nextPage,
+            },
+          })
+          return
         }
-        void router.replace({
-          path: route.path,
-          query: {
-            ...route.query,
-            source: normalizeSource(route.query.source as string | undefined),
-            tagId: nextTagId,
-            sortId: nextSortId,
-            page: nextPage,
-          },
-        })
-        return
-      }
 
-      source.value = normalizeSource(rawSource as string)
-      tagId.value = (rawTagId as string) ?? ''
-      sortId.value = (rawSortId as string) ?? ''
-      page.value = rawPage ? parseInt(rawPage as string) : 1
-      void setSongListSetting({ source: source.value, tagId: rawTagId as string, sortId: rawSortId as string })
+        source.value = normalizeSource(rawSource as string)
+        tagId.value = (rawTagId as string) ?? ''
+        sortId.value = (rawSortId as string) ?? ''
+        page.value = rawPage ? parseInt(rawPage as string) : 1
+        await setSongListSetting({ source: source.value, tagId: rawTagId as string, sortId: rawSortId as string })
+      } catch (err: any) {
+        console.log('[songlist] 应用歌单广场路由参数失败', err)
+      }
     }
 
     watch(() => [route.query.source, route.query.tagId, route.query.sortId, route.query.page], () => { void applyQuery() }, { immediate: true })

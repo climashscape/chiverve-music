@@ -165,10 +165,12 @@ export default {
      *
      * **这首歌没有词典就整个不动**（与「悬停提示只在有词典时挂」同一条判据）：实测中文歌 / 日文歌
      * 都没有词典，让它们双击弹一个「无释义」既没用又多一次请求。词典还在路上时照走，
-     * 弹窗自己给加载态（见 `useLyricDict` 的 `lookupWord`）。
+     * 弹窗自己给加载态（见 `useLyricDict` 的 `lookupWord`）——所以守卫要**连 loading 一起看**：
+     * `isLyricDictAvailable` 只在请求回来且非空时为真，光看它会把「刚切歌、词典还在路上」这一段
+     * 的双击静默丢掉（`useLyricDict` 里 pending 那条分支也就永远走不到）。
      */
     const handleLyricDblclick = (event) => {
-      if (!isLyricDictAvailable.value) return
+      if (!isLyricDictAvailable.value && !lyricDictLoading.value) return
       const word = wordAtPoint(event?.clientX, event?.clientY, dom_lyric.value)
       if (!word) return
       lookupLyricWord(word)

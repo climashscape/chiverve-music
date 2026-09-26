@@ -104,7 +104,12 @@ export default ({ props, listRef }: {
     }
   }
 
-  watch(() => props.list, removeAllSelect)
+  // 列表内容一变就丢掉整个多选集合：只盯引用会被「原地改」绕过——本仓在线列表的写回是
+  // `splice(0, len, ...list)`（`store/user/action.ts`），引用乃至长度都可能不变，而旧的选中项已经
+  // 不在屏上；继续留着，「加入歌单 / 批量下载」就会作用到不显示的歌（2026-09-26 复核的缺陷 3）。
+  // 探针逐项读一遍（长度 + 每一项），触发条件因此是「某个下标被写成了**另一个对象**，或长度变了」
+  // （Vue 的 set 对同一引用不触发）——「换引用但对象还是那些」的写回不会白清一次用户的选择。
+  watch(() => [props.list, props.list.length, props.list.map(item => item)], removeAllSelect)
 
   return {
     selectedList,

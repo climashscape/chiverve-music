@@ -12,13 +12,17 @@
     <div v-if="pagers.favAlbums.hasMore" :class="$style.more">
       <base-btn min @click="loadMoreFavAlbums">{{ $t('user_center__load_more') }}</base-btn>
     </div>
+    <!-- 加载更多失败：独立提示位（空表时由上面的空态承担，不重复显示） -->
+    <p v-if="moreError" :class="$style.error" v-text="moreError" />
   </div>
 </template>
 
 <script lang="ts">
+import { computed, watch } from '@common/utils/vueTools'
 import { useRouter } from '@common/utils/vueRouter'
 import { favAlbums, labels, pagers } from '@renderer/store/user/state'
-import { initUserCenter, loadMoreFavAlbums } from '@renderer/store/user/action'
+import { initUserCenter, loadMoreFavAlbums, moreErrorLabelOf } from '@renderer/store/user/action'
+import { status } from '@renderer/store/qqAuth/state'
 
 /** 我的收藏 → 专辑：QQ 账号收藏的专辑（只读接口，写能力见工单 08）。 */
 export default {
@@ -26,6 +30,13 @@ export default {
   setup() {
     const router = useRouter()
     void initUserCenter()
+
+    // 登录信号到达就重拉（照 `views/friends/useUserList.ts` 的 watch）
+    watch(() => status.isLogin, (isLogin) => {
+      if (isLogin) void initUserCenter(true)
+    })
+
+    const moreError = computed(() => moreErrorLabelOf(labels.favAlbums, favAlbums.length > 0))
 
     const toAlbum = (item: { id: string }) => {
       void router.push({ path: '/album', query: { mid: item.id } })
@@ -35,6 +46,7 @@ export default {
       favAlbums,
       labels,
       pagers,
+      moreError,
       toAlbum,
       loadMoreFavAlbums,
     }
@@ -93,5 +105,12 @@ export default {
 .more {
   padding: 10px 0;
   text-align: center;
+}
+
+.error {
+  padding: 6px 0;
+  text-align: center;
+  font-size: 12px;
+  color: var(--color-font-label);
 }
 </style>

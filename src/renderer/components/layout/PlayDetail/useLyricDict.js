@@ -32,6 +32,13 @@ export default () => {
   const lyricDictVisible = ref(false)
   const lyricDictWord = ref('')
   const lyricDictEntries = ref([])
+  /**
+   * 词典请求在不在路上。**两个消费方都读这一个 ref**：
+   * - `LyricDictModal` 的加载态（查询中显示「查询中…」）；
+   * - `LyricPlayer` 的双击守卫：`isLyricDictAvailable` 只在请求回来且非空时为真，光看它会把
+   *   「刚切歌、词典还在路上」那一段的双击静默丢掉（下面 `pending` 那条分支也就永远走不到）。
+   * 由 `loadDict` 在发请求时置真、落定时置假，别在别处改。
+   */
   const lyricDictLoading = ref(false)
   const isLyricDictAvailable = ref(false)
 
@@ -81,15 +88,21 @@ export default () => {
       return []
     })
     pending = wrapper
+    // 请求在路上：双击守卫据此放行（见 `handleLyricDblclick`），弹窗据此显示加载态
+    lyricDictLoading.value = true
     wrapper.then(() => {
       // 只有「还是这一次」才清：期间用户可能已经切歌，pending 已经换成新的那一次
-      if (pending === wrapper) pending = null
+      if (pending === wrapper) {
+        pending = null
+        lyricDictLoading.value = false
+      }
     })
   }
 
   /**
    * 打开某个词/短语的释义。`text` 是用户在歌词区选中的原文（双击时浏览器会选中光标下的词）。
-   * 词典还在路上时先给加载态（`pending`），到了再补匹配——避免刚切歌就双击时误报「无释义」。
+   * 词典还在路上时先给加载态（`lyricDictLoading`，由 `loadDict` 驱动），到了再补匹配——
+   * 避免刚切歌就双击时误报「无释义」。
    */
   const lookupWord = (text) => {
     const word = String(text ?? '').trim()
@@ -98,18 +111,15 @@ export default () => {
     lyricDictVisible.value = true
 
     if (pending) {
-      lyricDictLoading.value = true
       lyricDictEntries.value = []
       pending.then(list => {
         // 期间用户可能又双击了别的词 / 关了弹窗 / 切了歌：只认「还是这次查询」的结果
         if (lyricDictWord.value != word || !lyricDictVisible.value) return
-        lyricDictLoading.value = false
         lyricDictEntries.value = matchDictEntries(list, word)
       })
       return
     }
 
-    lyricDictLoading.value = false
     lyricDictEntries.value = matchDictEntries(curEntries, word)
   }
 

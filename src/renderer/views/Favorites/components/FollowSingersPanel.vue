@@ -14,13 +14,17 @@
     <div v-if="pagers.followSingers.hasMore" :class="$style.more">
       <base-btn min @click="loadMoreFollowSingers">{{ $t('user_center__load_more') }}</base-btn>
     </div>
+    <!-- 加载更多失败：独立提示位（空表时由上面的空态承担，不重复显示） -->
+    <p v-if="moreError" :class="$style.error" v-text="moreError" />
   </div>
 </template>
 
 <script lang="ts">
+import { computed, watch } from '@common/utils/vueTools'
 import { useRouter } from '@common/utils/vueRouter'
 import { followSingers, labels, pagers } from '@renderer/store/user/state'
-import { initUserCenter, loadMoreFollowSingers } from '@renderer/store/user/action'
+import { initUserCenter, loadMoreFollowSingers, moreErrorLabelOf } from '@renderer/store/user/action'
+import { status } from '@renderer/store/qqAuth/state'
 
 /** 我的收藏 → 歌手：QQ 账号关注的歌手（只读）。 */
 export default {
@@ -28,6 +32,13 @@ export default {
   setup() {
     const router = useRouter()
     void initUserCenter()
+
+    // 登录信号到达就重拉（照 `views/friends/useUserList.ts` 的 watch）
+    watch(() => status.isLogin, (isLogin) => {
+      if (isLogin) void initUserCenter(true)
+    })
+
+    const moreError = computed(() => moreErrorLabelOf(labels.followSingers, followSingers.length > 0))
 
     const toSinger = (item: { id: string }) => {
       void router.push({ path: '/singer', query: { mid: item.id } })
@@ -37,6 +48,7 @@ export default {
       followSingers,
       labels,
       pagers,
+      moreError,
       toSinger,
       loadMoreFollowSingers,
     }
@@ -100,5 +112,12 @@ export default {
 .more {
   padding: 10px 0;
   text-align: center;
+}
+
+.error {
+  padding: 6px 0;
+  text-align: center;
+  font-size: 12px;
+  color: var(--color-font-label);
 }
 </style>

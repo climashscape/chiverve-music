@@ -29,7 +29,12 @@
               <div :class="[$style.bgImg, {[$style.hasBg]: !!bgImg}]" @click="selectBgImg">
                 <img v-if="bgImg" loading="lazy" decoding="async" :class="$style.img" :src="bgImg" alt="Background Image">
                 <svg-icon v-else :class="$style.icon" name="plus" />
-                <button :class="$style.removeBtn" type="button" @click.stop="removeBgImg">
+                <!-- 图标键：aria-label 管无障碍、title 是悬停提示，取同一份既有文案（§2.5.1 规则 11） -->
+                <button
+                  :class="$style.removeBtn" type="button"
+                  :aria-label="$t('theme_edit_modal__bg_image_remove')" :title="$t('theme_edit_modal__bg_image_remove')"
+                  @click.stop="removeBgImg"
+                >
                   <svg version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" height="100%" viewBox="0 0 212.982 212.982" space="preserve">
                     <use xlink:href="#icon-delete" />
                   </svg>

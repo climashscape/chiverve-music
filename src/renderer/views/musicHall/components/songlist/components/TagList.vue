@@ -11,6 +11,8 @@
     <div :class="$style.popup" :style="popupStyle" :aria-hidden="!popupVisible" @click.stop>
       <div :class="$style.list" class="scroll">
         <div :class="$style.tag" @click="handleToggleTag('')">{{ $t('default') }}</div>
+        <!-- 标签取不到时不能只留空白：复用既有的 list__load_failed（store 的歌单/榜单两处同款），不自造新 key -->
+        <div v-if="isLoadFailed" :class="$style.loadFailed">{{ $t('list__load_failed') }}</div>
         <dl v-for="tagInfo in list" :key="tagInfo.name">
           <dt :class="$style.type">{{ tagInfo.name }}</dt>
           <dd v-for="tag in tagInfo.list" :key="tag.id" :class="$style.tag" @click="handleToggleTag(tag.id)">{{ tag.name }}</dd>
@@ -47,6 +49,7 @@ const route = useRoute()
 const t = useI18n()
 
 const list = shallowReactive([])
+const isLoadFailed = ref(false)
 const handleToggleTag = (id) => {
   // 保留 route.query 里其它键（`tab` 是乐馆的 Tab，丢了就跳回排行榜），并复位到第 1 页
   void router.replace({
@@ -66,7 +69,24 @@ watch(() => props.source, async(source) => {
   // const source = (await getLeaderboardSetting()).source as LX.OnlineSource
   let tagInfo = tags[source]
   // console.log(await getTags(source))
-  if (tagInfo == null) setTags(tagInfo = await getTags(source), source)
+  if (tagInfo == null) {
+    try {
+      tagInfo = await getTags(source)
+    } catch (err) {
+      // 取标签失败原来只会在控制台留一行：标签下拉永远空白、用户看不出是失败还是没数据。
+      // 这里收口 rejection（别漏到顶层弹全屏浮层，票 03b）并落一条可读文案，见模板的 isLoadFailed。
+      console.log('[songlist] 获取歌单标签失败', err)
+      isLoadFailed.value = true
+      return
+    }
+    if (!tagInfo?.tags?.length) {
+      console.log('[songlist] 歌单标签为空', source)
+      isLoadFailed.value = true
+      return
+    }
+    setTags(tagInfo, source)
+  }
+  isLoadFailed.value = false
 
   list.splice(0, list.length, ...[{ name: window.i18n.t('songlist__tag_info_hot_tag'), list: [...tagInfo.hotTag] }, ...tagInfo.tags])
 }, {
@@ -213,6 +233,12 @@ onBeforeUnmount(() => {
   padding: 10px;
   box-sizing: border-box;
   // box-shadow: 0 0 4px rgba(0, 0, 0, .2);
+}
+
+// 取标签失败时的可读文案（与 store 的 list__load_failed 同款；别让下拉只剩一个「默认」标签）
+.loadFailed {
+  padding: 12px 5px 4px;
+  color: var(--color-font-label);
 }
 
 .type {

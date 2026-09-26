@@ -13,13 +13,16 @@
       @load-more="handleLoadMoreFav"
       @unlove="handleUnloveFav"
     />
+    <!-- 加载更多失败：独立提示位（有数据时不能塞进 `no-item`——那是列表的显隐开关） -->
+    <p v-if="moreError" :class="$style.error" v-text="moreError" />
   </div>
 </template>
 
 <script lang="ts">
-import { computed, ref } from '@common/utils/vueTools'
+import { computed, ref, watch } from '@common/utils/vueTools'
 import { favSongs, labels as userLabels } from '@renderer/store/user/state'
-import { loadFavSongs, loadMoreFavSongs, removeFavSongFromCloud } from '@renderer/store/user/action'
+import { loadFavSongs, loadMoreFavSongs, moreErrorLabelOf, noItemLabelOf, removeFavSongFromCloud } from '@renderer/store/user/action'
+import { status } from '@renderer/store/qqAuth/state'
 import { dialog } from '@renderer/plugins/Dialog'
 import useOnlinePlay from '@renderer/components/material/OnlineList/usePlay'
 import QqFavList from '@renderer/components/common/QqFavList.vue'
@@ -55,11 +58,20 @@ export default {
     // `QQ 音乐未登录`），所以这里不自己判登录态——那个状态目前只在「设置」页初始化过。
     // ⚠️ `no-item` 在 material-online-list 里同时是**列表容器的显隐开关**（`v-show="!noItem"`），
     // 所以「一切正常」时必须给空串；恒给非空值会让列表永远被藏起来。
-    const cloudFavNoItem = computed(() => userLabels.favSongs || (favSongs.list.length ? '' : t('no_item')))
+    // 有数据时也给空串：一次「加载更多」失败不该把已加载的整页藏掉（失败文案见下面的 moreError）。
+    const cloudFavNoItem = computed(() => noItemLabelOf(userLabels.favSongs, favSongs.list.length > 0))
 
     // 进页面就拉（切 tab 会重建本组件，所以每次回来都是新的一份）：
     // 重复进页面就重拉，loadFavSongs 不受 initUserCenter 的 isInited 守卫约束
     void loadFavSongs()
+
+    // 登录信号到达就重拉（照 `views/friends/useUserList.ts` 的 watch）：未登录时进过这一页
+    // 只落了「请先登录」，不在别处登录后自动补一次就会一直停在那句话上
+    watch(() => status.isLogin, (isLogin) => {
+      if (isLogin) void loadFavSongs()
+    })
+
+    const moreError = computed(() => moreErrorLabelOf(userLabels.favSongs, favSongs.list.length > 0))
 
     const selectedCloudList = ref<LX.Music.MusicInfoOnline[]>([])
     const { handlePlayMusic: handlePlayCloudMusic } = useOnlinePlay({
@@ -98,6 +110,7 @@ export default {
       FAV_LIST_ID,
       cloudFavNoItem,
       favSongs,
+      moreError,
       handlePlayFav,
       handleLoadMoreFav,
       handleUnloveFav,
@@ -113,5 +126,13 @@ export default {
   height: 100%;
   display: flex;
   flex-flow: column nowrap;
+}
+
+.error {
+  flex: none;
+  padding: 6px 0;
+  text-align: center;
+  font-size: 12px;
+  color: var(--color-font-label);
 }
 </style>

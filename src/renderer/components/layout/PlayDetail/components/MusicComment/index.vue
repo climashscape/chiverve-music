@@ -184,6 +184,21 @@ export default {
     show(n) {
       if (n) this.handleShowComment()
     },
+    /**
+     * 切歌就重跑一次取数。
+     *
+     * `PlayDetail/index.vue:40` 给本组件挂的是 `v-if="visibled"`（跟着**播放详情页的开关**走，
+     * 不跟歌走），自动切歌不重建组件——只 watch `show` 的话，面板会继续显示上一首的列表 /
+     * 标题 / 计数（2026-09-26 复核的缺陷 4）。打开状态下换歌 = 重新打开一次：
+     * 先把上一首的列表清掉（不清的话「新歌名 + 旧评论」会以加载态露一帧），再走 handleShowComment
+     * 那套重置 + 取数。面板关着时换歌什么都不做（不留后台请求）。
+     */
+    musicInfo() {
+      if (!this.show) return
+      this.newComment.list = []
+      this.hotComment.list = []
+      this.handleShowComment()
+    },
   },
   mounted() {
     this.setWidth()
@@ -226,6 +241,9 @@ export default {
       this.newComment.isLoadError = false
       this.newComment.isLoading = true
       this.getComment(toOldMusicInfo(musicInfo), page, limit).then(comment => {
+        // 切歌（或换评论目标）后旧请求可能**后到**：只认「还是当前这一首」的响应，
+        // 否则上一首的列表与计数会盖到新歌上——评论请求是这条链上最慢的一环，连按下一首就能撞上
+        if (musicInfo !== this.currentMusicInfo) return
         this.newComment.isLoading = false
         this.newComment.total = comment.total
         this.newComment.maxPage = comment.maxPage
@@ -280,6 +298,8 @@ export default {
       this.hotComment.isLoadError = false
       this.hotComment.isLoading = true
       this.getHotComment(toOldMusicInfo(musicInfo), page, limit).then(hotComment => {
+        // 与「最新评论」同理：切歌后旧请求后到不许盖回去（见 handleGetNewComment 的注释）
+        if (musicInfo !== this.currentMusicInfo) return
         this.hotComment.isLoading = false
         this.hotComment.total = hotComment.total
         this.hotComment.maxPage = hotComment.maxPage
@@ -391,6 +411,13 @@ export default {
       }
     },
     handleShowComment() {
+      // `musicInfo` 为 null 是真实可达的状态（队列清空、`playMusicInfo` 被置空时），
+      // 旧实现在这里 `'progress' in null` 抛 TypeError → 点评论键静默什么都不发生。
+      if (this.musicInfo == null) {
+        this.currentMusicInfo = null
+        this.available = false
+        return
+      }
       this.currentMusicInfo = 'progress' in this.musicInfo ? this.musicInfo.metadata.musicInfo : this.musicInfo
 
       if (this.currentMusicInfo.source == 'local' || !music[this.currentMusicInfo.source].comment) {

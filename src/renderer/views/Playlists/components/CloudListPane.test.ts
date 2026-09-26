@@ -13,6 +13,10 @@ import { cloudListSongs, createdLists } from '@renderer/store/user/state'
  * 这个用例走真链路（组件点击 → store action → SDK 调用 → 状态写回），只把最外层的 SDK 换成桩，
  * 桩按服务端的实测行为（`docs/agents/qq-music-native.md` §「读 tid、写 dirId」）：
  * `disstid` 传 dirId 时服务端返回 0 首歌，实现层把它当「读不到」抛错。
+ *
+ * 2026-09-26 追加：「加载更多」**失败**时的展示（failure 落在 store 的 noItemLabel，
+ * 而 `material-online-list` 的 `no-item` 同时是列表容器的显隐开关——原样透传会把已加载的
+ * 整页藏掉；契约是数据还在时 no-item 给空串、失败文案走独立提示位）。
  */
 
 const { getListDetailByCgi } = vi.hoisted(() => ({ getListDetailByCgi: vi.fn() }))
@@ -60,13 +64,20 @@ const card = {
   source: 'tx',
 }
 
+/** 列表组件桩：显式声明 `noItem`（它是显隐开关，本文件要断言面板传下去的值）。 */
+const OnlineListStub = {
+  name: 'MaterialOnlineList',
+  props: ['list', 'noItem', 'page', 'limit', 'total', 'listId'],
+  template: '<div class="online-list" />',
+}
+
 const mountPane = () => mount(CloudListPane, {
   props: { dirId: DIR_ID },
   global: {
     mocks: { $t: (key: string) => key },
     stubs: {
       // 列表组件与弹窗与本次行为无关，桩掉；两个按钮按下标找不值得，按文案找更稳
-      'material-online-list': { template: '<div class="online-list" />' },
+      'material-online-list': OnlineListStub,
       // 声明 disabled 并显式绑到原生属性：不声明的话它走 attrs 透传，`attributes('disabled')` 读不出真假
       'base-btn': {
         template: '<button type="button" :disabled="disabled" @click="$emit(\'click\')"><slot /></button>',
@@ -81,6 +92,9 @@ const mountPane = () => mount(CloudListPane, {
 /** 面板里那个「刷新」按钮（文案经 `$t` 桩后就是 key 本身）。 */
 const findRefreshBtn = (wrapper: ReturnType<typeof mountPane>) =>
   wrapper.findAll('button').find(btn => btn.text() === 'user_center__refresh')!
+
+/** 失败文案断言取 i18n 的实际值（store 写的是真文案；本文件的 `$t` 桩只影响模板里的 key） */
+const loadFailedText = () => window.i18n.t('list__load_failed' as any)
 
 describe('CloudListPane 取歌的标识与刷新（工单 04）', () => {
   beforeEach(() => {
@@ -157,5 +171,68 @@ describe('CloudListPane 取歌的标识与刷新（工单 04）', () => {
     expect(getListDetailByCgi).toHaveBeenLastCalledWith(TID, 2, expect.any(Number))
     expect(cloudListSongs.list).toHaveLength(5)
     expect(cloudListSongs.page).toBe(2)
+  })
+})
+
+describe('CloudListPane 的「加载更多」失败（2026-09-26 追加）', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    getListDetailByCgi.mockImplementation(async(id: string, page = 1) => {
+      if (String(id) !== TID) throw new Error('歌单为空或不可读')
+      const list = makeSongs(page === 1 ? 3 : 2, page === 1 ? 0 : 3)
+      return { list, page, limit: 3, total: TOTAL, source: 'tx', info: {} }
+    })
+    createdLists.splice(0, createdLists.length, card as any)
+    cloudListSongs.list.splice(0, cloudListSongs.list.length)
+    cloudListSongs.total = 0
+    cloudListSongs.page = 1
+    cloudListSongs.noItemLabel = ''
+    cloudListSongs.listTid = ''
+  })
+
+  /** 面板里那个「加载更多」按钮（总数 5 > 本页 3 时出现）。 */
+  const findMoreBtn = (wrapper: ReturnType<typeof mountPane>) =>
+    wrapper.findAll('button').find(btn => btn.text() === 'user_center__load_more')!
+
+  it('已有歌曲不被藏掉（no-item 保持空串），失败文案走列表下方的独立提示位', async() => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const wrapper = mountPane()
+    await flushPromises()
+    expect(cloudListSongs.list).toHaveLength(3)
+
+    getListDetailByCgi.mockRejectedValueOnce(new Error('网络错误'))
+    await findMoreBtn(wrapper).trigger('click')
+    await flushPromises()
+
+    // store 侧：失败只提示，不清空已加载的数据
+    expect(cloudListSongs.noItemLabel).toBe(loadFailedText())
+    expect(cloudListSongs.list).toHaveLength(3)
+    // 视图侧：no-item 是 material-online-list 的显隐开关，数据还在时必须给空串
+    const listStub = wrapper.findComponent(OnlineListStub)
+    expect(listStub.props('noItem')).toBe('')
+    expect(listStub.props('list')).toHaveLength(3)
+    // 失败文案仍可读（独立提示位）
+    expect(wrapper.text()).toContain(loadFailedText())
+    log.mockRestore()
+    wrapper.unmount()
+  })
+
+  it('失败后再点一次成功：提示位清掉、新一页正常追加', async() => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const wrapper = mountPane()
+    await flushPromises()
+
+    getListDetailByCgi.mockRejectedValueOnce(new Error('网络错误'))
+    await findMoreBtn(wrapper).trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain(loadFailedText())
+
+    await findMoreBtn(wrapper).trigger('click')
+    await flushPromises()
+
+    expect(cloudListSongs.list).toHaveLength(5)
+    expect(wrapper.text()).not.toContain(loadFailedText())
+    log.mockRestore()
+    wrapper.unmount()
   })
 })

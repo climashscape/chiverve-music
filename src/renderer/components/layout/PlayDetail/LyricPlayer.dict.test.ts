@@ -269,4 +269,37 @@ describe('LyricPlayer：双击歌词查词', () => {
     expect(wrapper.find('.modal').exists()).toBe(false)
     expect(wrapper.find('.lyric').attributes('title')).toBe('')
   })
+
+  it('词典还在路上时双击照走：弹窗先给加载态，回来后补上释义', async() => {
+    // 预取的请求挂住不 resolve：复现「刚切歌就双击」那个窗口（`useLyricDict` 的 pending 分支）
+    let resolveDict: (list: unknown[]) => void = () => {}
+    getLyricDict.mockReturnValue({
+      promise: new Promise(resolve => { resolveDict = resolve }),
+      cancelHttp: vi.fn(),
+    })
+    nextSong()
+    // 前面用例留下的组件还挂着（本文件不卸载），`nextSong()` 会连带触发它们的 watcher，
+    // 所以只断言「这次挂载让调用数增加」，不断言正好一次
+    const callsBefore = getLyricDict.mock.calls.length
+    const wrapper = await mountPlayer({ waitForDictRequest: false })
+    expect(getLyricDict.mock.calls.length).toBeGreaterThan(callsBefore)
+
+    const { domLyric, textNode } = appendLine(wrapper, NOBODY_LINE)
+    setCaret(textNode, POOR_OFFSET)
+
+    dblclick(domLyric)
+    await nextTick()
+
+    // 不能被静默丢弃：弹窗开着、给的是「查询中」
+    const modal = wrapper.find('.modal')
+    expect(modal.exists()).toBe(true)
+    expect(modal.text()).toContain(t('player__lyric_dict_loading'))
+
+    // 词典回来后同一个弹窗补上释义（不再是加载态）
+    resolveDict([POOR_BOY])
+    await vi.waitFor(() => {
+      expect(wrapper.find('.modal').text()).toContain(POOR_BOY.explain)
+    })
+    expect(wrapper.find('.modal').text()).not.toContain(t('player__lyric_dict_loading'))
+  })
 })

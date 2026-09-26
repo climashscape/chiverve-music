@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { favSongIds, favSongIdsLoaded, favSongs } from './state'
-import { addFavSongToCloud, canFavSongInCloud, isFavSongInCloud, removeFavSongFromCloud, toggleFavSongToCloud } from './action'
+import {
+  cloudListSongs, createdLists, favAlbumIds, favAlbums, favLists, favPlaylistIds, favSongIds, favSongIdsLoaded, favSongs, followSingers, isInited, labels, musicGene, pagers, profile, vip,
+} from './state'
+import {
+  addFavSongToCloud, canFavSongInCloud, createCloudList, isFavSongInCloud, loadMoreFavAlbums, loadMoreFavLists, loadMoreFollowSingers, loadMoreFavSongs, removeFavSongFromCloud, resetUserCenter, toggleFavSongToCloud,
+} from './action'
 
 /**
  * 「我喜欢」一键切换的**动作方向**（ui-polish-3 工单 06）。
@@ -15,17 +19,23 @@ import { addFavSongToCloud, canFavSongInCloud, isFavSongInCloud, removeFavSongFr
  * 只把最外层 SDK 换成桩，store 与状态写回都是真的。
  */
 
-const { likeSong, unlikeSong, getFavSongIds } = vi.hoisted(() => ({
+const { likeSong, unlikeSong, getFavSongIds, getFavSonglist, getFavAlbum, getFollowSingers, getFavSong, getCreatedSonglist, createList } = vi.hoisted(() => ({
   likeSong: vi.fn(),
   unlikeSong: vi.fn(),
   getFavSongIds: vi.fn(),
+  getFavSonglist: vi.fn(),
+  getFavAlbum: vi.fn(),
+  getFollowSingers: vi.fn(),
+  getFavSong: vi.fn(),
+  getCreatedSonglist: vi.fn(),
+  createList: vi.fn(),
 }))
 
 vi.mock('@renderer/utils/musicSdk', () => ({
   default: {
     tx: {
-      songList: { likeSong, unlikeSong },
-      user: { getFavSongIds },
+      songList: { likeSong, unlikeSong, createList },
+      user: { getFavSongIds, getFavSonglist, getFavAlbum, getFollowSingers, getFavSong, getCreatedSonglist },
     },
   },
 }))
@@ -283,5 +293,234 @@ describe('store/user/action 的收藏来源分支（本地 vs QQ 在线）', () 
     // 没有 QQ id 的一律「未收藏」（不能拿空串去 includes）
     expect(isFavSongInCloud({ ...song('1'), meta: {} })).toBe(false)
     expect(isFavSongInCloud(null)).toBe(false)
+  })
+})
+
+/** 数据层（`tx/user.js` / `tx/songList.js`）给的**老式**歌曲对象：取数结果都长这样。 */
+const oldSong = (id: string) => ({
+  songmid: id,
+  songId: id,
+  songType: 0,
+  name: `歌${id}`,
+  singer: '歌手',
+  source: 'tx',
+  interval: '03:00',
+  types: {},
+  _types: {},
+})
+
+/** 手动控制 resolve 时机的 Promise（并发闸用例要「请求在飞」这个中间态）。 */
+const deferred = () => {
+  let resolve!: (value: any) => void
+  const promise = new Promise<any>((_resolve) => { resolve = _resolve })
+  return { promise, resolve }
+}
+
+/**
+ * 文案断言取 i18n 的**实际值**（dom setup 的桩与真 i18n 都可能生效，别写死 key）——
+ * 同 `views/Search/components/TypedResultList.test.ts` 的 `loadFailedText`。
+ */
+const loadFailedText = () => window.i18n.t('list__load_failed' as any)
+
+/**
+ * 账号中心会话缓存的**复位**（换号 / 登出 / 登录成功三条路共用的一个动作）。
+ *
+ * 真机症状（2026-09-26 审查）：未登录时进过任一页 → `initUserCenter` 已把 `isInited` 置 true
+ * → 登录后不再取数；换号后 `favSongIds` 还是上一个人的 → 「该移除的又收藏一遍」。
+ * 所以复位必须清到「这个会话没拉过任何东西」的状态，尤其 `isInited` 与收藏态。
+ */
+const seedUserCenter = () => {
+  createdLists.splice(0, createdLists.length, { id: 'c1' } as any)
+  favLists.splice(0, favLists.length, { id: 'p1' } as any)
+  favAlbums.splice(0, favAlbums.length, { id: 'a1' } as any)
+  followSingers.splice(0, followSingers.length, { id: 's1' } as any)
+  favSongs.list.splice(0, favSongs.list.length, song('1'))
+  favSongs.total = 1
+  favSongs.page = 3
+  favSongIds.push('1')
+  favSongIdsLoaded.value = true
+  favAlbumIds.push('mid1')
+  favPlaylistIds.push('tid1')
+  cloudListSongs.list.splice(0, cloudListSongs.list.length, song('2'))
+  cloudListSongs.total = 1
+  cloudListSongs.page = 2
+  cloudListSongs.listTid = 'tid1'
+  cloudListSongs.noItemLabel = 'list__load_failed'
+  pagers.favLists = { page: 2, hasMore: true }
+  pagers.favAlbums = { page: 2, hasMore: true }
+  pagers.followSingers = { page: 2, hasMore: true }
+  labels.favLists = 'list__load_failed'
+  labels.profile = 'user_center__need_login'
+  profile.name = '上一个人'
+  vip.hires = true
+  musicGene.nick = '上一个人'
+  isInited.value = true
+}
+
+const clearUserCenter = () => {
+  for (const list of [createdLists, favLists, favAlbums, followSingers, favAlbumIds, favPlaylistIds, favSongIds]) list.splice(0, list.length)
+  favSongs.list.splice(0, favSongs.list.length)
+  favSongs.total = 0
+  favSongs.page = 1
+  favSongIdsLoaded.value = false
+  cloudListSongs.list.splice(0, cloudListSongs.list.length)
+  cloudListSongs.total = 0
+  cloudListSongs.page = 1
+  cloudListSongs.listTid = ''
+  cloudListSongs.noItemLabel = ''
+  for (const pager of Object.values(pagers)) {
+    pager.page = 1
+    pager.hasMore = false
+  }
+  for (const key of Object.keys(labels) as Array<keyof typeof labels>) labels[key] = ''
+  profile.name = ''
+  vip.hires = false
+  musicGene.nick = ''
+  isInited.value = false
+}
+
+describe('store/user/action 的 resetUserCenter', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    clearUserCenter()
+  })
+
+  it('复位会话缓存：列表 / 收藏态 / 分页 / 文案 / isInited 全归零（换号后不会拿上一个人的数据）', () => {
+    seedUserCenter()
+
+    resetUserCenter()
+
+    expect(createdLists).toHaveLength(0)
+    expect(favLists).toHaveLength(0)
+    expect(favAlbums).toHaveLength(0)
+    expect(followSingers).toHaveLength(0)
+    expect(favSongs.list).toHaveLength(0)
+    expect(favSongs.total).toBe(0)
+    expect(favSongs.page).toBe(1)
+    // 收藏态失效：这条最要命（换号后判反方向 → 该移除的又收藏一遍）
+    expect(favSongIds).toHaveLength(0)
+    expect(favSongIdsLoaded.value).toBe(false)
+    expect(favAlbumIds).toHaveLength(0)
+    expect(favPlaylistIds).toHaveLength(0)
+    expect(cloudListSongs.list).toHaveLength(0)
+    expect(cloudListSongs.listTid).toBe('')
+    expect(pagers.favLists).toEqual({ page: 1, hasMore: false })
+    expect(pagers.favAlbums).toEqual({ page: 1, hasMore: false })
+    expect(pagers.followSingers).toEqual({ page: 1, hasMore: false })
+    expect(labels.favLists).toBe('')
+    expect(labels.profile).toBe('')
+    expect(profile.name).toBe('')
+    expect(vip.hires).toBe(false)
+    expect(musicGene.nick).toBe('')
+    // 关键：未登录时被 initUserCenter 置过的 true 也要归位，否则登录后不再取数
+    expect(isInited.value).toBe(false)
+  })
+})
+
+/**
+ * 「加载更多」的两个坑（2026-09-26 审查）：
+ *   1. 双击 / 连点会**重复追加同一页**（没有 in-flight 闸，两次调用各自算 page+1）；
+ *   2. 失败**静默**——按钮回调是 `void loadMore*()`，rejection 冒到顶层（dev 下是全屏浮层）。
+ * 契约与 `load()` 一致：失败只写文案（`list__load_failed`），不抛给调用方，已有数据保留。
+ */
+const MORE_CASES = [
+  { name: '收藏歌单', loadMore: loadMoreFavLists, fetcher: getFavSonglist, target: favLists, key: 'favLists' as const },
+  { name: '收藏专辑', loadMore: loadMoreFavAlbums, fetcher: getFavAlbum, target: favAlbums, key: 'favAlbums' as const },
+  { name: '关注歌手', loadMore: loadMoreFollowSingers, fetcher: getFollowSingers, target: followSingers, key: 'followSingers' as const },
+]
+
+describe.each(MORE_CASES)('store/user/action 的 loadMore（$name）', ({ loadMore, fetcher, target, key }) => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    target.splice(0, target.length)
+    pagers[key] = { page: 1, hasMore: true }
+    labels[key] = ''
+  })
+
+  it('双击「加载更多」只发一次请求（在飞期间第二次直接返回），该页只追加一遍', async() => {
+    const pending = deferred()
+    fetcher.mockReturnValue(pending.promise)
+
+    const first = loadMore()
+    const second = loadMore()
+    // 闸在第一个 await 之前：第二次调用同步就被挡下，不该再打接口
+    expect(fetcher).toHaveBeenCalledTimes(1)
+
+    pending.resolve({ list: [{ id: 'x1' }], hasMore: false })
+    await Promise.all([first, second])
+
+    expect(fetcher).toHaveBeenCalledTimes(1)
+    expect(target.map(item => item.id)).toEqual(['x1'])
+  })
+
+  it('拉取失败 → 不抛给调用方（按钮回调是 void），落 list__load_failed，已有数据保留', async() => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    target.push({ id: 'old' } as any)
+    fetcher.mockRejectedValue(new Error('boom'))
+
+    await expect(loadMore()).resolves.toBeUndefined()
+
+    expect(labels[key]).toBe(loadFailedText())
+    expect(target.map(item => item.id)).toEqual(['old'])
+    expect(log).toHaveBeenCalled()
+    log.mockRestore()
+  })
+
+  it('失败后再点一次：闸要放开（失败不能把「加载更多」永久卡死）', async() => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    fetcher.mockRejectedValueOnce(new Error('boom'))
+    await loadMore()
+    expect(labels[key]).toBe(loadFailedText())
+
+    fetcher.mockResolvedValueOnce({ list: [{ id: 'x1' }], hasMore: false })
+    await loadMore()
+
+    expect(fetcher).toHaveBeenCalledTimes(2)
+    expect(target.map(item => item.id)).toEqual(['x1'])
+    expect(labels[key]).toBe('')
+    log.mockRestore()
+  })
+})
+
+describe('store/user/action 的 loadMoreFavSongs（我喜欢）', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    favSongs.list.splice(0, favSongs.list.length, song('1'))
+    favSongs.total = 3
+    favSongs.page = 1
+    labels.favSongs = ''
+  })
+
+  it('双击「加载更多」只发一次请求，同一页不会追加两遍', async() => {
+    const pending = deferred()
+    getFavSong.mockReturnValue(pending.promise)
+
+    const first = loadMoreFavSongs()
+    const second = loadMoreFavSongs()
+    expect(getFavSong).toHaveBeenCalledTimes(1)
+
+    pending.resolve({ list: [oldSong('2')], total: 3 })
+    await Promise.all([first, second])
+
+    expect(getFavSong).toHaveBeenCalledTimes(1)
+    expect(favSongs.list.map(item => item.meta.id)).toEqual(['1', '2'])
+  })
+})
+
+describe('store/user/action 的 createCloudList', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    createdLists.splice(0, createdLists.length)
+  })
+
+  it('建歌单成功、刷新列表失败 → 仍按成功返回（否则用户重试会建出重复歌单）', async() => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    createList.mockResolvedValue({ dirId: 126, tid: 978 })
+    getCreatedSonglist.mockRejectedValue(new Error('boom'))
+
+    await expect(createCloudList('歌单A')).resolves.toEqual({ dirId: 126, tid: 978 })
+
+    expect(log).toHaveBeenCalled()
+    log.mockRestore()
   })
 })

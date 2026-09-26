@@ -201,6 +201,11 @@ const downloadLyric = (downloadInfo: LX.Download.ListItem) => {
       }
       void window.lx.worker.download.saveLrc(lrcs, info)
     }
+  }).catch(err => {
+    // 同 saveMeta 的收口：歌词是下载的附属产物，取不到不该把已完成的任务标成失败，
+    // 但也不能让 rejection 漏到顶层（dev 下 webpack-dev-server 会弹全屏浮层吞鼠标，票 03b）——
+    // 只留一行带上下文的日志，任务状态仍由本层的 COMPLETED 决定。
+    console.log('[download] 保存歌词文件失败', err)
   })
 }
 

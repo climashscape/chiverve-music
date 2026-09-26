@@ -1,5 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { defineComponent, h, reactive } from 'vue'
 import VirtualizedList from './VirtualizedList.vue'
 
 /**
@@ -135,5 +136,102 @@ describe('VirtualizedList 卸载后触发 updateView（工单 04）', () => {
     expect(content.element.children.length).toBeGreaterThan(0)
     // 内容高度 = 列表长度 × 行高（虚拟滚动的滚动条长度靠它）
     expect(content.attributes('style')).toContain(`height: ${50 * ITEM_HEIGHT}px`)
+  })
+})
+
+/**
+ * 列表被**原地改且长度不变**时，行内容必须跟着变。
+ *
+ * 真机症状：云端自建歌单 ≥30 首时加歌 / 刷新后新歌不出现。成因有两层：
+ * 1. `watch(() => [props.list, props.list.length])` 的依赖只有「引用 + 长度」——本仓在线列表的写回
+ *    是原地 `splice(0, len, ...list)`（`store/user/action.ts`），两者都没变 → watcher 根本不跑；
+ * 2. 就算跑了，`createList` 按**下标**复用 `cachedList[index]`，同一位置换了歌也照样把旧行留在屏上。
+ * 所以 watch 源要补内容探针、`createList` 复用前要比对身份，两层都钉在这里。
+ */
+const Host = defineComponent({
+  props: {
+    list: { type: Array, required: true },
+  },
+  setup(props) {
+    return () => h(VirtualizedList, {
+      itemHeight: ITEM_HEIGHT,
+      keyName: 'id',
+      list: props.list,
+    }, {
+      default: ({ item }: { item: { name: string } }) => h('div', { class: 'row' }, item.name),
+    })
+  },
+})
+
+/** 跑完 `handleReset → nextTick → rAF → updateView` 这条链（每轮 rAF 后还可能再排一帧） */
+const settle = async(frames: FrameRequestCallback[]) => {
+  for (let i = 0; i < 5; i++) {
+    await flushPromises()
+    drainRaf(frames)
+  }
+  await flushPromises()
+}
+
+const rowText = (wrapper: ReturnType<typeof mount>) => wrapper.findAll('.row').map(node => node.text())
+
+describe('VirtualizedList：原地改列表（同长度换内容）', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('30 项挂载后 splice(0, 30, ...新数组)，行文本应变', async() => {
+    const frames = collectRaf()
+    const list = reactive(makeList(30))
+    const wrapper = mount(Host, { props: { list } })
+    await settle(frames)
+
+    expect(rowText(wrapper)).toEqual(['song-0'])
+
+    // 引用没变、长度没变，只有每一项的身份变了（真机就是 `splice(0, len, ...list)`）
+    list.splice(0, list.length, ...makeList(30).map(row => ({ ...row, name: `new-${row.id}` })))
+    await settle(frames)
+
+    expect(rowText(wrapper)).toEqual(['new-0'])
+    wrapper.unmount()
+  })
+
+  it('原地改后滚到中间：非首行也拿新内容', async() => {
+    const frames = collectRaf()
+    const list = reactive(makeList(30))
+    const wrapper = mount(Host, { props: { list } })
+    await settle(frames)
+
+    // jsdom 没有排版引擎（clientHeight 恒 0）：把容器几何补上，让渲染区间不止一行
+    const container = wrapper.find('.virtualized-list').element as HTMLElement
+    Object.defineProperty(container, 'clientHeight', { value: ITEM_HEIGHT * 10, configurable: true })
+    Object.defineProperty(container, 'scrollHeight', { value: ITEM_HEIGHT * 30, configurable: true })
+    container.scrollTop = ITEM_HEIGHT * 5
+    await wrapper.find('.virtualized-list').trigger('scroll')
+    await settle(frames)
+
+    expect(rowText(wrapper)).toContain('song-5')
+
+    list.splice(0, list.length, ...makeList(30).map(row => ({ ...row, name: `new-${row.id}` })))
+    await settle(frames)
+
+    expect(rowText(wrapper)).toContain('new-5')
+    expect(rowText(wrapper)).not.toContain('song-5')
+    wrapper.unmount()
+  })
+
+  it('长度不变但内容未变（同一批对象）时不重建行：DOM 节点被复用', async() => {
+    const frames = collectRaf()
+    const list = reactive(makeList(30))
+    const wrapper = mount(Host, { props: { list } })
+    await settle(frames)
+
+    const before = wrapper.find('.row').element
+    // 换引用（新数组、对象还是原来那些）→ watcher 跑、createList 逐项身份仍相等 → 复用缓存
+    const sameItems = [...list]
+    list.splice(0, list.length, ...sameItems)
+    await settle(frames)
+
+    expect(wrapper.find('.row').element).toBe(before)
+    wrapper.unmount()
   })
 })

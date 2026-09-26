@@ -180,9 +180,13 @@ declare global {
       'player.waitPlayEndStop': boolean
 
       /**
-       * 定时暂停播放-倒计时时间
+       * 定时暂停播放-倒计时时间（分钟）
+       *
+       * 空串 = 未设置（不自动停播）；设置页与弹窗写入的都是数字（`Number(...)` 的结果）。
+       * 2026-09-26 自审查修正：原声明为 `string`，与运行期真值（`'' | number`）漂移，
+       * 而写入点都在纯 JS 的 `.vue` 里，tsc 抓不到。
        */
-      'player.waitPlayEndStopTime': string
+      'player.waitPlayEndStopTime': number | ''
 
       /**
        * 环境音效文件名

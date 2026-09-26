@@ -66,7 +66,9 @@ export const loadMvs = async(page = 1, more = false) => {
       list.noItemLabel = errorLabel(err)
     }
   } finally {
-    list.isLoading = false
+    // loading 也按 key 归属：陈旧响应的 finally 不能清掉新请求的 loading
+    // （清早了界面看起来「加载完了」，会放行一次错误翻页——排序混排）
+    if (listKey === key) list.isLoading = false
   }
 }
 

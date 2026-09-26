@@ -147,9 +147,12 @@ export default {
     const createList = (startIndex, endIndex) => {
       const cache = cachedList.slice(startIndex, endIndex)
       const list = props.list.slice(startIndex, endIndex).map((item, i) => {
-        if (cache[i]) return cache[i]
-        const top = (startIndex + i) * props.itemHeight
         const index = startIndex + i
+        // 复用缓存前必须比对**身份**：列表被原地改（splice / 排序，见下面 watch 的注释）时同一位置
+        // 可能换了一首歌，按下标直接复用会把旧行留在屏上（真机症状：云端歌单加歌 / 刷新后新歌不出现）。
+        // 身份不变（含「换引用但对象还是这些」的写回）才复用——那正是这个缓存存在的意义。
+        if (cache[i]?.item === item) return cache[i]
+        const top = index * props.itemHeight
         return cachedList[index] = {
           item,
           top,
@@ -304,7 +307,12 @@ export default {
     })
     // 同时盯长度：本仓的列表写回一律是**原地改**（splice/push，见 AGENTS §2.10），
     // 数组引用不变 → 只盯引用的话，数据后到（挂载时还是空数组）就永远不重算区间
-    watch(() => [props.list, props.list.length], ([list]) => {
+    //
+    // 还要盯**每一项的身份**：`splice(0, len, ...list)` 这种「原地改 + 长度不变」的写回（真机：在线
+    // 列表刷新 / 云端歌单加歌）引用与长度都不变，只靠前两项时这个 watcher 根本不跑，屏上留着旧内容。
+    // 探针用 `map` 逐项读一遍：既读到每一项（splice 触发的正是这些下标键），又不做任何比较——
+    // 比较交给 `createList` 的身份比对（那里才知道哪些行该重建）。
+    watch(() => [props.list, props.list.length, props.list.map(item => item)], ([list]) => {
       handleReset(list)
     })
 

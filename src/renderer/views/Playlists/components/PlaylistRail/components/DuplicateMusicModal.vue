@@ -16,12 +16,23 @@
         <div :class="$style.label">{{ getSourceName(item.musicInfo.source) }}</div>
         <div :class="$style.label">{{ item.musicInfo.interval }}</div>
         <div :class="$style.btns">
-          <button type="button" :class="$style.btn" @click="handlePlay(index)">
+          <!-- 两个图标键：aria-label 管无障碍、title 是悬停提示，取既有文案（§2.5.1 规则 11）。
+               试听/移除都作用于这一行那一首，所以文案用通用的「播放 / 移除」，
+               行内的歌名本身已有 aria-label，读屏器按键时会连上下文一起读出来 -->
+          <button
+            type="button" :class="$style.btn"
+            :aria-label="$t('player__play')" :title="$t('player__play')"
+            @click="handlePlay(index)"
+          >
             <svg v-once version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" height="50%" viewBox="0 0 287.386 287.386" space="preserve">
               <use xlink:href="#icon-testPlay" />
             </svg>
           </button>
-          <button type="button" :class="$style.btn" @click="handleRemove(index)">
+          <button
+            type="button" :class="$style.btn"
+            :aria-label="$t('list__remove')" :title="$t('list__remove')"
+            @click="handleRemove(index)"
+          >
             <svg v-once version="1.1" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" height="50%" viewBox="0 0 212.982 212.982" space="preserve">
               <use xlink:href="#icon-delete" />
             </svg>

@@ -12,7 +12,7 @@
       <material-online-list
         :class="$style.list"
         :list="cloudListSongs.list"
-        :no-item="cloudListSongs.noItemLabel"
+        :no-item="listNoItem"
         :page="cloudListSongs.page"
         :limit="cloudListSongs.total || cloudListSongs.limit"
         :total="cloudListSongs.total"
@@ -27,6 +27,8 @@
     <div v-if="cloudListSongs.list.length && cloudListSongs.list.length < cloudListSongs.total" :class="$style.more">
       <base-btn min :disabled="isLoading" @click="load(cloudListSongs.page + 1, true)">{{ $t('user_center__load_more') }}</base-btn>
     </div>
+    <!-- 加载更多失败：独立提示位（`no-item` 是列表的显隐开关，有数据时不能用它显示失败） -->
+    <p v-if="moreError" :class="$style.error" v-text="moreError" />
 
     <add-songs-modal v-model:show="isShowAddModal" :card="card" />
   </div>
@@ -35,7 +37,7 @@
 <script lang="ts">
 import { computed, ref } from '@common/utils/vueTools'
 import { createdLists, cloudListSongs } from '@renderer/store/user/state'
-import { loadCloudListSongs, removeSongsFromCloudList } from '@renderer/store/user/action'
+import { loadCloudListSongs, moreErrorLabelOf, noItemLabelOf, removeSongsFromCloudList } from '@renderer/store/user/action'
 import useOnlinePlay from '@renderer/components/material/OnlineList/usePlay'
 import { dialog } from '@renderer/plugins/Dialog'
 import AddSongsModal from './AddSongsModal.vue'
@@ -72,6 +74,15 @@ export default {
      * 卡片没到就什么都不请求——**不要拿 dirId 兜底**，那正是「刷新把列表清空」的成因。
      */
     const listTid = computed(() => String(card.value?.id ?? ''))
+
+    /**
+     * `no-item` 同时是 material-online-list 的**显隐开关**：有数据时必须给空串。
+     * 加载更多失败时 store 把文案落在 `noItemLabel` 而数据保留——原样透传会把已加载的整页藏掉
+     * （2026-09-26 审查），所以这里按「有没有数据」分流：有数据给空串，失败文案走下面的 moreError。
+     */
+    const listNoItem = computed(() => noItemLabelOf(cloudListSongs.noItemLabel, cloudListSongs.list.length > 0))
+    /** 有数据时的失败提示（与 `views/Discover/components/FeedPanel.vue` 的 moreError 同一个位置/口径）。 */
+    const moreError = computed(() => moreErrorLabelOf(cloudListSongs.noItemLabel, cloudListSongs.list.length > 0))
 
     const load = async(page: number, more: boolean) => {
       if (!listTid.value) return
@@ -120,6 +131,8 @@ export default {
       cloudListSongs,
       isLoading,
       isAdding,
+      listNoItem,
+      moreError,
       isShowAddModal: ref(false),
       load,
       handlePlayList,
@@ -174,5 +187,12 @@ export default {
   flex: none;
   padding: 10px 0;
   text-align: center;
+}
+.error {
+  flex: none;
+  padding: 6px 0;
+  text-align: center;
+  font-size: 12px;
+  color: var(--color-font-label);
 }
 </style>

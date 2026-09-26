@@ -31,6 +31,23 @@ const appendList = (target: any[], list: any[]) => {
 }
 
 /**
+ * 列表容器的 `no-item` 文案（`material-online-list` / `song-card-grid` 拿它**同时当显隐开关**）：
+ * **有数据时必须给空串**，否则一次「加载更多」失败就会把整页已加载的数据藏掉（2026-09-26 审查，
+ * 云端歌单面板真机踩到）。空表时才退回「加载中 / 失败 / 暂无内容」。
+ */
+export const noItemLabelOf = (label: string, hasData: boolean): string =>
+  hasData ? '' : (label || t('no_item'))
+
+/**
+ * 「加载更多」失败的**独立提示位**：现在把失败文案落在各块自己的 `labels` / `noItemLabel` 里，
+ * 有数据时它不能当空态用（见 `noItemLabelOf`），所以搬到列表下方的这一行显示。
+ *
+ * 加载中的文案不算失败（刷新 / 首屏期间它也在 `labels` 里）；空表时由空态承担，不重复显示。
+ */
+export const moreErrorLabelOf = (label: string, hasData: boolean): string =>
+  hasData && label && label !== t('list__loading') ? label : ''
+
+/**
  * 歌曲列表写回：`tx/user.js` 给的是**老式歌曲对象**（musicSdk 内部形状），而 UI/store 用的是
  * 新式（平台字段进 `meta`，列表组件会读 `meta._qualitys`）——中间必须过 `toNewMusicInfo`
  * （写法对齐 store/leaderboard/action.ts:57）。
@@ -62,6 +79,51 @@ const load = async(key: keyof typeof labels, task: () => Promise<void>) => {
 }
 
 const user = () => music.tx.user
+
+/**
+ * 复位账号中心的**会话缓存**（登录成功 / 登出两条路径都调，见 `store/qqAuth/action.ts`）。
+ *
+ * 为什么必须有：这份缓存是模块级单例，不随登录态复位——未登录时进过任一页
+ * （`initUserCenter` 会把 `isInited` 置 true）→ 登录后不再取数；换号后 `favSongIds`
+ * 还是上一个人的（`toggleFavSongToCloud` 会判反方向：该移除的又收藏一遍）。
+ *
+ * 清到「这个会话什么都没拉过」的状态：列表 / 分页 / 收藏态全量 id / 文案 / `isInited`。
+ * 复位后由页面在登录信号到达时重拉（各 Favorites 面板的 `watch(() => status.isLogin)`）。
+ *
+ * `profile` / `vip` / `musicGene` 一并清空：它们同样是账号数据，登出后不该继续显示上一个人的
+ * 昵称 / 会员态（键必须全写，理由同 state.ts 里 musicGene 的注释——`Object.assign` 是覆盖式的）。
+ */
+export const resetUserCenter = (): void => {
+  setList(createdLists, [])
+  setList(favLists, [])
+  setList(favAlbums, [])
+  setList(followSingers, [])
+  setList(favSongs.list, [])
+  favSongs.total = 0
+  favSongs.page = 1
+  // 收藏态（「收了没」靠的全量 id 集合）必须失效——`favSongIdsLoaded` 也要回 false
+  setList(favSongIds, [])
+  favSongIdsLoaded.value = false
+  setList(favAlbumIds, [])
+  setList(favPlaylistIds, [])
+  // 云端自建歌单面板当前选中的内容（`listTid` 一并清，避免拿旧歌单的 id 误判）
+  setList(cloudListSongs.list, [])
+  cloudListSongs.total = 0
+  cloudListSongs.page = 1
+  cloudListSongs.listTid = ''
+  cloudListSongs.noItemLabel = ''
+  Object.assign(profile, { name: '', avatar: '', bigAvatar: '', isSinger: false, fans: 0, follow: 0, friends: 0, visitor: 0 })
+  Object.assign(vip, { canRenew: false, hires: false, dolby: false, maxSongNum: 0, maxDirNum: 0 })
+  Object.assign(musicGene, {
+    nick: '', avatar: '', mainDescription: '', singers: [], genres: [], personality: null, personalityTags: [], status: [], ages: [], bpm: null, grooving: null, timePreference: null, characterColor: null, report: [], aiCards: [], aiTags: [],
+  })
+  for (const key of Object.keys(labels) as Array<keyof typeof labels>) labels[key] = ''
+  pagers.favLists = { page: 1, hasMore: false }
+  pagers.favAlbums = { page: 1, hasMore: false }
+  pagers.followSingers = { page: 1, hasMore: false }
+  isInited.value = false
+  isLoading.value = false
+}
 
 /** 首屏：主页概览 + 各列表。已初始化过就直接返回（视图切回来不必重拉）。 */
 export const initUserCenter = async(force = false): Promise<void> => {
@@ -115,6 +177,8 @@ export const initUserCenter = async(force = false): Promise<void> => {
 
 /** 我喜欢 —— 加载更多（追加）。 */
 export const loadMoreFavSongs = async(): Promise<void> => {
+  // in-flight 闸：连点「加载更多」会各自算 page + 1，把同一页追加两遍
+  if (labels.favSongs === t('list__loading')) return
   if (favSongs.list.length >= favSongs.total) return
   labels.favSongs = t('list__loading')
   try {
@@ -289,29 +353,43 @@ export const toggleFavSongToCloud = async(musicInfo: LX.Music.MusicInfoOnline): 
 export const favErrorText = (err: any): string =>
   err?.message == 'QQ 音乐未登录' ? t('user_center__need_login') : (err?.message || t('list_add__cloud_failed'))
 
-export const loadMoreFavLists = async(): Promise<void> => {
-  if (!pagers.favLists.hasMore) return
-  const next = pagers.favLists.page + 1
-  const res = await user().getFavSonglist(next, getPageSize(appSetting))
-  appendList(favLists, res.list as any)
-  pagers.favLists = { page: next, hasMore: res.hasMore === true }
+/**
+ * 三块收藏类列表（歌单 / 专辑 / 歌手）的「加载更多」——结构完全同构，共用一份实现。
+ *
+ * 两条约束（2026-09-26 审查）：
+ *   1. **in-flight 闸**：连点「加载更多」会各自算 `page + 1`、把同一页追加两遍；
+ *      用 `labels[key]` 的加载中文案当闸（它本来就是这块的加载态，失败文案不会挡住重试）；
+ *   2. **失败不抛**：按钮回调是 `void loadMore*()`，抛出去就是未处理 rejection（dev 下弹浮层
+ *      吞鼠标）。与 `load()` 同口径：失败只落 `list__load_failed`，已有数据保留。
+ */
+const loadMoreList = async(
+  key: 'favLists' | 'favAlbums' | 'followSingers',
+  target: any[],
+  fetcher: (page: number, limit: number) => Promise<{ list?: any[], hasMore?: boolean }>,
+): Promise<void> => {
+  if (labels[key] === t('list__loading')) return
+  if (!pagers[key].hasMore) return
+  labels[key] = t('list__loading')
+  try {
+    const next = pagers[key].page + 1
+    const res = await fetcher(next, getPageSize(appSetting))
+    appendList(target, res.list ?? [])
+    pagers[key] = { page: next, hasMore: res.hasMore === true }
+    labels[key] = ''
+  } catch (err) {
+    console.log('[user] more', key, err)
+    labels[key] = t('list__load_failed')
+  }
 }
 
-export const loadMoreFavAlbums = async(): Promise<void> => {
-  if (!pagers.favAlbums.hasMore) return
-  const next = pagers.favAlbums.page + 1
-  const res = await user().getFavAlbum(next, getPageSize(appSetting))
-  appendList(favAlbums, res.list as any)
-  pagers.favAlbums = { page: next, hasMore: res.hasMore === true }
-}
+export const loadMoreFavLists = async(): Promise<void> =>
+  loadMoreList('favLists', favLists, (page, limit) => user().getFavSonglist(page, limit))
 
-export const loadMoreFollowSingers = async(): Promise<void> => {
-  if (!pagers.followSingers.hasMore) return
-  const next = pagers.followSingers.page + 1
-  const res = await user().getFollowSingers(next, getPageSize(appSetting))
-  appendList(followSingers, res.list as any)
-  pagers.followSingers = { page: next, hasMore: res.hasMore === true }
-}
+export const loadMoreFavAlbums = async(): Promise<void> =>
+  loadMoreList('favAlbums', favAlbums, (page, limit) => user().getFavAlbum(page, limit))
+
+export const loadMoreFollowSingers = async(): Promise<void> =>
+  loadMoreList('followSingers', followSingers, (page, limit) => user().getFollowSingers(page, limit))
 
 // ── 云端自建歌单的读与写（工单 06）─────────────────────────────────────────
 // 读走 `songList.getListDetailByCgi`（disstid = tid、dirid = 0，dir 型歌单也能读，
@@ -369,7 +447,13 @@ export const loadCloudListSongs = async(id: string, page = 1, more = false): Pro
  */
 export const createCloudList = async(name: string, dirPicUrl?: string): Promise<{ dirId: number, tid: number }> => {
   const res = await music.tx.songList.createList(name, dirPicUrl)
-  await refreshCreatedLists()
+  // 建歌单已经成功：刷新列表是 best-effort（同 `reloadFavAlbums` 的写法）。
+  // 刷新失败若往外抛，调用方会提示「建歌单失败」→ 用户重试 → 建出**重复歌单**。
+  try {
+    await refreshCreatedLists()
+  } catch (err) {
+    console.log('[user] refresh createdLists', err)
+  }
   return res
 }
 

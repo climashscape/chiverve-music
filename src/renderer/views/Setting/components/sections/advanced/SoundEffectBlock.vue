@@ -38,7 +38,8 @@ div
 
   .p.small(:class="$style.tip") {{ $t('player__sound_effect_features_tip') }}
 
-material-modal(:show="isShowPanel" bg-close @close="isShowPanel = false")
+//- 视图内弹窗照 §2.5.1 第 2 条显式 `teleport="#view"`：默认的 `#root` 会把整窗压暗
+material-modal(:show="isShowPanel" bg-close teleport="#view" @close="isShowPanel = false")
   div(:class="$style.panel")
     div(:class="['scroll', $style.panelRow]")
       AudioConvolution

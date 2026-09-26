@@ -7,13 +7,16 @@
     <div v-if="pagers.favLists.hasMore" :class="$style.more">
       <base-btn min @click="loadMoreFavLists">{{ $t('user_center__load_more') }}</base-btn>
     </div>
+    <!-- 加载更多失败：独立提示位（有数据时不能塞进 listInfo.noItemLabel——那是列表的显隐开关） -->
+    <p v-if="moreError" :class="$style.error" v-text="moreError" />
   </div>
 </template>
 
 <script lang="ts">
-import { computed } from '@common/utils/vueTools'
+import { computed, watch } from '@common/utils/vueTools'
 import { favLists, labels, pagers } from '@renderer/store/user/state'
-import { initUserCenter, loadMoreFavLists } from '@renderer/store/user/action'
+import { initUserCenter, loadMoreFavLists, moreErrorLabelOf, noItemLabelOf } from '@renderer/store/user/action'
+import { status } from '@renderer/store/qqAuth/state'
 import SongCardGrid from '@renderer/components/common/SongCardGrid.vue'
 
 /** 我的收藏 → 歌单：QQ 账号收藏的**他人歌单**（与本地自建列表是两回事，见 CONTEXT 的「我的歌单」条）。 */
@@ -25,6 +28,12 @@ export default {
   setup() {
     void initUserCenter()
 
+    // 登录信号到达就重拉（照 `views/friends/useUserList.ts` 的 watch）：未登录时挂载过的话
+    // `isInited` 已被置 true，不 force 就看不到数据（切走再切回来也不一定——Tab 是重建的，但守卫还在）
+    watch(() => status.isLogin, (isLogin) => {
+      if (isLogin) void initUserCenter(true)
+    })
+
     // 卡片网格组件要 ListInfo 形状（它自带「点卡片进歌单详情」的跳转）；一次拉完，limit 取长度让分页器不出现
     const listInfo = computed(() => ({
       list: favLists,
@@ -32,15 +41,19 @@ export default {
       page: 1,
       limit: favLists.length || 1,
       key: null,
-      noItemLabel: labels.favLists || (favLists.length ? '' : window.i18n.t('no_item' as any)),
+      // `noItemLabel` 同时是网格的显隐开关：有数据时必须空串，否则加载更多失败会把整页藏掉
+      noItemLabel: noItemLabelOf(labels.favLists, favLists.length > 0),
       tagId: '',
       sortId: '',
       source: 'tx' as LX.OnlineSource,
     }))
 
+    const moreError = computed(() => moreErrorLabelOf(labels.favLists, favLists.length > 0))
+
     return {
       pagers,
       listInfo,
+      moreError,
       loadMoreFavLists,
     }
   },
@@ -66,5 +79,13 @@ export default {
   flex: none;
   padding: 10px 0;
   text-align: center;
+}
+
+.error {
+  flex: none;
+  padding: 6px 0 0;
+  text-align: center;
+  font-size: 12px;
+  color: var(--color-font-label);
 }
 </style>

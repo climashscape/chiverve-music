@@ -71,7 +71,15 @@ export const getMusicUrl = async({ musicInfo, quality, isRefresh }: {
   // 那就把缓存里这条已知打不开的行删掉再取新流——否则取流失败时它仍留在表里，下次播放又先失败一次
   // 才刷新。删的只有刚查到的那一条（key = `${id}_${档位}`，即取流要用的 key），不动别的行、更不动列表数据。
   // 必须 await：先删后取，新行写回时不会被这次删除误删（反过来会有「新行刚写就被删」的竞态）。
-  if (cachedUrl) await removeMusicUrl([`${musicInfo.id}_${targetQuality}`])
+  // 但删缓存失败（IPC 拒绝）不能拦住这次刷新取流——行留在表里最多让下次播放再先失败一次，
+  // 比「刷新直接不发起、异常被上层记成取流失败」轻得多。所以局部收口，只留上下文日志。
+  if (cachedUrl) {
+    try {
+      await removeMusicUrl([`${musicInfo.id}_${targetQuality}`])
+    } catch (err) {
+      console.log('[music] 删除失效的 URL 缓存失败', err)
+    }
+  }
 
   return handleGetOnlineMusicUrl({ musicInfo, quality, isRefresh }).then(({ url, quality: targetQuality }) => {
     void saveMusicUrl(musicInfo, targetQuality, url)

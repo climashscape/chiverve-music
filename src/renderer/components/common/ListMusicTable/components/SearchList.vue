@@ -21,7 +21,11 @@
           </div>
           <div v-if="resultList" ref="dom_scrollContainer" class="scroll" :class="$style.list" :style="listStyle">
             <ul ref="dom_list">
-              <li v-for="(item, index) in resultList" :key="item.songmid" :class="selectIndex === index ? $style.select : null" @mouseenter="selectIndex = index" @click="handleTemplistClick(index)">
+              <!-- key 用 `item.id`（**身份**），不是 `item.songmid`：新式 musicInfo 上 mid 叫
+                   `meta.songId`（见 `common/utils/tools.ts`），`songmid` 恒为 undefined → 每行 key 都是
+                   undefined，Vue 对 KEYED_FRAGMENT 里 key 为空的项退化成按位 patch。下面
+                   `handleTemplistClick` 也是按 `item.id` 在 `list` 里定位的，两处口径统一 -->
+              <li v-for="(item, index) in resultList" :key="item.id" :class="selectIndex === index ? $style.select : null" @mouseenter="selectIndex = index" @click="handleTemplistClick(index)">
                 <div :class="$style.img" />
                 <div :class="$style.text">
                   <h3 :class="$style.text">{{ item.name }} - {{ item.singer }}</h3>

@@ -90,4 +90,13 @@ describe('layout/PlayDetail/components/ControlBtns 的「我喜欢」心形', ()
     expect(addBtn.find('use').element.outerHTML).toContain('xlink:href="#icon-list-add"')
     expect(addBtn.find('use').element.outerHTML).not.toContain('love')
   })
+
+  it('没有歌在播时：灰掉 + 悬停说明「为什么灰」（不再是无提示的空 title）', () => {
+    playMusicInfo.musicInfo = null
+    const wrapper = mountBtns()
+
+    const btn = favBtn(wrapper)
+    expect(btn.attributes('disabled')).toBeDefined()
+    expect(btn.attributes('title')).toBe(t('player__love_disabled_no_music'))
+  })
 })

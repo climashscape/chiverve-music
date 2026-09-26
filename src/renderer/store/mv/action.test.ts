@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { closePlayer, openMv, player } from './index'
+import { closePlayer, list, loadMvs, openMv, player, switchOrder, ORDER_LATEST } from './index'
 import type { MvInfo } from './state'
 
 /**
@@ -12,12 +12,12 @@ import type { MvInfo } from './state'
  *
  * 只把最外层的 SDK 换成桩（真链路：openMv → loadDetail/loadUrl → 状态写回）。
  */
-const { getMvUrl, getMvDetail } = vi.hoisted(() => ({ getMvUrl: vi.fn(), getMvDetail: vi.fn() }))
+const { getMvUrl, getMvDetail, getMvList } = vi.hoisted(() => ({ getMvUrl: vi.fn(), getMvDetail: vi.fn(), getMvList: vi.fn() }))
 
 // import 写在前面、vi.mock 在后面：vitest 会把 vi.mock 提到顶部（hoist），顺序不影响生效，
 // 但这样过得了 lint 的 import/first
 vi.mock('@renderer/utils/musicSdk', () => ({
-  default: { tx: { mv: { getMvUrl, getMvDetail } } },
+  default: { tx: { mv: { getMvUrl, getMvDetail, getMvList } } },
 }))
 
 const MV: MvInfo = {
@@ -51,6 +51,15 @@ beforeEach(() => {
   getMvUrl.mockReset()
   getMvDetail.mockReset()
   getMvDetail.mockResolvedValue(null)
+  getMvList.mockReset()
+  // 列表是模块级单例：用例之间要复位（order 尤其重要，它进请求 key）
+  list.list.splice(0, list.list.length)
+  list.order = ORDER_LATEST
+  list.page = 1
+  list.hasMore = false
+  list.noItemLabel = ''
+  list.moreError = ''
+  list.isLoading = false
 })
 
 describe('store/mv 取流状态', () => {
@@ -103,5 +112,49 @@ describe('store/mv 取流状态', () => {
 
     await vi.waitFor(() => { expect(player.url).toContain('other.mp4') })
     expect(player.sizeText).toBe('H.265 · 12.34 MiB')
+  })
+})
+
+/** 手动控制 resolve 时机的 Promise：要造「旧请求迟到、新请求还在飞」的中间态。 */
+const deferred = () => {
+  let resolve!: (value: any) => void
+  const promise = new Promise<any>((_resolve) => { resolve = _resolve })
+  return { promise, resolve }
+}
+
+/** 让挂起的 await 链跑完（一轮宏任务足够） */
+const flush = async() => new Promise(resolve => setTimeout(resolve, 0))
+
+const mvItem = (vid: string): MvInfo => ({ ...MV, id: vid, vid })
+
+/**
+ * 列表翻页的 **loading 归属**（2026-09-26 审查）。
+ *
+ * 真机症状：切排序 / 连点「加载更多」时旧请求迟到，它的 `finally` 会把**新请求的 loading
+ * 一起清掉**——界面看起来加载完了，放行一次错误翻页（排序混排）。
+ * 归属判据与数据写回同一条：`listKey === key` 才允许动状态。
+ */
+describe('store/mv 列表的 loading 只归当前请求', () => {
+  it('旧请求迟到时不清掉新请求的 loading，且旧页不写回', async() => {
+    const first = deferred()
+    const second = deferred()
+    getMvList.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
+
+    void loadMvs(1, false) // 最新 order
+    switchOrder(1) // 切排序：新请求，key 变了
+    expect(getMvList).toHaveBeenCalledTimes(2)
+    expect(list.isLoading).toBe(true)
+
+    first.resolve({ list: [mvItem('old')], hasMore: true }) // 旧请求这时才回来
+    await flush()
+
+    // 新请求还在飞：旧请求的 finally 不能把 loading 清掉（否则按钮放行一次翻页）
+    expect(list.isLoading).toBe(true)
+
+    second.resolve({ list: [mvItem('new')], hasMore: false })
+    await flush()
+
+    expect(list.isLoading).toBe(false)
+    expect(list.list.map(item => item.vid)).toEqual(['new'])
   })
 })

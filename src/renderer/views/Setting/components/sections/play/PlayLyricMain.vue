@@ -55,10 +55,11 @@ dd
     div.gap-top(data-setting-key="playDetail.style.fontSize")
       .p.small {{ $t('setting__play_detail_font_size') }} {{ appSetting['playDetail.style.fontSize'] }}
       div
-        base-input(type="number" :model-value="appSetting['playDetail.style.fontSize']" :placeholder="$t('setting__play_detail_font_size')" @update:model-value="setFontSize")
+        base-input(v-model="fontSizeInput" type="number" :placeholder="$t('setting__play_detail_font_size')" @update:model-value="setFontSize")
 </template>
 
 <script>
+import { ref, watch } from '@common/utils/vueTools'
 import { debounce } from '@common/utils'
 import { LYRIC_SOURCE_PRIORITIES } from '@common/settings/lyricSource'
 import { appSetting, updateSetting } from '@renderer/store/setting'
@@ -67,16 +68,31 @@ import { appSetting, updateSetting } from '@renderer/store/setting'
 export default {
   name: 'PlayLyricMain',
   setup() {
+    /**
+     * 字号输入的本地模型（理由同 `DesktopLyricFont` 的两个输入）：
+     * - 空输入 `Number('') === 0` 会被夹成下限 70 并落盘 —— 清框只是想重打一个数，不该改设置；
+     * - 夹取结果与当前值相同时主进程不落盘也不回推（`mergeSetting` 跳过未变化的值），
+     *   直接绑 appSetting 的话框会停在越界文本上（显示 999、实际 200）。
+     * 歌词右键菜单改的是同一个值，外部改动由 watch 同步进来。
+     */
+    const fontSizeInput = ref(String(appSetting['playDetail.style.fontSize']))
+    watch(() => appSetting['playDetail.style.fontSize'], value => { fontSizeInput.value = String(value) })
+
     // 量程照歌词右键菜单的夹取（`LyricMenu.vue:117,121` 的 70–200），落盘防抖 500ms（同 SettingOpenAPI 的端口输入）
     const setFontSize = debounce(value => {
+      if (value === '' || value == null) return
       const num = Number(value)
       if (!Number.isFinite(num)) return
-      updateSetting({ 'playDetail.style.fontSize': Math.min(Math.max(Math.trunc(num), 70), 200) })
+      const clamped = Math.min(Math.max(Math.trunc(num), 70), 200)
+      updateSetting({ 'playDetail.style.fontSize': clamped })
+      // 把框里的内容改回生效值（理由见 setup 头部的注释）
+      fontSizeInput.value = String(clamped)
     }, 500)
 
     return {
       appSetting,
       updateSetting,
+      fontSizeInput,
       setFontSize,
       // 取值清单来自 common/settings/lyricSource.ts（单项标签 = `setting__lyric_source_priority_<值>`）
       lyricSourcePriorityList: LYRIC_SOURCE_PRIORITIES,

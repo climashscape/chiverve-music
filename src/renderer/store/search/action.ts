@@ -20,10 +20,20 @@ const saveSearchHistoryListThrottle = throttle((list: LX.List.SearchHistoryList)
 }, 500)
 
 
+/**
+ * 拉历史词。失败**不抛**（2026-09-26 审查）：历史词是非关键路径，且调用点全是
+ * `void getHistoryList()`——抛出去会变成未处理 rejection（dev 下 webpack-dev-server
+ * 据此弹全屏浮层，吞掉真实鼠标输入，同类已修过一例见 .scratch/verify-2026-09-26/issues/03b）。
+ * 读不到就当没有历史，下次再进来还会重试（失败不置 `isInitedSearchHistory`）。
+ */
 export const getHistoryList = async() => {
   if (isInitedSearchHistory || historyList.length) return
-  historyList.push(...(await getSearchHistoryList() ?? []))
-  isInitedSearchHistory ||= true
+  try {
+    historyList.push(...(await getSearchHistoryList() ?? []))
+    isInitedSearchHistory ||= true
+  } catch (err) {
+    console.log('[search] get history list failed:', err)
+  }
 }
 export const addHistoryWord = async(word: string) => {
   if (!appSetting['search.isShowHistorySearch']) return
@@ -31,6 +41,7 @@ export const addHistoryWord = async(word: string) => {
   // 上限为 0 时直接返回，不动已有历史（「不记」不等于「清空」，清空有独立入口）
   const maxNum = getSearchHistoryMaxNum(appSetting)
   if (maxNum < 1) return
+  // 这一句也是本函数唯一会 await 的地方：它已经不再抛（见上），所以整个函数对调用方是安全的
   if (!isInitedSearchHistory) await getHistoryList()
   let index = historyList.indexOf(word)
   if (index == 0) return

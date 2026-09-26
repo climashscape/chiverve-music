@@ -105,7 +105,9 @@
           <li v-for="item in relatedPlaylists.list" :key="item.id" :class="$style.card" @click="toPlaylist(item)">
             <img :class="$style.cardImg" loading="lazy" decoding="async" :src="item.img" alt="">
             <h4 :class="$style.cardName" :title="item.name">{{ item.name }}</h4>
-            <p :class="$style.cardMeta">{{ item.total }} 首</p>
+            <!-- 曲目数走 i18n（复用我的主页「创建的歌单」那条同义 key `{num} 首 / {num} tracks`）：
+                 原来硬编码 `{{ item.total }} 首`，英文 / 韩文界面下也显示「首」 -->
+            <p :class="$style.cardMeta">{{ $t('user_center__gene_songs', { num: item.total }) }}</p>
           </li>
         </ul>
       </section>

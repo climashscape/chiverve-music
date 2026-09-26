@@ -103,6 +103,8 @@ export default {
       hotKeyConfig.value = config
     }
 
+    // 两个处理函数都按 `(event, info, type)` 取参：`type`（组名）由 HotKeyGrid 的 emit 带过来，
+    // 别只绑 `@focus="handleHotKeyFocus"` 而漏掉第三个参数——那样 `hotKeyConfig[undefined]` 直接抛。
     const handleHotKeyFocus = (event, info, type) => {
       setTimeout(async() => {
         await hotKeySetEnable(false)

@@ -43,17 +43,17 @@ dd
     div.gap-top(data-setting-key="desktopLyric.style.fontSize")
       .p.small {{ $t('setting__desktop_lyric_font_size') }} {{ appSetting['desktopLyric.style.fontSize'] }}
       div
-        base-input(type="number" :model-value="appSetting['desktopLyric.style.fontSize']" :placeholder="$t('setting__desktop_lyric_font_size')" @update:model-value="setFontSize")
+        base-input(v-model="fontSizeInput" type="number" :placeholder="$t('setting__desktop_lyric_font_size')" @update:model-value="setFontSize")
     div.gap-top(data-setting-key="desktopLyric.style.opacity")
       .p.small {{ $t('setting__desktop_lyric_opacity') }} {{ appSetting['desktopLyric.style.opacity'] }}
       div
-        base-input(type="number" :model-value="appSetting['desktopLyric.style.opacity']" :placeholder="$t('setting__desktop_lyric_opacity')" @update:model-value="setOpacity")
+        base-input(v-model="opacityInput" type="number" :placeholder="$t('setting__desktop_lyric_opacity')" @update:model-value="setOpacity")
     //- 颜色不再有取色器（ADR-0007 的有意能力回收），留一句说明免得用户到处找（票 10 落点）
     .p.small.gap-top {{ $t('setting__desktop_lyric_color_theme_tip') }}
 </template>
 
 <script>
-import { ref, computed } from '@common/utils/vueTools'
+import { ref, computed, watch } from '@common/utils/vueTools'
 import { debounce } from '@common/utils'
 import { getSystemFonts } from '@renderer/utils/ipc'
 import { appSetting, updateSetting } from '@renderer/store/setting'
@@ -70,14 +70,41 @@ export default {
       updateSetting({ 'desktopLyric.style.lineGap': Math.min(Math.max(gap, 0), 25) })
     }
 
+    /**
+     * 数字输入的本地模型。
+     *
+     * 为什么要它、不直接把 `:model-value` 绑 `appSetting[...]`：
+     * - **空输入**：`Number('')` 是 0，再夹取就变成下限（10 / 6）——用户清空输入框只是想重打一个数，
+     *   不该把下限写进设置（2026-09-26 复核的缺陷 10）；
+     * - **越界回推**：夹取结果与当前值相同时，主进程的 `mergeSetting` 会跳过这个 key（不落盘、
+     *   也不回推），直接绑 appSetting 的话框会**停在越界文本上**（显示 999、实际 200）。
+     *   有了本地模型就能把框里的内容改回生效值。
+     * 外部改动（歌词窗控制条改的是同一个值）由下面两个 watch 同步进来。
+     */
+    const fontSizeInput = ref(String(appSetting['desktopLyric.style.fontSize']))
+    const opacityInput = ref(String(appSetting['desktopLyric.style.opacity']))
+    watch(() => appSetting['desktopLyric.style.fontSize'], value => { fontSizeInput.value = String(value) })
+    watch(() => appSetting['desktopLyric.style.opacity'], value => { opacityInput.value = String(value) })
+
     // 量程照歌词窗控制条的夹取（`ControlBar.vue:86-102`：字号 10–80、不透明度 6–100），落盘防抖 500ms
+    // 返回「框里该显示什么」：夹取后的值（空 / 非数字返回 null，调用方据此不动框）
     const clampSetting = (key, value, min, max) => {
+      // 空输入（含全空白，base-input 默认 trim）直接不写：别把 `Number('') === 0` 夹成下限
+      if (value === '' || value == null) return null
       const num = Number(value)
-      if (!Number.isFinite(num)) return
-      updateSetting({ [key]: Math.min(Math.max(Math.trunc(num), min), max) })
+      if (!Number.isFinite(num)) return null
+      const clamped = Math.min(Math.max(Math.trunc(num), min), max)
+      updateSetting({ [key]: clamped })
+      return String(clamped)
     }
-    const setFontSize = debounce(value => { clampSetting('desktopLyric.style.fontSize', value, 10, 80) }, 500)
-    const setOpacity = debounce(value => { clampSetting('desktopLyric.style.opacity', value, 6, 100) }, 500)
+    const setFontSize = debounce(value => {
+      const next = clampSetting('desktopLyric.style.fontSize', value, 10, 80)
+      if (next != null) fontSizeInput.value = next
+    }, 500)
+    const setOpacity = debounce(value => {
+      const next = clampSetting('desktopLyric.style.opacity', value, 6, 100)
+      if (next != null) opacityInput.value = next
+    }, 500)
 
     const systemFontList = ref([])
     const fontList = computed(() => {
@@ -92,6 +119,8 @@ export default {
       updateSetting,
       changeLineGap,
       fontList,
+      fontSizeInput,
+      opacityInput,
       setFontSize,
       setOpacity,
     }
