@@ -6,12 +6,17 @@ LX Music 的美术资产），但**不是最终设计**——用户以后想换�
 
 ## 想换图标怎么做
 
-1. 改这三个 SVG 源（**只改这三个，产物不要手改**）：
+1. 改这五个 SVG 源（**只改这五个，产物不要手改**）：
    | 源文件 | 用途 |
    |---|---|
    | `app-icon.svg` | 大字标版：品牌绿底板 + 两行 `Ch'iverve` / `MUSIC`，用于 **>= 128px** |
    | `app-icon-compact.svg` | 单字母标版：同一块底板 + `C` 加撇号，用于 **<= 64px**（两行字标在这个尺寸已经糊了） |
-   | `tray-glyph.svg` | 托盘字形：纯黑单色、透明底，`C` 加撇号；`tray_origin` 的绿色由脚本染色得到 |
+   | `tray-white.svg` | 托盘「白色」档：深绿底板 + 白字形（跟随系统在深色面板下也用它） |
+   | `tray-black.svg` | 托盘「黑色」档：白底板 + 黑字形（跟随系统在浅色面板下也用它） |
+   | `tray-origin.svg` | 托盘「原色」档：白底板 + 品牌绿字形 |
+
+   三份 `tray-*.svg` 的**底板与字形几何必须逐字一致**（只允许改颜色），`make-icons.sh` 开头会校验；
+   为什么托盘要带底板、留边与缩放比例怎么定的，写在 `tray-white.svg` 的注释里（另两份只写差异）。
 2. 重跑生成（会覆盖下面规格表里的全部 26 个产物）：
    ```bash
    bash resources/icons/make-icons.sh
@@ -21,6 +26,10 @@ LX Music 的美术资产），但**不是最终设计**——用户以后想换�
 3. 验收：`identify resources/icons/*.png resources/icons/icon.ico src/static/images/tray/*`
    与下面规格表逐行对照；再跑一次 `npm run build && npm run pack:linux:deb:amd64`，
    用 `dpkg-deb -c build/chiverve-music_<版本>_amd64.deb | grep hicolor` 确认产物里的图标是新的。
+   **托盘图不在 hicolor 里**：它们进的是 `resources/app.asar`（`build-pack.js` 的 `files: ['dist/**/*']`），
+   所以解包后要另查，例如
+   `strings <解包目录>/opt/chiverve-music/resources/app.asar | grep -E 'tray_(white|black|origin)'`
+   ——三个名字都在、且看不到已删掉的旧名字才算对。
 4. 与上游"还像不像"的核对（本仓库的红线之一就是别分发上游美术资产）：
    ```bash
    for f in resources/icons/* src/static/images/tray/*; do
@@ -45,15 +54,25 @@ LX Music 的美术资产），但**不是最终设计**——用户以后想换�
 引用处是 `src/main/modules/tray.ts` 的 `getIconPath()`——它按
 `fileName + (isWin ? '.ico' : '.png')` 拼路径，**倍率变体（`@1.25x`/`@1.5x`/`@2x`）由 Electron
 自己按后缀找**，所以文件名与数量必须与下表逐字一致，少一个就在对应主题/缩放下空白。
+`tray.ts` 的 `themeList` 用 `fileName` 指定三档，下表按它列。
 
-| 主题（`tray.ts` 的 `themeList`） | 文件 | 尺寸 | 颜色 |
+**为什么带底板**（2026-09-26 用户拍板，推翻了此前「托盘只画字形、不画底板」的取舍）：
+裸字形只能靠字形色去适配面板深浅，选错档就是看不见（默认档在 Linux 深色面板上正是黑字形）；
+底板把可见性从面板底色里解耦出来，四档怎么选都看得见。**因此白色档的文件名不能带 `Template`
+后缀**——Electron 在 macOS 上按后缀判定模板图（只取 alpha、由系统涂色），带底板的图会被
+涂成一块实心方块、C 变挖空；底板自己就解决了面板亮暗适配，不需要模板图语义。
+旧的「纯黑字形 + `convert -colorize` 染绿」流程已随本次改版删掉（源自带颜色，不再染色）。
+
+| 主题（`tray.ts` 的 `themeList`） | 文件（`src/static/images/tray/`） | 尺寸 | 底板 / 字形 |
 |---|---|---|---|
-| `trayTemplate`（id 0，macOS 模板图，`isNative: true`） | `.png` / `@1.25x.png` / `@1.5x.png` / `@2x.png` / `.ico` / `@2x.ico` | 16 / 20 / 24 / 32 | 纯黑 `#000000` + 透明（模板图由系统按面板明暗反色） |
-| `tray_black`（id 2，浅色面板） | 同上 6 个 | 16 / 20 / 24 / 32 | 纯黑 `#000000` + 透明 |
-| `tray_origin`（id 1，品牌绿） | `.png` / `@2x.png` / `.ico` / `@2x.ico`（**没有** `@1.25x`/`@1.5x`，上游也没给） | 16 / 32 | `#4daf7c`（脚本用 ImageMagick `-colorize` 把黑字染绿） |
+| `tray_white`（id 0「白色」，跟随系统的深色面板档） | `.png` / `@1.25x.png` / `@1.5x.png` / `@2x.png` / `.ico` / `@2x.ico` | 16 / 20 / 24 / 32 | 底板 `#3e8e65`（品牌深绿）+ 白字形 |
+| `tray_black`（id 2「黑色」，跟随系统的浅色面板档） | 同上 6 个 | 16 / 20 / 24 / 32 | 底板 `#ffffff` + 黑字形 |
+| `tray_origin`（id 1「原色」） | `.png` / `@2x.png` / `.ico` / `@2x.ico`（**没有** `@1.25x`/`@1.5x`，上游也没给） | 16 / 32 | 底板 `#ffffff` + 品牌绿 `#4daf7c` 字形 |
 
-`trayTemplate` 与 `tray_black` 的像素**逐字节相同**是正常的：模板图在 macOS 上由系统反色，
-浅色面板要的也是黑字，两者本来就该是同一张图，区别只在 `tray.ts` 里的 `isNative` 语义。
+三档的底板与字形几何**完全相同**（圆角方块 `rect(1,1,30,30,rx 6.6)`、字形
+`translate(2.24 2.24) scale(0.86)`），差异只在颜色：底板在「深绿 / 白」之间反色，字形承担
+白 / 黑 / 品牌绿。`tray-white` 与 `tray-black` 给全套倍率变体（「跟随系统」在两种面板下都可能
+命中它们），`tray-origin` 沿用上游档位。
 
 ## 设计约束（改之前先读，都是实测踩过的）
 
@@ -64,9 +83,14 @@ LX Music 的美术资产），但**不是最终设计**——用户以后想换�
 - **字标两行 `Ch'iverve` / `MUSIC`**（短名 + 副行的写法；正式场合的全名是 `Ch'iverve Music`）；字体只写通用栈
   `Arial, Helvetica, sans-serif`，不绑定本机专有字体。
 - **`C` 与撇号是路径/描边画的，不依赖字体**——小尺寸下笔画宽度才可控。
-  `app-icon-compact.svg` 与 `tray-glyph.svg` 用同一套比例：撇号必须落在缺口外侧、
+  `app-icon-compact.svg` 与三份 `tray-*.svg` 用同一套比例：撇号必须落在缺口外侧、
   与 C 上臂切口留 ≥5% 边长的间隙，贴上去会被读成"钩在 C 上"。
-- **托盘字形只画字形、不画底板**：带方底板会在浅色/深色面板上出现突兀方块。
+- **托盘图标必须带底板，且底板不铺满视口**（2026-09-26 定，取代此前的「只画字形、不画底板」）：
+  面板亮暗对可见性的影响由底板承担，字形色不再需要跟面板底色匹配；四周留 1/32 边长
+  （16px 档≈0.5px）避免贴边抗锯齿被裁，字形在底板里缩到 0.86 倍（C 环外径≈底板 66%，
+  16px 档笔画 2.2px，再小就糊、再大顶到圆角）。
+- **三份 `tray-*.svg` 的几何三行必须逐字一致**（底板 `rect`、字形 `<g transform>`、两条
+  路径 `d`），只允许改颜色：`make-icons.sh` 开头以「唯一几何 4 条」为准做校验，漂了就直接退出。
 - **`inkscape` 的 XML 解析错误只往 stderr 打警告、退出码仍是 0**（1.2.2 实测），
   所以 `make-icons.sh` 除了退出码还查 stderr 里的 `parser error` 与输出文件是否非空。
 

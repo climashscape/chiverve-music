@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Ch'iverve Music 托盘图标「白色」档（`tray.themeId = 0`；「跟随系统」在深色面板下也用它）
+  ——品牌深绿圆角底板 + 白色字形。产物：src/static/images/tray/tray_white.*
+
+  三份托盘源（tray-white / tray-black / tray-origin）共用同一块底板与同一套字形：
+  底板 `rect(1,1,30,30,rx 6.6)`、字形 `<g>` 的 `translate(2.24 2.24) scale(0.86)`、
+  C 环与撇号两条 `d` —— 这三行几何在**三份里必须逐字一致**，make-icons.sh 会校验
+  （只在一份里改坐标会做出一套不齐的图标）。三份之间只允许改颜色。
+
+  为什么带底板（2026-09-26 用户拍板，推翻了此前「托盘只画字形、不画底板」的取舍）：
+  裸字形只能靠字形色去适配面板深浅，选错档就是「看不见」（默认档在 Linux 深色面板上
+  正是黑字形）。底板把可见性从面板底色里解耦出来，四档怎么选都看得见。
+
+  几何约束（与 app-icon-compact.svg 同源的取舍）：
+  - 底板不铺满视口：四周留 1/32 边长（16px 档≈0.5px），避免贴边的抗锯齿被裁掉。
+  - 字形在底板里缩到 0.86：C 环外径 19.8/30 ≈ 底板的 66%，16px 档下笔画 2.2px，
+    再小就糊、再大就顶到圆角。
+  - C 与撇号都是路径/描边画的，不依赖字体：小尺寸下笔画宽度才可控；撇号落在缺口外侧、
+    与 C 上臂切口留出间隙（贴上去会被读成「钩在 C 上」）。
+
+  配色只用品牌 token（src/renderer/assets/styles/index.less）：
+  #3e8e65 = color-primary-dark-200（本文件底板）、#4daf7c = color-primary（tray-origin 的字形）；
+  白/黑是明度色、不占品牌色位。三份文件的注释里都不写带两个减号的 CSS 变量名——
+  XML 注释不允许连续两个减号，写了会让 inkscape 静默产出半成品图（make-icons.sh 会拦）。
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" version="1.1">
+  <rect x="1" y="1" width="30" height="30" rx="6.6" ry="6.6" fill="#3e8e65"/>
+  <g transform="translate(2.24 2.24) scale(0.86)">
+    <path d="M 21.793 10.207 A 8.9 8.9 0 1 0 21.793 22.793"
+          fill="none" stroke="#ffffff" stroke-width="5.2" stroke-linecap="butt"/>
+    <path d="M 24.8 5 L 26.4 9.4" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round"/>
+  </g>
+</svg>

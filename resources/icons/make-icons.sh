@@ -4,8 +4,8 @@
 #
 #   用法：bash resources/icons/make-icons.sh
 #
-# 改完三个 SVG 源（app-icon.svg / app-icon-compact.svg / tray-glyph.svg）后重跑本脚本，
-# 所有尺寸的 PNG、icon.ico、icon.icns 与托盘图都会重新生成。
+# 改完五个 SVG 源（app-icon.svg / app-icon-compact.svg / tray-white.svg / tray-black.svg /
+# tray-origin.svg）后重跑本脚本，所有尺寸的 PNG、icon.ico、icon.icns 与托盘图都会重新生成。
 #
 # 产物落点（**别手改产物**，下次重跑就覆盖了）：
 #   resources/icons/         10 个：16/32/48/64/128/256/512.png、icon.png、icon.ico、icon.icns
@@ -67,47 +67,55 @@ convert "$TMP_DIR/app-16.png" "$TMP_DIR/app-24.png" "$TMP_DIR/app-32.png" \
         "$TMP_DIR/app-48.png" "$TMP_DIR/app-64.png" "$TMP_DIR/app-128.png" \
         "$TMP_DIR/app-256.png" "$SRC_DIR/icon.ico"
 
-# ── 2. 托盘图：一套字形，两种颜色 ──
+# ── 2. 托盘图：三套「底板 + 字形」配色 ──
 # 文件名与数量必须与 src/main/modules/tray.ts 的 getIconPath() 完全一致
 # （它按 `fileName + (isWin ? '.ico' : '.png')` 拼路径，Electron 再自己找 @1.25x/@1.5x/@2x
 # 倍率变体），少一个文件托盘就会在相应主题/缩放下空白。
+#
+# 三份源各自带底板与字形颜色，**不再有染色步骤**（旧的「纯黑字形 + colorize 染绿」随
+# 2026-09-26 的带底板改版一并去掉）：
+#   tray-white  = 深绿底板 + 白字   ← 白色档；「跟随系统」在深色面板下用它
+#   tray-black  = 白色底板 + 黑字   ← 黑色档；「跟随系统」在浅色面板下用它
+#   tray-origin = 白色底板 + 品牌绿字形 ← 原色档
+# 三份源的底板与字形几何必须逐字一致（只在一份里改坐标会做出一套不齐的图标），这里先校验，
+# 免得渲染完 16 个文件才发现。期望：1 种底板 + 1 种 transform + 2 条路径 = 4 条唯一几何。
+n_geom="$(grep -ho 'x="1" y="1" width="30" height="30" rx="6.6" ry="6.6"\|<g transform="[^"]*"\|d="[^"]*"' \
+  "$SRC_DIR"/tray-*.svg | sort -u | wc -l)"
+if [ "$n_geom" != 4 ]; then
+  echo "✗ 三份 tray-*.svg 的底板/字形几何不一致（唯一几何 $n_geom 条，应为 4）" >&2
+  exit 1
+fi
+
 for size in 16 20 24 32; do
-  export_svg "$SRC_DIR/tray-glyph.svg" "$size" "$TMP_DIR/tray-$size.png"
+  for theme in white black origin; do
+    export_svg "$SRC_DIR/tray-$theme.svg" "$size" "$TMP_DIR/tray-$theme-$size.png"
+  done
 done
 
-# 托盘三主题：trayTemplate(macOS 模板图，必须纯黑+透明)、tray_black(浅色面板用纯黑)、
-# tray_origin(品牌绿)。染色用 colorize 而不是 -opaque：前者连抗锯齿边缘一起染，
-# 后者只替换纯黑像素、会留下灰边。只作用 RGB 通道，alpha 不动。
-# `-strip` 与 `PNG32:` 两个写法都不是装饰：
-#   -strip  去掉 ImageMagick 默认写进 PNG 的 tIME 时间戳块——留着它，同一条命令
-#           每次跑出来的字节都不同（实测：只有被 convert 写过的这两张图不幂等），
-#           「重跑一遍确认没变化」就永远看到 26 个文件被改动。
-#   PNG32:  强制 RGBA 8bit 输出；不加时 ImageMagick 会把它量化成带 tRNS 的调色板 PNG，
-#           与 inkscape 出的 RGBA 黑版不是同一种 color type（像素一致，但难比对）。
+# 白色档与黑色档给全套倍率变体：@1.25x/@1.5x 只有它们有——「跟随系统」在两种面板下都可能
+# 命中这两档，缺变体就会在 125%/150% 缩放的面板上用错尺寸；原色档沿用上游的档位（只 16/32）。
 for size in 16 20 24 32; do
-  convert "$TMP_DIR/tray-$size.png" -channel RGB -fill '#4daf7c' -colorize 100 -strip \
-          "PNG32:$TMP_DIR/tray-green-$size.png"
+  case "$size" in
+    16) variant='' ;;
+    20) variant='@1.25x' ;;
+    24) variant='@1.5x' ;;
+    32) variant='@2x' ;;
+  esac
+  install -m 644 "$TMP_DIR/tray-white-$size.png" "$TRAY_DIR/tray_white$variant.png"
+  install -m 644 "$TMP_DIR/tray-black-$size.png" "$TRAY_DIR/tray_black$variant.png"
 done
 
-install -m 644 "$TMP_DIR/tray-16.png" "$TRAY_DIR/trayTemplate.png"
-install -m 644 "$TMP_DIR/tray-20.png" "$TRAY_DIR/trayTemplate@1.25x.png"
-install -m 644 "$TMP_DIR/tray-24.png" "$TRAY_DIR/trayTemplate@1.5x.png"
-install -m 644 "$TMP_DIR/tray-32.png" "$TRAY_DIR/trayTemplate@2x.png"
-convert "$TMP_DIR/tray-16.png" -strip "$TRAY_DIR/trayTemplate.ico"
-convert "$TMP_DIR/tray-32.png" -strip "$TRAY_DIR/trayTemplate@2x.ico"
+# .ico 里的 `-strip` 不是装饰：去掉 ImageMagick 默认写进容器的 tIME 时间戳块，
+# 否则同一条命令每次跑出来的字节都不同，「重跑一遍确认没变化」就永远看到文件在动。
+convert "$TMP_DIR/tray-white-16.png" -strip "$TRAY_DIR/tray_white.ico"
+convert "$TMP_DIR/tray-white-32.png" -strip "$TRAY_DIR/tray_white@2x.ico"
+convert "$TMP_DIR/tray-black-16.png" -strip "$TRAY_DIR/tray_black.ico"
+convert "$TMP_DIR/tray-black-32.png" -strip "$TRAY_DIR/tray_black@2x.ico"
+convert "$TMP_DIR/tray-origin-16.png" -strip "$TRAY_DIR/tray_origin.ico"
+convert "$TMP_DIR/tray-origin-32.png" -strip "$TRAY_DIR/tray_origin@2x.ico"
 
-install -m 644 "$TMP_DIR/tray-16.png" "$TRAY_DIR/tray_black.png"
-install -m 644 "$TMP_DIR/tray-20.png" "$TRAY_DIR/tray_black@1.25x.png"
-install -m 644 "$TMP_DIR/tray-24.png" "$TRAY_DIR/tray_black@1.5x.png"
-install -m 644 "$TMP_DIR/tray-32.png" "$TRAY_DIR/tray_black@2x.png"
-convert "$TMP_DIR/tray-16.png" -strip "$TRAY_DIR/tray_black.ico"
-convert "$TMP_DIR/tray-32.png" -strip "$TRAY_DIR/tray_black@2x.ico"
-
-# tray_origin 没有 @1.25x/@1.5x——上游就没给这两档，这里也不补，避免多出没人引用的文件
-install -m 644 "$TMP_DIR/tray-green-16.png" "$TRAY_DIR/tray_origin.png"
-install -m 644 "$TMP_DIR/tray-green-32.png" "$TRAY_DIR/tray_origin@2x.png"
-convert "$TMP_DIR/tray-green-16.png" -strip "$TRAY_DIR/tray_origin.ico"
-convert "$TMP_DIR/tray-green-32.png" -strip "$TRAY_DIR/tray_origin@2x.ico"
+install -m 644 "$TMP_DIR/tray-origin-16.png" "$TRAY_DIR/tray_origin.png"
+install -m 644 "$TMP_DIR/tray-origin-32.png" "$TRAY_DIR/tray_origin@2x.png"
 
 # ── 3. icon.icns（macOS）：Pillow 的 ICNS 写出器会生成 ic07~ic14（PNG 载荷）──
 # 本机没有 png2icns / icnsutils / iconutil（实测 2026-09-24），用 Pillow 代替；

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Ch'iverve Music 托盘图标「原色」档（`tray.themeId = 1`）——白色圆角底板 + 品牌绿字形。
+  品牌绿 `#4daf7c` 取自 color-primary（CSS 变量名见 tray-white.svg 的注释，本文件不写全名）。
+
+  几何（底板 rect、字形 transform、两条路径 d）与 tray-white.svg 逐字一致，改坐标要三份一起改，
+  只允许改颜色：底板白、字形品牌绿。为什么带底板、为什么留边与缩到 0.86，见 tray-white.svg 的注释。
+  「原色」的含义就是**用品牌原色的字形**（底板因此取白：绿字压在绿底上会看不见）。
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" version="1.1">
+  <rect x="1" y="1" width="30" height="30" rx="6.6" ry="6.6" fill="#ffffff"/>
+  <g transform="translate(2.24 2.24) scale(0.86)">
+    <path d="M 21.793 10.207 A 8.9 8.9 0 1 0 21.793 22.793"
+          fill="none" stroke="#4daf7c" stroke-width="5.2" stroke-linecap="butt"/>
+    <path d="M 24.8 5 L 26.4 9.4" fill="none" stroke="#4daf7c" stroke-width="3" stroke-linecap="round"/>
+  </g>
+</svg>

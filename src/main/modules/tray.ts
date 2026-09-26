@@ -34,21 +34,22 @@ const watchConfigKeys = [
   'common.langId',
 ] satisfies Array<keyof LX.AppSetting>
 
+// 三档样式（`tray.themeId`）在 resources/icons/ 里各有一份带底板的源，见 resources/icons/README.md
+// 的规格表。`tray_white` 的名字不能带 `Template` 后缀：Electron 在 macOS 上按文件名后缀判定
+// 模板图，而模板图只取 alpha 通道、由系统涂色——带底板的图会被涂成一块实心方块（C 变挖空）。
+// 底板已经自己解决了面板亮暗适配，不需要模板图语义。
 const themeList = [
   {
     id: 0,
-    fileName: 'trayTemplate',
-    isNative: true,
+    fileName: 'tray_white',
   },
   {
     id: 1,
     fileName: 'tray_origin',
-    isNative: false,
   },
   {
     id: 2,
     fileName: 'tray_black',
-    isNative: false,
   },
 ]
 
