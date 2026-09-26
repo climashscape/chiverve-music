@@ -1,5 +1,6 @@
 import { httpFetch } from '../../request'
 import { dateFormat2 } from '../../index'
+import { requestMsg } from '../../message'
 import { getQQCredential } from '@renderer/utils/ipc'
 import getMusicInfo from './musicInfo'
 import { pickCommentTotal } from './utils/commentTotal'
@@ -112,6 +113,41 @@ const songIdMap = new Map()
 const promises = new Map()
 
 /**
+ * 组件按 `'取消请求'` 识别「这次请求是被主动取消的」（`MusicComment/index.vue` 的
+ * getComment/getHotComment），而请求层的取消文案是 `requestMsg.cancelRequest`（'取消http请求'）
+ * ——两者对不上时组件会把「取消」当失败并**递归重试**（旧歌的请求会再发两次，后到的旧响应照样
+ * 覆盖新列表）。所以取消在数据层出口统一成组件认的那条，组件不用改。
+ * ⚠️ 这个不一致在 v2.12.6 基线里就有（组件写死 `'取消请求'`）；让它真正生效靠下面的 beginRequest。
+ */
+const CANCELLED_MESSAGE = '取消请求'
+
+/**
+ * 生成「本次请求」的持有者，并取消上一次还没回来的同类请求。
+ *
+ * 原来 `this._requestObj` / `this._requestObj2` 只有读没有写（永远是 null），`cancelHttp()`
+ * 是死代码：切歌 / 重开评论区时旧请求取消不掉，旧响应后到会覆盖新列表。写法照 `tx/lyric.js`
+ * 的 getLyric（已验证）：请求是在 `getSongId` 之后才创建的，用 holder 兜住「创建前就被取消」
+ * 的窗口；`api[field]` 存的是本次请求的取消入口（下一次调用据此取消本次）。
+ */
+const beginRequest = (api, field) => {
+  if (api[field]) api[field].cancelHttp()
+  const holder = { requestObj: null, cancelled: false }
+  api[field] = {
+    cancelHttp() {
+      holder.cancelled = true
+      if (holder.requestObj?.cancelHttp) holder.requestObj.cancelHttp()
+    },
+  }
+  return holder
+}
+
+/** 被取消的请求统一抛「取消请求」；其余错误原样抛。两个窗口都覆盖：创建前取消、发出后取消。 */
+const throwNormalizedCancel = (err, holder) => {
+  if (holder.cancelled || err?.message === requestMsg.cancelRequest) throw new Error(CANCELLED_MESSAGE)
+  throw err
+}
+
+/**
  * 写接口要登录态：无凭证时直接给出可读错误，别等接口返回 code=1xxx。
  *
  * 这里**不复用** `./utils/request` 的 `requireCredential`——那个还要求凭证带 `encryptUin`
@@ -174,10 +210,11 @@ export default {
     }
   },
   async getComment(mInfo, page = 1, limit = 20) {
-    if (this._requestObj) this._requestObj.cancelHttp()
+    const holder = beginRequest(this, '_requestObj')
     const songId = await this.getSongId(mInfo)
+    if (holder.cancelled) throw new Error(CANCELLED_MESSAGE)
 
-    const _requestObj = httpFetch('http://c.y.qq.com/base/fcgi-bin/fcg_global_comment_h5.fcg', {
+    holder.requestObj = httpFetch('http://c.y.qq.com/base/fcgi-bin/fcg_global_comment_h5.fcg', {
       method: 'POST',
       headers: {
         'User-Agent': 'Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 6.1; WOW64; Trident/5.0)',
@@ -195,20 +232,26 @@ export default {
         pagesize: limit,
       },
     })
-    const { body, statusCode } = await _requestObj.promise
+    const { body, statusCode } = await holder.requestObj.promise.catch(err => throwNormalizedCancel(err, holder))
     if (statusCode != 200 || body.code !== 0) throw new Error('获取评论失败')
     // console.log(body, statusCode)
     const comment = body.comment
     // 总评论条数跟着这次列表响应一起回来（文件头第 5 条），界面显示「评论 (N)」直接用它，
     // 不为计数再打一次请求；`null` = 这次响应里没有这个数，调用方据此不显示计数
     const total = pickCommentTotal(comment)
+    const comments = this.filterNewComment(comment.commentlist)
+    // 计数缺失只该影响「总数」的显示，不该把分页上限钉成 1——那一页的列表其实可能还有更多。
+    // 缺计数时按「本页是否满员」推断是否还有下一页（用原始条数判满，过滤后的条数会少）。
+    const rawCount = Array.isArray(comment.commentlist) ? comment.commentlist.length : 0
     return {
       source: 'tx',
-      comments: this.filterNewComment(comment.commentlist),
+      comments,
       total,
       page,
       limit,
-      maxPage: total == null ? 1 : Math.max(1, Math.ceil(total / limit)),
+      maxPage: total == null
+        ? (rawCount >= limit ? page + 1 : page)
+        : Math.max(1, Math.ceil(total / limit)),
     }
   },
   async getHotComment(mInfo, page = 1, limit = 20) {
@@ -230,10 +273,11 @@ export default {
     //     pagesize: limit,
     //   },
     // })
-    if (this._requestObj2) this._requestObj2.cancelHttp()
+    const holder = beginRequest(this, '_requestObj2')
     const songId = await this.getSongId(mInfo)
+    if (holder.cancelled) throw new Error(CANCELLED_MESSAGE)
 
-    const _requestObj2 = httpFetch('https://u.y.qq.com/cgi-bin/musicu.fcg', {
+    holder.requestObj = httpFetch('https://u.y.qq.com/cgi-bin/musicu.fcg', {
       method: 'POST',
       body: {
         comm: {
@@ -268,7 +312,7 @@ export default {
         origin: 'https://y.qq.com',
       },
     })
-    const { body, statusCode } = await _requestObj2.promise
+    const { body, statusCode } = await holder.requestObj.promise.catch(err => throwNormalizedCancel(err, holder))
     // console.log('body', body)
     if (statusCode != 200 || body.code !== 0 || body.req.code !== 0) throw new Error('获取热门评论失败')
     const comment = body.req.data.CommentList

@@ -5,7 +5,7 @@ import { buildCosAuthorization, buildSignTime, hmacSha1Hex, sha1Hex } from './co
  * COS 直传签名的钉子。
  *
  * **黄金向量不是自己反推的**：`signature` / `q-header-list` 由**官方 SDK**（`cos-python-sdk-v5`
- * 的 `cos_auth.CosS3Auth`）对同一组输入签出来的——2026-09-26 用 `/tmp/cap-upload/.venv` 里的
+ * 的 `cos_auth.CosS3Auth`）对同一组输入签出来的——2026-09-26 用一次性 venv（未留档）里的
  * SDK 跑 `crosscheck_sdk_sign.py` 生成（该 SDK 正是探针里真把 1×1 PNG 传进 COS 桶的那份，
  * 所以它是"能过 COS 校验"的参照实现）。本文件只把输入照抄过来，**不含任何真实凭证**
  * （secret/key/token 都是明文示例串）。

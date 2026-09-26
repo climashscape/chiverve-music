@@ -22,7 +22,8 @@ export const onSettingChanged = (listener: LX.IpcRendererEventListenerParams<Par
 export const sendWindowDrag = (drag: LX.DesktopLyric.WindowDrag) => {
   rendererSend<LX.DesktopLyric.WindowDrag>(WIN_LYRIC_RENDERER_EVENT_NAME.set_win_bounds, drag)
 }
-// 上游用 `setWindowResizeable(false)` 压制 Windows 原生缩放边框（issue #2244），但该 IPC
+// 上游用 `setWindowResizeable(false)` 压制 Windows 原生缩放边框
+// （issue #2244：https://github.com/lyswhut/lx-music-desktop/issues/2244），但该 IPC
 // 的发送早已被注释成空实现（electron#48352），此开关既不生效也不该被任何逻辑依赖：
 // Linux 走渲染侧 8 个手柄，尺寸正确性由拖动协议的几何算法保证。
 

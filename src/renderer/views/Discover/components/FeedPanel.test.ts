@@ -10,7 +10,7 @@ import FeedPanel from './FeedPanel.vue'
  * `DROPPED_SHELF_IDS`）。
  *
  * 同时钉住票 20 的修法不回归：连续的无名楼层仍要并成一组（孤卡成行的问题就出在没并组）。
- * 数据用票 20 记下的真实 feed 形状（`/tmp/daily30-probe/feed_raw_keys.json`，9 个楼层）。
+ * 数据用票 20 记下的真实 feed 形状（`scripts/verify/artifacts/2026-09-25-archive/probe-qq-feed/feed_raw_keys.json`，9 个楼层）。
  */
 
 const { getHomeFeed } = vi.hoisted(() => ({ getHomeFeed: vi.fn() }))

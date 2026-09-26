@@ -13,8 +13,8 @@ import PlayDetail from './index.vue'
  * 这里为什么要**手工拆一次点击**：真 Chromium 派发点击时，每个监听器返回后都会做一次
  * microtask checkpoint，而 Vue 的 watcher flush 恰好是微任务——菜单就是在那次 checkpoint 里
  * 打开的，于是**同一次点击**紧接着冒泡到 `useMenuLocation` 挂在 document 上的「点空白收起」，
- * 把刚开的菜单立刻关掉（`/tmp/ui-polish-2-verify/picker-timing.html` 在真浏览器里量到的顺序是
- * `触发元素 → microtask → document`）。jsdom 的 `dispatchEvent` 是纯同步循环，不在监听器之间
+ * 把刚开的菜单立刻关掉（一次性探针在真浏览器里量到的顺序是
+ * `触发元素 → microtask → document`；该探针未留档）。jsdom 的 `dispatchEvent` 是纯同步循环，不在监听器之间
  * 跑 checkpoint，所以照原样派发永远复现不出来，只能把这一段照真机语义补上。
  *
  * 触发元素上若 `stopPropagation`（仓库里两个歌曲表就是这么写的 `@click.stop`），真机里

@@ -26,10 +26,12 @@ describe('moveWindowBounds（移动只改位置）', () => {
     expect(bounds.y).toBe(base.y + 60)
   })
 
-  it('同一组总位移重复套用结果相同（增量累积式实现不满足）', () => {
+  it('分帧套用总位移（每帧都以按下时的 bounds 为基准）与一次套用等价（增量累积式实现不满足）', () => {
     const once = moveWindowBounds(base, 120, 60)
-    const twice = moveWindowBounds(once, 0, 0)
-    expect(twice).toEqual(once)
+    // 真实链路每帧报的都是「自按下以来的总位移」，基准始终是按下时的 bounds；
+    // 若实现把位移叠加到上一帧结果上（增量累积），这里就会偏
+    const midFrame = moveWindowBounds(base, 60, 30)
+    expect(midFrame).not.toEqual(once)
     expect(moveWindowBounds(base, 120, 60)).toEqual(once)
   })
 })

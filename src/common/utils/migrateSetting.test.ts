@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import defaultSetting from '@common/defaultSetting'
 import migrateSetting from './migrateSetting'
 
 /**
@@ -73,5 +74,40 @@ describe('migrateSetting：下载命名 2.2.0（fileName → fileNameTemplate）
 
     expect(twice['download.fileNameTemplate']).toBe('歌手 - 歌名')
     expect(twice.version).toBe('2.2.0')
+  })
+})
+
+describe('migrateSetting：迁移写出的键名防漂移', () => {
+  /** `defaultSetting` 的真实键集合；`version` 是迁移自己的游标，不是设置项，单独放行。 */
+  const DEFAULT_SETTING_KEYS = new Set(Object.keys(defaultSetting))
+  const isKnownSettingKey = (key: string) => key == 'version' || DEFAULT_SETTING_KEYS.has(key)
+
+  /**
+   * 迁移**新写**的键 = 输出里有、输入里没有的键。
+   *
+   * 为什么不拿整个输出对账：迁移的输入是用户磁盘上的旧配置，本身可能带着此刻已不存在的历史键
+   * （`sync.port` 就是 v1 → 2.0.0 那次迁移写下的平铺中转键，2.1.0 再把它读进 `sync.server.port`，
+   * 最终由 `mergeSetting` 按未知键丢弃）。只看新写的键，判据才是迁移交给 `mergeSetting` 的东西；
+   * 错拼出来的键名（`sync.erver.port`）同样是新键，必然落在集合里，逃不掉。
+   */
+  const writtenKeys = (input: Record<string, unknown>) =>
+    Object.keys(migrateSetting({ ...input })).filter(key => !(key in input))
+
+  it('迁移新写的每个键都必须存在于 defaultSetting（写错名字不会报错，只是静默丢值）', () => {
+    // v2.0.0 的旧配置会依次走过 2.1.0 / 2.1.1 / 2.2.0 三段迁移
+    const written = writtenKeys({ version: '2.0.0', 'sync.port': '12345' })
+    const unknown = written.filter(key => !isKnownSettingKey(key))
+
+    expect(unknown, `迁移写出了 defaultSetting 不存在的键：${unknown.join(', ')}`).toEqual([])
+    // 防「空集合恒过」：确认这次迁移确实新写了键（2.1.0 段写 sync.server.port、2.1.1 段写 common.apiSource）
+    expect(written).toContain('sync.server.port')
+    expect(written).toContain('common.apiSource')
+  })
+
+  it('v2.0.0 的旧设置：`sync.port` 的值原样搬进 `sync.server.port`（上游拼错键名，这条迁移从未生效）', () => {
+    const result = migrateSetting({ version: '2.0.0', 'sync.port': '12345' })
+
+    expect(result['sync.server.port']).toBe('12345')
+    expect(result.version).toBe('2.2.0')
   })
 })

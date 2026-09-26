@@ -3,7 +3,7 @@ import { groupShelves, type FeedGroupCard } from './feedGroups'
 
 /**
  * 票 20 的回归用例 + 票 05 的「为你打造」丢弃用例。数据形状照
- * `/tmp/daily30-probe/feed_raw_keys.json`（2026-09-23 实拉的首页 feed；2026-09-24 二次实拉
+ * `scripts/verify/artifacts/2026-09-25-archive/probe-qq-feed/feed_raw_keys.json`（2026-09-23 实拉的首页 feed；2026-09-24 二次实拉
  * 见 `/tmp/feed-id-check/feed_raw_2026-09-24.json`，两份的楼层 id 与 201 的卡片逐张相同）：
  * 以 `201` 为首个楼层（「为你打造」，4 张卡里 2 张可点，**票 05 起整块丢弃**），
  * 接着 `202`（「最近常听」17 张全可点），一个 `type=-1` 的占位楼层 `204`，

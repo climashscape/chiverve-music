@@ -8,7 +8,7 @@ import { refillPlayQueueForBatch } from './queueBatch'
  * 雷达页 →「每日30首」Tab 的取数（2026-09-23 交互与 IA 修复批次 2 / 票 04）。
  *
  * 「每日30首」原先在本仓库**没有任何实现**——它是 QQ 首页 feed 里的一张 `type=500`（歌单卡）卡。
- * 探针实测（脚本 `/tmp/daily30-probe/probe_daily_card.py`，2026-09-23）：
+ * 探针实测（脚本 `scripts/verify/probe-qq/probe_daily_card.py`，2026-09-23）：
  *
  *   · 卡片 `id=4279224903`、`miscellany.dirid='202'`（隐藏系统槽位，歌单标题模板「{昵称}的今日私享」）
  *   · `music.srfDissInfo.DissInfo/CgiGetDiss`（`disstid=4279224903`、`dirid=0`、

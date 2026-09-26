@@ -94,7 +94,6 @@ export default (setting: any): Partial<LX.AppSetting> => {
     setting['desktopLyric.style.isZoomActiveLrc'] = setting.desktopLyric?.style?.isZoomActiveLrc
 
     setting['list.isClickPlayList'] = setting.list?.isClickPlayList
-    setting['list.isShowAlbumName'] = setting.list?.isShowAlbumName
     setting['list.isShowSource'] = setting.list?.isShowSource
     setting['list.isSaveScrollLocation'] = setting.list?.isSaveScrollLocation
     setting['list.addMusicLocationType'] = setting.list?.addMusicLocationType
@@ -137,7 +136,10 @@ export default (setting: any): Partial<LX.AppSetting> => {
 
   // 迁移 v2.2.0 之前的设置数据
   if (compareVer(setting.version, '2.1.0') < 0) {
-    setting['sync.erver.port'] = setting['sync.port']
+    // 键名是 `sync.server.port`（对照 defaultSetting）。上游这里拼成了 `sync.erver.port`，
+    // 于是**自定义同步端口从来没有被迁移过**、升级后一律回落默认 23332——
+    // `mergeSetting` 会丢弃未知键，所以错拼不报错、只是静默丢值（2026-09-26 全历史自审查发现）。
+    setting['sync.server.port'] = setting['sync.port']
     setting.version = '2.1.0'
   }
 

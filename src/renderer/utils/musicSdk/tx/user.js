@@ -283,11 +283,15 @@ export default {
   /** 收藏的歌单的 **tid 集合**（同上：读接口没有单条查询，只能拉全量比对）。 */
   async getFavSonglistIds() {
     const ids = []
-    for (let page = 1; page <= 12; page++) {
+    let page = 0
+    for (page = 1; page <= 12; page++) {
       const res = await this.getFavSonglist(page, 600)
       res.list.forEach(item => { if (item.id) ids.push(item.id) })
       if (!res.hasMore) break
     }
+    // 与 `getFavSongIds` 同一纪律：撞上限必须留一行日志——截断的后果是收藏态判反
+    // （详情页显示「未收藏」，点一下反而变成收藏）。
+    if (page > 12) console.log('[tx] 收藏歌单的 id 集合撞到页数上限（12 页 × 600），可能截断', { ids: ids.length })
     return ids
   },
 
@@ -313,11 +317,14 @@ export default {
    */
   async getFavAlbumIds() {
     const ids = []
-    for (let page = 1; page <= 12; page++) {
+    let page = 0
+    for (page = 1; page <= 12; page++) {
       const res = await this.getFavAlbum(page, 600)
       res.list.forEach(item => { if (item.id) ids.push(item.id) })
       if (!res.hasMore) break
     }
+    // 同 `getFavSonglistIds`：撞上限要留痕，别让「收藏态判反」成为静默行为
+    if (page > 12) console.log('[tx] 收藏专辑的 id 集合撞到页数上限（12 页 × 600），可能截断', { ids: ids.length })
     return ids
   },
 
