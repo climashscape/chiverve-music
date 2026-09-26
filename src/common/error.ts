@@ -5,16 +5,38 @@ const ignoreErrorMessage = [
   'Unexpected end of input',
 ]
 
+/**
+ * 日志本身不许抛。
+ *
+ * 2026-09-26 真机复验时在 `~/.config/chiverve-music-dev/logs/main.log` 里看到一段 400 KB 的刷屏：
+ * ```text
+ * [error] Error: write EPIPE
+ *     at console.error (node:internal/console/constructor:441:26)
+ *     at process.eval (webpack-internal:///./src/common/error.ts:11:13)
+ * ```
+ * 成因：dev 实例从终端启动、终端关掉后 stdout 管道已断，`console.error` 抛 `EPIPE`——而它就写在
+ * **异常处理回调里**，抛出去又变成新的未处理异常 → 再进回调 → 循环刷日志。异常处理器自己崩掉
+ * 比不记录更糟，所以这里的每次输出都各自兜住（只为记录，失败就算了）。
+ */
+const reportUncaught = (label: string, reason: unknown) => {
+  try {
+    console.error(label)
+    console.error(reason)
+  } catch {}
+  try {
+    log.error(reason)
+  } catch {}
+}
+
 process.on('uncaughtException', err => {
   if (ignoreErrorMessage.includes(err?.message)) return
-  console.error('An uncaught error occurred!')
-  console.error(err)
-  log.error(err)
+  reportUncaught('An uncaught error occurred!', err)
 })
 process.on('unhandledRejection', (reason, p) => {
-  console.error('Unhandled Rejection at: Promise ', p)
-  console.error(' reason: ', reason)
-  log.error(reason)
+  try {
+    console.error('Unhandled Rejection at: Promise ', p)
+  } catch {}
+  reportUncaught(' reason: ', reason)
 })
 
 /**
@@ -29,10 +51,7 @@ process.on('unhandledRejection', (reason, p) => {
  */
 if (typeof window !== 'undefined') {
   window.addEventListener('unhandledrejection', (event) => {
-    const reason = event.reason
-    console.error('Unhandled Rejection at: window')
-    console.error(' reason: ', reason)
-    log.error(reason)
+    reportUncaught('Unhandled Rejection at: window', event.reason)
   })
   window.addEventListener('error', (event) => {
     // 同一个事件也覆盖资源加载失败（img/script）：那时没有 `error`，`message` 也可能为空，
@@ -40,8 +59,6 @@ if (typeof window !== 'undefined') {
     if (ignoreErrorMessage.includes(event.error?.message)) return
     const target = event.target instanceof Element ? event.target : null
     const reason = event.error ?? (event.message || (target ? `资源加载失败：<${target.tagName.toLowerCase()}> ${(target as HTMLImageElement).src ?? ''}` : '未知错误'))
-    console.error('An uncaught error occurred in renderer!')
-    console.error(reason)
-    log.error(reason)
+    reportUncaught('An uncaught error occurred in renderer!', reason)
   })
 }

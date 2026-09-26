@@ -33,7 +33,10 @@ const codeAuth = async(urlInfo: LX.Sync.Client.UrlInfo, serverId: string, authCo
   publicKey = publicKey.replace(/\n/g, '')
     .replace('-----BEGIN PUBLIC KEY-----', '')
     .replace('-----END PUBLIC KEY-----', '')
-  const msg = aesEncrypt(`${SYNC_CODE.authMsg}\n${publicKey}\n${getComputerName()}\nlx_music_desktop`, key)
+  // 第 4 行是协议内的客户端标识（服务端只校验 `SYNC_CODE.authMsg` 前缀）。
+  // 两端都由本仓库出品，所以用 `SYNC_CODE.clientName` 保持身份一致——原先写死的 `lx_music_desktop`
+  // 是上游留下的半改状态（`authMsg` 早已改成 chiverve-music），2026-09-26 自审查按品牌口径统一。
+  const msg = aesEncrypt(`${SYNC_CODE.authMsg}\n${publicKey}\n${getComputerName()}\n${SYNC_CODE.clientName}`, key)
   // console.log(msg, key)
   return request(`${urlInfo.httpProtocol}//${urlInfo.hostPath}/ah`, { headers: { m: msg } }).then(async({ text, code }) => {
     // console.log(text)

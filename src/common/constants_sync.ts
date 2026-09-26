@@ -24,6 +24,13 @@ export const SYNC_CODE = {
   idPrefix: 'OjppZDo6',
   // 本产品自有标识：我们只与自己同步，不再追求与上游 LX 桌面版互通
   authMsg: 'chiverve-music auth::',
+  /**
+   * 握手载荷第 4 行的**客户端标识**（记录性字段：服务端只校验 `authMsg` 前缀）。
+   *
+   * 与 `authMsg` 同一口径（只与自己同步）。2026-09-26 自审查前这里是上游留下的
+   * `lx_music_desktop` 字面量——身份改了一半的状态，现统一到这里。
+   */
+  clientName: 'chiverve-music',
   msgAuthFailed: 'Auth failed',
   msgBlockedIp: 'Blocked IP',
   msgConnect: 'chiverve-music connect',
