@@ -37,8 +37,10 @@
         </p>
         <p v-if="desc" :class="$style.desc">{{ desc }}</p>
         <!--
-          失败提示分两类：「编码解不开」与「直链/网络失效」要分开说——旧实现一律说「地址已失效，
-          可重新获取」，而 H.265 档在本机根本不是重取能解决的（见 tx/mv.js 的 MV_REQUEST_FORMAT）。
+          失败提示按 `MediaError.code` 粗分两类（`3/4` 与其它），但**文案不能只写「编码」**：
+          实测 403 的流在 Chromium 里同样是 `4`（2026-09-26 的「MV 播不了」就是地址不可用被判成编码问题，
+          见 docs/agents/pitfalls.md 坑 22），所以 `mv__codec_unsupported` 那条文案同时覆盖两种成因、
+          并把「重新获取」与「系统播放器」两个动作都给出来。分型本身只用来决定「要不要劝用户重取」。
         -->
         <p v-if="playError === 'codec'" :class="$style.tip">{{ $t('mv__codec_unsupported') }}</p>
         <p v-else-if="playError === 'expired'" :class="$style.tip">{{ $t('mv__url_expired') }}</p>
@@ -105,13 +107,17 @@ export default {
     isLoading: boolean
     sizeText: string
   }, { emit }: { emit: (event: 'close' | 'retry') => void }) {
-    // <video> 自己的播放失败：分两类显示，只标记不自动重取——自动重取会在
+    // <video> 自己的播放失败：按 `MediaError.code` 粗分，只标记不自动重取——自动重取会在
     // 「地址有效但编码不支持」这类错误上死循环（换多少条流都解不开）。重取由用户点按钮触发。
     //
     // 分类依据是 `MediaError.code`（媒体层给的，比我们猜可靠）：
-    //   3 = MEDIA_ERR_DECODE / 4 = MEDIA_ERR_SRC_NOT_SUPPORTED → 编码/容器解不开，
-    //   换个直链也没用（本机常见的 H.265 档就是这条，见 tx/mv.js 的 MV_REQUEST_FORMAT）；
-    //   其它（1 中止 / 2 网络）→ 原来的「直链失效，可重新获取」是对的。
+    //   3 = MEDIA_ERR_DECODE / 4 = MEDIA_ERR_SRC_NOT_SUPPORTED → 编码/容器解不开，换个直链也没用
+    //   （本机常见的 H.265 档就是这条，见 tx/mv.js 的 MV_REQUEST_FORMAT）；
+    //   其它（1 中止 / 2 网络）→ 本来的「直链失效，可重新获取」是对的。
+    //
+    // ⚠️ 但 `4` **不等于**「编码问题」：HTTP 403/404 的资源同样报 4（2026-09-26 实测，
+    // 见 `pitfalls.md` 坑 22），媒体层不区分这两种成因 —— 所以这条分支的文案写「编码不受支持
+    // **或**地址已失效」并同时给出两个动作，别退回「只写编码」的写法。
     const playError = ref<'' | 'codec' | 'expired'>('')
 
     // 换地址（重新获取成功）或重新打开时清掉上一次的播放错误

@@ -6,7 +6,7 @@ import { txCgi, buildComm } from './utils/request'
  * MV 数据层（M5）：分类列表 / 详情 / 播放地址。
  *
  * 端点是照 QQMusicApi `modules/mv.py` 移植的，参数与**响应结构全部真机实测过**
- * （登录态 + 主窗口 CDP 直连网关，探测记录见 M5 报告）。改这个文件前先读这六条：
+ * （登录态 + 主窗口 CDP 直连网关，探测记录见 M5 报告）。改这个文件前先读这七条：
  *
  *   1. 🔴 **列表的 `area` / `version` 实测不生效**：area=15/8/4、version=7/13 拿到的是同一批
  *      vid（三种 comm 档案都一样）；只有 `order`（0 最新 / 1 最热）与 `start`/`size` 偏移
@@ -21,10 +21,18 @@ import { txCgi, buildComm } from './utils/request'
  *      只有 `name`；不存在的 vid 返回 `data` 为**空对象**（不是 null），判空要判 `data[vid]`。
  *   5. 播放地址只走 **mp4**：实测可用档是 filetype 10/20/30/40（code=0，fileSize 递增）；
  *      0/50/60/70/80/90 都是 code=2000（无权限/不存在）；**hls 全部 code=2050**
- *      （这个账号下拿不到），所以别去挑 hls。直链在 `url[0]`（数组两项，vkey 已内嵌），
- *      `m3u8` 为空、`expire` 86400 秒。**同一档位会同时回 264/265 两条记录**，挑档必须认
- *      `format`（见下方 `MV_REQUEST_FORMAT` 与 `pickPlayable`）。
- *   6. `GetMvUrls` 一次可传多个 vid（返回值按 vid 分键，实测两个都回），详情同理 ——
+ *      （这个账号下拿不到），所以别去挑 hls。`m3u8` 为空、`expire` 86400 秒（24h）。
+ *      **同一档位会同时回 264/265 两条记录**，挑档必须认 `format`（见下方 `MV_REQUEST_FORMAT`
+ *      与 `pickPlayable`）。
+ *   6. 🔴 **响应里的 `url[]` 不是直链**（2026-09-26 实测变更）：它是**裸域名**
+ *      （`['http://mv6.music.tc.qq.com/', 'https://mv.music.tc.qq.com/']`），对象名在 `cn`
+ *      （`qmmv_<32位>.f9814.mp4`）、签名在 `vkey`（114~115 字符）、`urlPath` 为空串，
+ *      另有服务端拼好的 `freeflow_url`（免流语义，两条）。
+ *      可播直链 = `url[0] + urlPath + cn + '?vkey=' + vkey`（实测 206 `video/mp4`；
+ *      只留裸域名或去掉 `?vkey=` 都是 **403**）。**拼接在 `resolveDirectUrl` 一处收口**，
+ *      别在调用方再拼一次。历史上（≤2026-09-25）`url[0]` 本身就是完整直链，
+ *      所以那个分支保留着（`isDirectLink`）。
+ *   7. `GetMvUrls` 一次可传多个 vid（返回值按 vid 分键，实测两个都回），详情同理 ——
  *      所以批量接口是顺手实现的，不额外花请求。
  */
 
@@ -71,6 +79,56 @@ const requireCredential = async() => {
   const credential = await getQQCredential()
   if (credential == null) throw new Error('QQ 音乐未登录')
   return credential
+}
+
+/** 路径拼接：去掉首尾斜杠后按单斜杠接起来，空段丢弃。 */
+const joinPath = (...parts) => parts
+  .map(part => String(part ?? '').replace(/^\/+|\/+$/g, ''))
+  .filter(Boolean)
+  .join('/')
+
+/**
+ * `url[i]` 是否已是**完整直链**（host 之后还有路径、或带查询串）。
+ *
+ * 2026-09-26 之前服务端回的就是这种形态（`http://aqqmusic.tc.qq.com/amobile.music.tc.qq.com/M500….mp4?vkey=…`），
+ * 现在变成了裸域名——两种都认，服务端哪天回退也不用改代码。
+ */
+const isDirectLink = url => {
+  if (typeof url !== 'string' || !url) return false
+  if (url.includes('?')) return true
+  const afterScheme = url.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '')
+  const slash = afterScheme.indexOf('/')
+  return slash >= 0 && afterScheme.slice(slash + 1).replace(/\/+$/, '').length > 0
+}
+
+/**
+ * 一条 mp4 记录 → **可播直链**。三种形态按优先级：
+ *
+ *   1. `url[i]` 已是完整直链 → 原样返回（旧形态）；
+ *   2. `url[i]` 是裸域名 → `base + urlPath + cn + '?vkey=' + vkey`（**现形态**，见文件头第 6 条）；
+ *   3. 服务端自己拼好的 `freeflow_url` → 兜底。
+ *
+ * 都拿不到就返回空串，调用方据此把这一档判为**不可用**（而不是把裸域名交给 `<video>` ——
+ * 那正是 2026-09-26「MV 播不了」的成因：请求裸域名返回 403，媒体层报 `MEDIA_ERR_SRC_NOT_SUPPORTED(4)`）。
+ *
+ * ⚠️ 这里**不做可达性预检**：多一次 HTTP 只是把失败前移，过期/异常仍要靠 `<video>` 的 error
+ * 与「重新获取」按钮兜。
+ */
+const resolveDirectUrl = item => {
+  const urls = (Array.isArray(item?.url) ? item.url : []).filter(url => typeof url === 'string' && url)
+  const direct = urls.find(isDirectLink)
+  if (direct) return direct
+  const base = urls[0]
+  const cn = typeof item?.cn === 'string' ? item.cn : ''
+  const vkey = typeof item?.vkey === 'string' ? item.vkey : ''
+  if (base && cn && vkey) {
+    const host = base.replace(/\/+$/, '')
+    // vkey 编码后再拼：实测值是纯 ASCII，但拼 URL 不假设这一点
+    return `${host}/${joinPath(item?.urlPath, cn)}?vkey=${encodeURIComponent(vkey)}`
+  }
+  const freeflow = (Array.isArray(item?.freeflow_url) ? item.freeflow_url : [])
+    .find(url => typeof url === 'string' && url)
+  return freeflow ?? ''
 }
 
 const webComm = credential => buildComm(credential)
@@ -211,9 +269,9 @@ const pickPlayable = (list, filetype = null) => {
 /**
  * 取播地址请求体 → `{ duration, interval, svpFlag, list, best }`。
  *
- * 只保留**真的能播**的档：`code === 0` 且 `url` 非空。不可用档（实测 filetype
- * 0/50/60/70/80/90 是 code=2000、hls 全是 code=2050）在这里被过滤掉，而不是透出
- * 让调用方自己判 —— 否则很容易挑到一个空 url 的档位。
+ * 只保留**真的能播**的档：`code === 0` 且**能拼出直链**（`resolveDirectUrl` 非空）。
+ * 不可用档（实测 filetype 0/50/60/70/80/90 是 code=2000、hls 全是 code=2050）在这里被过滤掉，
+ * 而不是透出让调用方自己判 —— 否则很容易挑到一个空 url 的档位。
  *
  * `list` 按 filetype 升序（实测档位越高 fileSize 越大，同一视频里 265 档是 filetype 10/20/30/40），
  * 264/265 两条都在里面（`format` 区分）；`best` 是**按编码偏好挑出来的那条**（同 `getMvUrl`），
@@ -239,18 +297,20 @@ const requestMvUrls = async(credential, mvId) => {
   const data = node?.data ?? {}
   const set = data?.[mvId] ?? {}
   const list = (set.mp4 ?? [])
-    .filter(item => item?.code === 0 && Array.isArray(item.url) && item.url.length > 0)
+    .filter(item => item?.code === 0)
     .map(item => ({
       filetype: Number(item.filetype ?? 0),
       // 264 / 265（HEVC）
       format: Number(item.format ?? 0),
       size: Number(item.fileSize ?? 0),
       sizeText: item.fileSize ? sizeFormate(item.fileSize) : '',
-      // 直链（数组第一项即带 vkey 的可用地址）
-      url: item.url[0],
+      // 直链要自己拼：响应里的 `url[]` 只是裸域名（2026-09-26 起），直接播会 403
+      url: resolveDirectUrl(item),
       // 过期秒数（实测 86400）
       expire: Number(item.expire ?? 0),
     }))
+    // 拼不出直链的档不是可用档——宁可少一档，也不给调用方一个播不了的地址
+    .filter(item => item.url)
     .sort((a, b) => a.filetype - b.filetype)
   return {
     vid: mvId,
@@ -324,7 +384,8 @@ export default {
   /**
    * MV 播放地址全集。`list` 升序排列、只含可用档（264/265 都在，`format` 区分），
    * `best` 是按编码偏好挑出来的那条（优先 H.264，见 `pickPlayable`）；UI 想给用户选档位
-   * 就直接拿 `list`，但**自己播时必须认 `format`**。
+   * 就直接拿 `list`，但**自己播时必须认 `format`**。每条记录的 `url` 都是**可播直链**
+   * （由 `resolveDirectUrl` 拼好，不是响应里的裸域名——见文件头第 6 条）。
    */
   async getMvUrls(vid) {
     const credential = await requireCredential()
@@ -340,6 +401,7 @@ export default {
    *
    * 返回值里的 `format` 是编码（264/265）：本机解不开 265（见 `MV_REQUEST_FORMAT`），
    * UI 把编码显示在提示行上，失败时才能把「编码不支持」和「直链过期」分开说。
+   * `url` 是**拼好的可播直链**（`resolveDirectUrl`）——调用方直接交给 `<video>` 即可。
    */
   async getMvUrl(vid, filetype) {
     const credential = await requireCredential()
