@@ -103,6 +103,8 @@ describe('消费点对账：工单点名的文件都走同一个取值口', () =
     'src/renderer/views/Singer/useSinger.ts',
     'src/renderer/views/Search/MusicList/useList.ts',
     'src/renderer/views/Search/SongListList/useList.ts',
+    // 乐馆 → 有声节目的专辑搜索（2026-09-26）：卡片网格同样走用户可见分页
+    'src/renderer/views/musicHall/components/longaudio/useProgramAlbums.ts',
   ]
 
   it('每个取数点都 import 并调用 getPageSize', () => {

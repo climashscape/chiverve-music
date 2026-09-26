@@ -13,6 +13,7 @@ import singer from './singer'
 import songDetail from './songDetail'
 import tipSearch from './tipSearch'
 import dislike from './dislike'
+import longAudio from './longAudio'
 
 const tx = {
   tipSearch,
@@ -28,6 +29,8 @@ const tx = {
   singer,
   songDetail,
   dislike,
+  // 长音频（有声书 / 节目）的**专辑**浏览与搜索；单集与播放复用 album（见 longAudio.js 文件头）
+  longAudio,
 
   getMusicUrl(songInfo, type) {
     return apis('tx').getMusicUrl(songInfo, type)
@@ -35,6 +38,13 @@ const tx = {
   getLyric(songInfo) {
     // let singer = songInfo.singer.indexOf('、') > -1 ? songInfo.singer.split('、')[0] : songInfo.singer
     return lyric.getLyric(songInfo)
+  },
+  /**
+   * 歌词词典（整首词条表；「点哪个词」由渲染侧本地匹配，见 `lyric.js` 的 `matchDictEntries`）。
+   * 放在统一入口上（而不是让视图 deep import `tx/lyric.js`），与其它能力的取数口保持一致。
+   */
+  getLyricDict(songInfo) {
+    return lyric.getLyricDict(songInfo)
   },
   async getPic(songInfo) {
     return `https://y.gtimg.cn/music/photo_new/T002R500x500M000${songInfo.albumId}.jpg`

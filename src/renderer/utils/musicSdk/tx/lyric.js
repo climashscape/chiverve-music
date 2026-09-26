@@ -269,6 +269,87 @@ const fetchLyric = (api, songId, holder, retryNum = 0) => {
   })
 }
 
+/**
+ * AI 歌词词典（点歌词查词）取数层——**整首词典，不是按词查**。
+ *
+ * 2026-09-26 探针实测（记录：`scripts/verify/artifacts/2026-09-26-capabilities/NOTES-lyric-dict.md`）：
+ *   1. 入参**只有 `songID`**，一次拿回整首歌的词条数组 `data.dictList`
+ *      →「用户点哪个词」是**客户端在数组里匹配**（`matchDictEntries`），服务端没有按词查的端点。
+ *   2. **没有词典时 `dictList` 是 `null`（不是 `[]`）**，而且 `code` 照样 0——没有错误码可判，
+ *      只能把它当空数组（`IsAIDictExists` 那条 `exists` 只是省一次取数的预告，判据一样）。
+ *   3. **不需要登录**：匿名（`uin: '0'`、不带 authst）与登录返回一致，所以这里不发凭证。
+ *   4. 词条 5 个字段：`phrase`（被划的词/短语）/ `explain`（中文长释义）/ `lyric_text`（所在行原文）/
+ *      `trans_lyric_text`（该行翻译）/ `lyric_timestamp`（`[mm:ss.xx]` 字符串）。
+ *   5. 词典只给**外语原文歌**的条目：英文歌（Queen / Adele 原版）有，中文歌与日文歌实测都没有
+ *      →「查不到」是常态，调用方必须展示「无释义」而不是空白。
+ *
+ * 请求形状与 `fetchLyric` 同源（同一网关、同一模块、同一份 comm），只换 method 与 param。
+ */
+const fetchLyricDict = (api, songId, holder, retryNum = 0) => {
+  if (retryNum > 3) return Promise.reject(new Error('Get lyric dict failed'))
+
+  holder.requestObj = httpFetch(LYRIC_URL, {
+    method: 'post',
+    headers: {
+      referer: 'https://y.qq.com',
+      'user-agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.198 Safari/537.36',
+    },
+    body: {
+      comm: {
+        ct: '19',
+        cv: '1859',
+        uin: '0',
+      },
+      req: {
+        method: 'GetAIDictInfo',
+        module: 'music.musichallSong.PlayLyricInfo',
+        param: {
+          format: 'json',
+          songID: songId,
+        },
+      },
+    },
+  })
+  return holder.requestObj.promise.then(({ body }) => {
+    if (body.code != api.successCode || body.req?.code != api.successCode) return fetchLyricDict(api, songId, holder, ++retryNum)
+    const list = body.req.data?.dictList
+    // null / 缺字段 / 形状不对一律当「没有词典」：调用方只关心「有没有可展示的词条」
+    return Array.isArray(list) ? list : []
+  })
+}
+
+/** 匹配用的归一化：小写 + 空白折叠 + 去首尾（`phrase` 里 `let you go` 与 `Let me go` 这类大小写不统一）。 */
+const normalizeDictText = text => typeof text == 'string' ? text.toLowerCase().replace(/\s+/g, ' ').trim() : ''
+
+/**
+ * 在整首词典里匹配用户选中的文本。**纯函数**（不碰 DOM / 网络）——所以放在数据层，由 node 环境单测钉住。
+ *
+ * 四条规则按优先级短路（第一条命中就不再往下走）：
+ *   1. 选区 == 词条 `phrase`（双击一个短语，最常见）
+ *   2. 选区 == 某条词条的整行 `lyric_text` → 返回该行**全部**词条（explain 讲的是「这行里的这个词」，
+ *      只给一条会让人以为其余词的释义丢了）
+ *   3. 词条 `phrase` 落在选区**内部**（框选了半行 / 整行但与原行不完全相等，如歌词带标点）→ 长 phrase 优先
+ *   4. 选区落在词条 `phrase` 内部（双击只选中一个英文单词，词条却是短语：选 `poor` → `poor boy`）
+ *      单字符选区不参与第 4 条：`a` / `I` 这种会命中一大串无关词条
+ *
+ * 都不命中 → `[]`，由调用方展示「无释义」。加规则前先想清楚「哪条更具体」——顺序就是优先级。
+ */
+export const matchDictEntries = (dictList, text) => {
+  const key = normalizeDictText(text)
+  if (!key || !Array.isArray(dictList) || !dictList.length) return []
+  const phraseOf = item => normalizeDictText(item?.phrase)
+  const longerFirst = (a, b) => phraseOf(b).length - phraseOf(a).length
+
+  const exact = dictList.filter(item => phraseOf(item) == key)
+  if (exact.length) return exact
+  const wholeLine = dictList.filter(item => normalizeDictText(item?.lyric_text) == key)
+  if (wholeLine.length) return wholeLine
+  const inside = dictList.filter(item => phraseOf(item) && key.includes(phraseOf(item)))
+  if (inside.length) return inside.sort(longerFirst)
+  if (key.length < 2) return []
+  return dictList.filter(item => phraseOf(item).includes(key)).sort(longerFirst)
+}
+
 export default {
   successCode: 0,
   async getSongId({ songId, songmid }) {
@@ -316,6 +397,27 @@ export default {
       promise: this.getSongId(mInfo).then(songId => {
         if (holder.cancelled) throw new Error(requestMsg.cancelRequest)
         return fetchLyric(this, songId, holder)
+      }),
+    }
+  },
+  /**
+   * 取整首歌词词典（点歌词查词）。返回 `{ promise, cancelHttp }`（与 `getLyric` 同契约）；
+   * promise resolve **词条数组**（没有词典时是 `[]`，不会是 null——归一化在 `fetchLyricDict` 做）。
+   *
+   * 调用方拿到数组后用 `matchDictEntries` 匹配用户选区；**取不到不算错误**，是「这首歌没有词典」。
+   * 本地音乐没有 songId（`getSongId` 会抛），调用方应先判 `source`/`songmid` 再决定要不要查。
+   */
+  getLyricDict(mInfo) {
+    const holder = { requestObj: null, cancelled: false }
+
+    return {
+      cancelHttp() {
+        holder.cancelled = true
+        if (holder.requestObj?.cancelHttp) holder.requestObj.cancelHttp()
+      },
+      promise: this.getSongId(mInfo).then(songId => {
+        if (holder.cancelled) throw new Error(requestMsg.cancelRequest)
+        return fetchLyricDict(this, songId, holder)
       }),
     }
   },

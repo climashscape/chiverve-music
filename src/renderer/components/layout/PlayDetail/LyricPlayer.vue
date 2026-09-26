@@ -5,8 +5,9 @@
         v-show="!isShowLrcSelectContent"
         ref="dom_lyric"
         :class="['lyric', $style.lyric, { [$style.draging]: isMsDown }, { [$style.lrcActiveZoom]: isZoomActiveLrc }]" :style="lrcStyles"
+        :title="isLyricDictAvailable ? $t('player__lyric_dict_hint') : ''"
         @wheel="handleWheel" @mousedown="handleLyricMouseDown" @touchstart="handleLyricTouchStart"
-        @contextmenu.stop="handleShowLyricMenu"
+        @contextmenu.stop="handleShowLyricMenu" @dblclick="handleLyricDblclick"
       >
         <div :class="['pre', $style.lyricSpace]" />
         <div ref="dom_lyric_text" />
@@ -36,6 +37,13 @@
       </div>
     </transition>
     <LyricMenu v-model="lyricMenuVisible" :xy="lyricMenuXY" :lyric-info="lyricInfo" @update-lyric="handleUpdateLyric" />
+    <!-- 点歌词查词（歌词词典）：只在「这首歌有词典」时才有提示与交互，见 useLyricDict 的文件头 -->
+    <LyricDictModal
+      v-model:show="lyricDictVisible"
+      :word="lyricDictWord"
+      :entries="lyricDictEntries"
+      :loading="lyricDictLoading"
+    />
   </div>
 </template>
 
@@ -57,13 +65,16 @@ import {
 import { onMounted, onBeforeUnmount, computed, reactive, ref, nextTick, watch } from '@common/utils/vueTools'
 import useLyric from '@renderer/utils/compositions/useLyric'
 import LyricMenu from './components/LyricMenu.vue'
+import LyricDictModal from './components/LyricDictModal.vue'
 import { appSetting } from '@renderer/store/setting'
 import { setLyricOffset } from '@renderer/core/lyric'
 import useSelectAllLrc from './useSelectAllLrc'
+import useLyricDict from './useLyricDict'
 
 export default {
   components: {
     LyricMenu,
+    LyricDictModal,
   },
   setup() {
     const isZoomActiveLrc = computed(() => appSetting['playDetail.isZoomActiveLrc'])
@@ -132,6 +143,35 @@ export default {
       setLyricOffset(offset)
     }
 
+    // 点歌词查词（歌词词典）
+    const {
+      lyricDictVisible,
+      lyricDictWord,
+      lyricDictEntries,
+      lyricDictLoading,
+      isLyricDictAvailable,
+      lookupWord: lookupLyricWord,
+    } = useLyricDict()
+    /**
+     * 双击歌词里的词 → 查释义。
+     * 为什么是**双击**而不是单击：单击 / 按下已经被 `useLyric` 拿去拖拽滚动歌词了
+     * （`handleLyricMouseDown` + document 上的 mousemove），再叠单击必然误触。双击时浏览器会
+     * 自动选中光标下的词，所以「选中的文本」就是用户想查的词，直接用 `getSelection()` 读。
+     * 选区必须落在歌词区里：本页旁边还有封面/歌名/歌手，那里的选区不该当歌词查。
+     *
+     * **这首歌没有词典就整个不动**（与「悬停提示只在有词典时挂」同一条判据）：实测中文歌 / 日文歌
+     * 都没有词典，让它们双击弹一个「无释义」既没用又多一次请求。词典还在路上时照走，
+     * 弹窗自己给加载态（见 `useLyricDict` 的 `lookupWord`）。
+     */
+    const handleLyricDblclick = () => {
+      if (!isLyricDictAvailable.value) return
+      const selection = window.getSelection()
+      const text = selection?.toString().trim()
+      if (!text || !selection.anchorNode) return
+      if (!dom_lyric.value?.contains(selection.anchorNode)) return
+      lookupLyricWord(text)
+    }
+
     const lrcStyles = computed(() => {
       return {
         textAlign: appSetting['playDetail.style.align'],
@@ -179,6 +219,12 @@ export default {
       handleShowLyricMenu,
       handleUpdateLyric,
       lyricInfo,
+      lyricDictVisible,
+      lyricDictWord,
+      lyricDictEntries,
+      lyricDictLoading,
+      isLyricDictAvailable,
+      handleLyricDblclick,
     }
   },
   methods: {
