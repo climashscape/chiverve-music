@@ -2,9 +2,10 @@ import { httpFetch } from '../../request'
 import { formatPlayTime, dateFormat } from '../../index'
 import { requestMsg } from '../../message'
 import { createSong } from './utils/song'
+import user from './user'
 
 /**
- * 歌手页（M6）：歌手信息 / 专辑 / 歌曲 / 相似歌手 / 歌手 MV。
+ * 歌手页（M6）：歌手信息 / 专辑 / 歌曲 / 相似歌手 / 歌手 MV / **关注态（读侧）**。
  *
  * 端点与参数按 `QQMusicApi/qqmusic_api/modules/singer.py` 抄，并**逐条真机核对过响应
  * 结构**（记录见 spec §5.4）。下面五条是实测结论，改这个文件前先读：
@@ -22,6 +23,10 @@ import { createSong } from './utils/song'
  *
  * 这些都是匿名可访问的公开端点，所以走匿名 comm 的 `createMusicuFetch`，不依赖登录态；
  * 歌曲对象统一由 `./utils/song` 的 `createSong` 构造（别再手写字段映射）。
+ *
+ * ⚠️ **唯一例外是关注态**（`getFollowState`）：它必须带登录态，走 `./user` 的账号接口。
+ * 判据通道为什么不是「搜索接口的 `concern_status`」，见 `getFollowState` 上方的长注释
+ * （2026-09-26 真机实测：那条路要凭证，且搜索模块一压就空）。
  */
 
 const MUSICU_URL = 'https://u.y.qq.com/cgi-bin/musicu.fcg'
@@ -66,7 +71,118 @@ const createMusicuFetch = async(data, retryNum = 0) => {
   return result.body
 }
 
+/**
+ * 关注列表一次拉的粒度。**1000 是实测过的**：本账号 604 人在 `Size=1000` 时一次全回来
+ * 且 `HasMore=false`（`From`/`Size` 是偏移量分页，`Size=200` 时同一份列表要拉 4 页）。
+ * 服务器没有在 200 处截断（200 只是「一页 200 条」的语义）。
+ */
+const FOLLOW_PAGE_SIZE = 1000
+/** 页数硬上限（防 `HasMore` 异常时死循环；5000 位歌手远超出正常用量，撞上会留日志）。 */
+const FOLLOW_MAX_PAGES = 5
+
+/** 会话内缓存：关注歌手的 mid 集合。`null` = 还没拉过（失败或写侧改动后也清回 null）。 */
+let followedSingerMids = null
+/** 在途的那次拉取（单飞：同一次会话里多个歌手页同时开也只打一次接口）。 */
+let followedSingerMidsInflight = null
+
+const fetchFollowedSingerMids = async() => {
+  const mids = new Set()
+  for (let page = 1; page <= FOLLOW_MAX_PAGES; page++) {
+    // 复用账号模块（`user.js` 的 `getFollowSingers`）：端点与参数形状只留一处，
+    // 别在这里再抄一遍 `music.concern.RelationList/GetFollowSingerList`（那会多一份要维护的拼写）
+    const res = await user.getFollowSingers(page, FOLLOW_PAGE_SIZE)
+    res.list.forEach(item => {
+      // 没有 mid 的行判不了成员（mid 是唯一判据，名字不能用来比）：留一行日志便于定位。
+      // 实测本账号 604/604 行都有 MID；真出现时空缺的那位会被判成「未关注」——已知代价，
+      // 不改成「整表作废」（那会把所有未关注歌手都变成不显示）
+      if (!item.id) {
+        console.log('[tx] 关注列表有一行没有 mid，该歌手的关注态无法判定')
+        return
+      }
+      mids.add(String(item.id))
+    })
+    // 停的三个条件：服务端说没有更多 / 空页（防服务端忽略游标把同一页又给一遍）/ 够数了
+    if (!res.hasMore || !res.list.length || (res.total && mids.size >= res.total)) return mids
+  }
+  console.log('[tx] 关注歌手的总数撞到页数上限，可能截断', { mids: mids.size, maxPages: FOLLOW_MAX_PAGES })
+  return mids
+}
+
+const loadFollowedSingerMids = () => {
+  if (followedSingerMids) return Promise.resolve(followedSingerMids)
+  if (!followedSingerMidsInflight) {
+    followedSingerMidsInflight = fetchFollowedSingerMids().then(
+      mids => {
+        followedSingerMids = mids
+        followedSingerMidsInflight = null
+        return mids
+      },
+      err => {
+        // 失败**不留缓存**：下次进歌手页会重试（与 useSinger 的 loadedMid「失败不写」同一条纪律）
+        followedSingerMidsInflight = null
+        throw err
+      },
+    )
+  }
+  return followedSingerMidsInflight
+}
+
+/**
+ * 关注列表缓存作废 —— **写侧（关注 / 取关）成功后必须调用**。
+ *
+ * 缓存是会话级的（读侧不想为每个歌手页各打一次接口，也不想象素级刷新列表），
+ * 所以写操作改了关注关系后，这里不清就会让整轮会话的标记停在旧值上。
+ * 写侧还没落地（票 02 只做了读侧），这个导出是留给它的接口，不是死代码。
+ */
+export const clearFollowSingerCache = () => {
+  followedSingerMids = null
+  followedSingerMidsInflight = null
+}
+
 export default {
+  /**
+   * 「我关注了这位歌手没」——歌手页的**只读**关注态（读侧）。
+   *
+   * ## 判据通道：全量关注列表 + mid 集合成员判定（不是搜索接口的 `concern_status`）
+   *
+   * spec 里用户选的是「搜索接口现查」（`search_type=1` 的每条带 `concern_status`），
+   * 2026-09-26 实现时**先按那条路真机试过**，三条实测把它否掉了（记录：
+   * `scripts/verify/artifacts/2026-09-26-capabilities/NOTES-follow-read.md`）：
+   *
+   *   1. **匿名搜的 `concern_status` 恒为 0**（本账号关注了周杰伦，访客 comm 搜回来仍是 0）
+   *      ——要拿真值必须带凭证再用**另一套**请求形状打搜索模块；而本仓既有的搜索入口
+   *      （`musicSearch.js`）是访客档案，`concern_status` 直接读会**把已关注显示成未关注**。
+   *   2. **按名搜不一定命中**：60 个已关注样本里 1 个名字（`ROSÉ (로제)`）搜回来 0 条，
+   *      只能落「不可判」；同名歌手本身不是问题（按 mid 精确匹配）。
+   *   3. 更关键：搜索模块**一压就空**——连续 ~100 次请求后，`search_type` 0/1 全都
+   *      `code=0 且 data=None`，三种载体（musicu+web 凭证 / musicu+访客 / musics 签名）
+   *      与两条 search_type 一致，而同一时刻 `GetSingerDetail` / `GetFollowSingerList`
+   *      照常 `code=0`；20 分钟后仍未恢复。浏览歌手页正是「连续多次」的场景。
+   *
+   * 全量通道（本实现）：`GetFollowSingerList` + `Size=1000` **一次请求**把整个关注列表拉回来
+   * （本账号 604 人，`HasMore=false`），按 mid 判成员——不依赖名字、不依赖搜索模块，
+   * 且会话内缓存后比「每个歌手页搜一次」更省请求（铺开时同样受益：调用方直接复用这个集合）。
+   *
+   * ## 返回值三态（这条是契约，界面与测试都按它走）
+   *
+   * - `true`  = 已关注（mid 在集合里）
+   * - `false` = 未关注（列表拿到了，mid 不在集合里）
+   * - `null`  = **取不到**（未登录 / 请求失败）——界面必须**什么都不显示**，
+   *   **不许退化成 `false`**：把「不知道」画成「未关注」是在骗用户。
+   *
+   * @param {string} id 歌手 mid
+   * @returns {Promise<boolean|null>}
+   */
+  async getFollowState(id) {
+    const mid = String(id ?? '').trim()
+    if (!mid) return null
+    try {
+      return (await loadFollowedSingerMids()).has(mid)
+    } catch (err) {
+      console.log('[singer] follow state', err)
+      return null
+    }
+  },
   /**
    * 歌手信息（含歌曲数 / 专辑数）。
    * 一次网关请求里并发三个模块：详情 + 专辑数（各取 1 条）+ 歌曲数（取 1 条）。

@@ -9,6 +9,13 @@
         <p :class="$style.meta">
           <span v-if="detail.musicCount">{{ $t('singer__songs') }} {{ detail.musicCount }}</span>
           <span v-if="detail.albumCount">{{ $t('singer__albums') }} {{ detail.albumCount }}</span>
+          <!-- 关注态：**只读标记**（本票不做点击/两态键，写侧见 .scratch/follow-singer/issues/03）。
+               取不到（未登录 / 请求失败）时 followLabel 是空串 → 整块不渲染：
+               把「不知道」显示成「未关注」是在撒谎，三态口径写在 useSinger.ts 的 followState 上。 -->
+          <span
+            v-if="followLabel"
+            :class="[$style.followState, followState === true ? $style.followStateOn : $style.followStateOff]"
+          >{{ followLabel }}</span>
         </p>
         <p v-if="detail.desc" :class="$style.desc">{{ detail.desc }}</p>
       </div>
@@ -91,13 +98,22 @@ export default {
     const route = useRoute()
     const router = useRouter()
     const {
-      detail, headerLabel, isInfoLoading, mvPlayer,
+      detail, headerLabel, isInfoLoading, followState, mvPlayer,
       initSingerInfo, closeMv, retryMvUrl,
     } = useSinger()
 
     const tab = ref<TabId>(normalizeTab(route.query.tab))
     // 页头与四个面板都按「路由上的歌手」取数；面板要的 mid 从这里传下去（单一来源，不再各自读路由）
     const mid = computed(() => String(route.query.mid ?? '').trim())
+
+    /**
+     * 关注态的文案：**取不到（null）时是空串**——模板按空串不渲染整个标记。
+     * 这一层不做「false 兜底成未关注」的转换（那正是要避免的撒谎）。
+     */
+    const followLabel = computed(() => {
+      if (followState.value === null) return ''
+      return window.i18n.t((followState.value ? 'singer__followed' : 'singer__not_followed') as any)
+    })
 
     const tabs = [
       { tab: 'songs', label: window.i18n.t('singer__songs' as any) },
@@ -131,6 +147,8 @@ export default {
       detail,
       headerLabel,
       isInfoLoading,
+      followState,
+      followLabel,
       mvPlayer,
       handleTabChange,
       handleBack,
@@ -197,6 +215,19 @@ export default {
   span {
     margin-right: 12px;
   }
+}
+// 关注态标记（只读）。底色与圆角照 `views/friends/components/UserCard.vue` 的 `.badge`——
+// 仓库里「小状态块」的既有写法，别另造一套。两态只差文字色（已关注用主题色，未关注用弱化色）。
+.followState {
+  padding: 0 6px;
+  border-radius: @radius-border;
+  background-color: var(--color-primary-alpha-800);
+}
+.followStateOn {
+  color: var(--color-primary);
+}
+.followStateOff {
+  color: var(--color-font-label);
 }
 .desc {
   margin-top: 6px;

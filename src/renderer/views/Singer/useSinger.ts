@@ -161,6 +161,17 @@ const headerLabel = ref('')
  */
 const isInfoLoading = ref(false)
 
+/**
+ * 关注态（读侧，票 02/03 的读侧那一半）：`true`=已关注 / `false`=未关注 / `null`=**取不到**。
+ *
+ * ⚠️ `null` 与 `false` 不是一回事，**页面在 `null` 时什么都不显示**——把「取不到」（未登录、
+ * 请求失败、会话没建起来）画成「未关注」是在撒谎。判据与三态契约在 `tx/singer.js` 的
+ * `getFollowState` 注释里（含为什么不用搜索接口的 `concern_status`）。
+ *
+ * 本票只做**只读标记**：不做点击、不做两态键（写侧见 `.scratch/follow-singer/issues/03`）。
+ */
+const followState = ref<boolean | null>(null)
+
 const songs = reactive<Block<LX.Music.MusicInfoOnline> & { page: number, limit: number }>({
   ...createBlock<LX.Music.MusicInfoOnline>(),
   // material-online-list 要求 page/limit/total 三个必填项。limit 与 total 都跟着「已加载条数」走，
@@ -184,6 +195,7 @@ let songKey = ''
 let albumKey = ''
 let mvKey = ''
 let similarKey = ''
+let followKey = ''
 
 /**
  * 失败文案。数据层不导出错误码，只能认 message（与 `views/Album/useAlbum.ts` 同一套判据）。
@@ -233,6 +245,23 @@ const loadInfo = async(mid: string) => {
     // 过期请求（换歌手了）不许把新请求的在途状态关掉
     if (infoKey === key) isInfoLoading.value = false
   }
+}
+
+/**
+ * 取这位歌手的关注态（读侧）。**与页头信息并行**，不塞进 `loadInfo` 的 try 里：
+ * 关注态挂了不该把页头写成「加载失败」（两者是不同接口、不同重要度）。
+ *
+ * 取数入口自己把失败吞成 `null`（三态契约见 `tx/singer.js` 的 `getFollowState`），
+ * 所以这里只做「换歌手后过期请求退场」那一件事。
+ */
+const loadFollowState = async(mid: string) => {
+  const key = `singer_follow__${mid}`
+  followKey = key
+  // 换歌手先清：上一位的关注态不属于这一页。宁可先空一下，也不把 A 的「已关注」挂在 B 头上
+  followState.value = null
+  const state = await music.tx.singer.getFollowState(mid)
+  if (followKey !== key) return
+  followState.value = state ?? null
 }
 
 /**
@@ -452,7 +481,9 @@ const initSingerInfo = async(value: unknown) => {
     // 路由没带 mid：不发请求，直接给「不存在」文案（数据层对空 mid 会抛错）。
     // `infoKey` 一并作废 + 清掉在途标记：上一个歌手的请求回来时不该把页头写成他（键不同它会自己退场）
     infoKey = ''
+    followKey = ''
     isInfoLoading.value = false
+    followState.value = null
     Object.assign(detail, emptyDetail())
     resetSongs()
     resetAlbums()
@@ -465,6 +496,8 @@ const initSingerInfo = async(value: unknown) => {
     similar.noItemLabel = t('singer__not_found')
     return
   }
+  // 页头信息与关注态并行（两条独立请求；关注态那头是会话缓存，正常只有第一次进页才有往返）
+  void loadFollowState(mid)
   await loadInfo(mid)
 }
 
@@ -544,6 +577,7 @@ export default () => {
     detail,
     headerLabel,
     isInfoLoading,
+    followState,
     songs,
     albums,
     mvs,
