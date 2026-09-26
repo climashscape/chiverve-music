@@ -64,11 +64,15 @@ export default {
     // let themeColor = getComputedStyle(document.documentElement).getPropertyValue('--color-primary-light-200-alpha-800')
     // watch(theme, theme => {
     // 上游把「取主题色」注释掉后留了写死的白色兜底，这里恢复成主题色：
-    // canvas 的 fillStyle 只认具体颜色值，所以把主题变量挂在 canvas 的 color 上
-    // （见本文件样式），再从计算样式里读出解析后的颜色。
+    // 主题变量由 `window.setTheme` 写在 `:root` 上（见 renderer-lyric/index.html），
+    // 所以从 `document.documentElement` 的计算样式里读它的字面量。
+    // ⚠️ 别读 `getComputedStyle(dom_canvas).color`：那个值永远给解析后的 used value
+    // （变量缺失时回落到继承的 color），不是空串，兜底分支永远不可达（2026-09-26 复核）；
+    // `getPropertyValue` 在变量没定义时**真的返回空串**，兜底才有意义。
     const resolveThemeColor = () => {
-      const color = getComputedStyle(dom_canvas.value).color
-      return color || 'rgba(255, 255, 255, .12)' // 主题变量缺失时的兜底（等于上游写死的那支白）
+      const color = getComputedStyle(document.documentElement).getPropertyValue('--color-primary-light-200-alpha-800')
+      // canvas 的 fillStyle 只认具体颜色值，所以要在这里把 var() 解析成字面量
+      return color.trim() || 'rgba(255, 255, 255, .12)' // 主题变量缺失时的兜底（等于上游写死的那支白）
     }
     let themeColor = 'rgba(255, 255, 255, .12)'
     // 主题变化时 window.setTheme 会重写 <style> 的内容，用 MutationObserver 跟上（没有专门的主题事件可用）
@@ -206,9 +210,6 @@ export default {
 .canvas {
   width: 100%;
   height: 100%;
-  // 只是给 canvas 一个可读的「主题色载体」：fillStyle 不认 CSS 变量，
-  // 组件里从计算样式读出这个 color 的解析结果（见 script 的 resolveThemeColor）
-  color: var(--color-primary-light-200-alpha-800);
-  // opacity: 0.1;
+  // 主题色不再挂在这里：从 `:root` 的 CSS 变量读字面量（见 script 的 resolveThemeColor）
 }
 </style>

@@ -478,7 +478,14 @@ export const removeCloudList = async(card: PlaylistCard): Promise<void> => {
     cloudListSongs.list.splice(0, cloudListSongs.list.length)
     cloudListSongs.total = 0
   }
-  await refreshCreatedLists()
+  // 删歌单已经成功：刷新列表是 best-effort（同 `createCloudList` / `reloadFavAlbums` 的写法）。
+  // 刷新失败若往外抛，调用方会提示「删除失败」→ 用户重试 → 服务端说歌单不存在、
+  // 列表还是刷新不出来——歌单其实早就删掉了，重试只会让人以为删除没生效（2026-09-26 审查）。
+  try {
+    await refreshCreatedLists()
+  } catch (err) {
+    console.log('[user] refresh createdLists', err)
+  }
 }
 
 /** 新式歌曲对象 → 写接口要的 `{ songId, songType }`（songId 在 `meta.id`，见 tools.ts 的映射）。 */

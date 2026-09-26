@@ -268,3 +268,82 @@ describe('tx/songList 的歌单详情总数（getListDetailByCgi）', () => {
     expect(res.total).toBe(2)
   })
 })
+
+/**
+ * 歌单详情的**分页**（2026-09-26 审查）。
+ *
+ * 调用方 `store/songList/action.ts:137` 把 `getListDetail(id, page)` 的第 2 个参数当**页码**
+ * 传给 SDK；旧签名 `(id, tryNum = 0)` 读成重试次数：第 3 页起 `tryNum > 2` 直接 reject，
+ * 回退到 CGI 时又只按默认 `page=1` 取——第 2 页拿回第 1 页的数据。
+ * `getListDetailAll`（播放全部 / 收藏整张歌单 / 同步）翻到第 3 页整条失败。
+ *
+ * 这里钉住回退分支（fcg 的 `subcode` 非 0 / 没有 cdlist）**按页取**：CGI 请求要带
+ * `song_begin = num * (page - 1)`，返回值里的 `page` 也要是请求的页。
+ * 主路径（fcg 回 cdlist）不受影响——它一次回全量，`page` 恒为 1，是既有行为。
+ */
+describe('tx/songList 的歌单详情分页（CGI 回退必须透传页码）', () => {
+  /** `createSong` 要读的字段（同上一组用例） */
+  const RAW_SONG = {
+    id: 280251533,
+    mid: '001Qu4J42yg8uu',
+    type: 0,
+    title: '歌名',
+    interval: 180,
+    singer: [{ name: '歌手', mid: 'singer1' }],
+    album: { mid: 'album1', name: '专辑' },
+    file: { media_mid: 'media1', size_128mp3: 1024 },
+  }
+  /** fcg_ucc 没回 cdlist 的响应形状（`httpFetch` 解析出来的是 `{ body }` 响应对象）→ 触发 CGI 回退 */
+  const fcgWithoutCdlist = () => node({ body: { code: 0, subcode: 1, cdlist: null } })
+  const cgiPage = () => node({
+    code: 0,
+    data: {
+      dirinfo: { title: '歌单' },
+      songlist: [RAW_SONG],
+      total_song_num: 90,
+    },
+  })
+
+  it('第 2 页请求带第 2 页的 song_begin（不能复用第 1 页），返回的 page 也是 2', async() => {
+    httpFetch.mockReturnValue(fcgWithoutCdlist())
+    txCgi.mockReturnValue(cgiPage())
+
+    const res = await songList.getListDetail('123', 2)
+
+    // 默认每页 30 条：第 2 页从第 30 条起（旧实现这里恒是 0）
+    expect(txCgi.mock.calls.at(-1)![0].param.song_begin).toBe(30)
+    expect(txCgi.mock.calls.at(-1)![0].param.song_num).toBe(30)
+    expect(res.page).toBe(2)
+  })
+
+  it('第 3 页不再 reject（旧签名把 3 当重试次数，`tryNum > 2` 直接失败）', async() => {
+    httpFetch.mockReturnValue(fcgWithoutCdlist())
+    txCgi.mockReturnValue(cgiPage())
+
+    await expect(songList.getListDetail('123', 3)).resolves.toMatchObject({ page: 3 })
+    expect(txCgi.mock.calls.at(-1)![0].param.song_begin).toBe(60)
+  })
+
+  it('主路径（fcg 回 cdlist）行为不变：一次回全量、page 为 1', async() => {
+    httpFetch.mockReturnValue(node({
+      body: {
+        code: 0,
+        subcode: 0,
+        cdlist: [{
+          dissname: '歌单',
+          logo: '',
+          desc: '',
+          nickname: '作者',
+          visitnum: 100,
+          songlist: [RAW_SONG],
+        }],
+      },
+    }))
+
+    const res = await songList.getListDetail('123', 2)
+
+    expect(txCgi).not.toHaveBeenCalled()
+    expect(res.page).toBe(1)
+    expect(res.total).toBe(1)
+  })
+})

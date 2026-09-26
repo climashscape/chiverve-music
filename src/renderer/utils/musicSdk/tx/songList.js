@@ -382,8 +382,20 @@ export default {
       },
     }
   },
-  // 获取歌曲列表内的音乐
-  async getListDetail(id, tryNum = 0) {
+  /**
+   * 获取歌曲列表内的音乐（单页）。
+   *
+   * ⚠️ 第 2 个参数是**页码**，不是重试次数：store 侧 `getListDetail(id, source, page)` 把它原样
+   * 传进来（`store/songList/action.ts`），重试计数收在第 3 个参数。旧签名 `(id, tryNum = 0)`
+   * 把页码当重试数用（第 3 页起 `tryNum > 2` 直接 reject），回退到 CGI 时又不透传页码
+   * （只按默认 page=1 取）——第 2 页会拿回第 1 页的数据，`getListDetailAll`（播放全部 /
+   * 收藏整张歌单 / 同步）在第 3 页整条失败（2026-09-26 审查）。
+   *
+   * @param {string} id 歌单 id 或分享链接
+   * @param {number} page 页码（从 1 起）
+   * @param {number} tryNum 重试次数
+   */
+  async getListDetail(id, page = 1, tryNum = 0) {
     if (tryNum > 2) return Promise.reject(new Error('try max num'))
 
     // eslint-disable-next-line require-atomic-updates
@@ -398,12 +410,15 @@ export default {
     const { body } = await requestObj_listDetail.promise
 
     // console.log(body)
-    if (body.code !== this.successCode) return this.getListDetail(id, ++tryNum)
-    // fcg_ucc 这条拿不到 cdlist 时（dir 型歌单如「我喜欢」就是这种情况），
-    // 先走登录态的 CgiGetDiss（实测 disstid=tid + dirid=0 对 dir 型同样有效），
-    // 最后才落到 legacy 的访客端点
+    if (body.code !== this.successCode) return this.getListDetail(id, page, ++tryNum)
+    // 主路径是 fcg_ucc（带 Referer 实测对**普通歌单**回 cdlist，2026-09-26 复核）。
+    // 下面这条回退链是**兜底**，不是普通歌单的常走分支：`subcode` 非 0 或响应里没有 cdlist
+    // （服务端字段形态变化 / 取不到的个别歌单）时才启用——先走登录态的 CgiGetDiss
+    // （实测 disstid=tid + dirid=0 对 dir 型同样有效），最后才落到 legacy 的访客端点。
+    // ⚠️ 回退也必须**按页取**：CGI 端点支持 song_begin/song_num，页码必须透传，
+    // 否则第 2 页起会拿回第 1 页的数据（`getListDetail` 的签名注释里有这次审查的记录）。
     if (body.subcode !== this.successCode || !body.cdlist) {
-      return this.getListDetailByCgi(id).catch(() => this.getListDetail2(id))
+      return this.getListDetailByCgi(id, page).catch(() => this.getListDetail2(id))
     }
     const cdlist = body.cdlist[0]
     return {
@@ -434,8 +449,17 @@ export default {
    *
    * 实测（2026-09-22）：`disstid=3802852742 & dirid=0` 能读到「我喜欢」
    * （`code 0` + `dirinfo.title` + `songlist`），而 legacy 的 `fcg_ucc_getcdinfo_byids_cp`
-   * 与 `srfDissInfo.aiDissInfo` 对这类 dir 型歌单都取不到歌曲——所以它是回退链里
-   * 让"点开自己的歌单"能用的那一环。普通歌单走它也正常。
+   * 与 `srfDissInfo.aiDissInfo` 对这类 **dir 型**歌单都取不到歌曲——所以它是回退链里
+   * 让"点开自己的歌单"能用的那一环。
+   *
+   * ⚠️ 别把 2026-09-22 的结论外推成「fcg 对普通歌单也取不到」：2026-09-26 复核时带
+   * `Referer` 打 `fcg_ucc_getcdinfo_byids_cp`，**普通歌单是回 cdlist 的**（`getListDetail`
+   * 的主路径就是它）；这里只是普通歌单取不到 cdlist 时的**兜底**，且是云端自建歌单
+   * （`store/user/action.ts` 的 `loadCloudListSongs`）的直接读法。
+   *
+   * @param {string} id 歌单 tid
+   * @param {number} page 页码（从 1 起）——`song_begin = num * (page - 1)`，必须透传，别固定按第 1 页取
+   * @param {number} num 每页条数
    */
   async getListDetailByCgi(id, page = 1, num = 30) {
     const credential = await requireCredential()

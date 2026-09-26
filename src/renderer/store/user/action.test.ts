@@ -3,7 +3,7 @@ import {
   cloudListSongs, createdLists, favAlbumIds, favAlbums, favLists, favPlaylistIds, favSongIds, favSongIdsLoaded, favSongs, followSingers, isInited, labels, musicGene, pagers, profile, vip,
 } from './state'
 import {
-  addFavSongToCloud, canFavSongInCloud, createCloudList, isFavSongInCloud, loadMoreFavAlbums, loadMoreFavLists, loadMoreFollowSingers, loadMoreFavSongs, removeFavSongFromCloud, resetUserCenter, toggleFavSongToCloud,
+  addFavSongToCloud, canFavSongInCloud, createCloudList, isFavSongInCloud, loadMoreFavAlbums, loadMoreFavLists, loadMoreFollowSingers, loadMoreFavSongs, removeCloudList, removeFavSongFromCloud, resetUserCenter, toggleFavSongToCloud,
 } from './action'
 
 /**
@@ -19,7 +19,7 @@ import {
  * 只把最外层 SDK 换成桩，store 与状态写回都是真的。
  */
 
-const { likeSong, unlikeSong, getFavSongIds, getFavSonglist, getFavAlbum, getFollowSingers, getFavSong, getCreatedSonglist, createList } = vi.hoisted(() => ({
+const { likeSong, unlikeSong, getFavSongIds, getFavSonglist, getFavAlbum, getFollowSingers, getFavSong, getCreatedSonglist, createList, removeList } = vi.hoisted(() => ({
   likeSong: vi.fn(),
   unlikeSong: vi.fn(),
   getFavSongIds: vi.fn(),
@@ -29,12 +29,13 @@ const { likeSong, unlikeSong, getFavSongIds, getFavSonglist, getFavAlbum, getFol
   getFavSong: vi.fn(),
   getCreatedSonglist: vi.fn(),
   createList: vi.fn(),
+  removeList: vi.fn(),
 }))
 
 vi.mock('@renderer/utils/musicSdk', () => ({
   default: {
     tx: {
-      songList: { likeSong, unlikeSong, createList },
+      songList: { likeSong, unlikeSong, createList, removeList },
       user: { getFavSongIds, getFavSonglist, getFavAlbum, getFollowSingers, getFavSong, getCreatedSonglist },
     },
   },
@@ -522,5 +523,36 @@ describe('store/user/action 的 createCloudList', () => {
 
     expect(log).toHaveBeenCalled()
     log.mockRestore()
+  })
+})
+
+/**
+ * 删歌单的**同一类坑**（2026-09-26 审查，与 `createCloudList` 对称）：
+ * 删除接口已经成功，只是随后的列表刷新失败——旧实现让这个失败冒出去，调用方弹「删除失败」，
+ * 用户重试时歌单其实早没了（服务端只会回「歌单不存在」，列表依旧刷不出来）。
+ * 契约：删除成功即成功，刷新失败只落一行日志。
+ */
+describe('store/user/action 的 removeCloudList', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    createdLists.splice(0, createdLists.length)
+  })
+
+  it('删歌单成功、刷新列表失败 → 仍按成功返回（不能报成「删除失败」让用户重试）', async() => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    removeList.mockResolvedValue(true)
+    getCreatedSonglist.mockRejectedValue(new Error('boom'))
+
+    await expect(removeCloudList({ dirId: 126, id: '978' } as any)).resolves.toBeUndefined()
+
+    expect(removeList).toHaveBeenCalledWith(126)
+    expect(log).toHaveBeenCalled()
+    log.mockRestore()
+  })
+
+  it('删除接口本身失败（回 false）→ 照旧抛错（删除失败必须让用户看到）', async() => {
+    removeList.mockResolvedValue(false)
+
+    await expect(removeCloudList({ dirId: 126, id: '978' } as any)).rejects.toThrow()
   })
 })

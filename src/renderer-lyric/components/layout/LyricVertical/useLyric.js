@@ -198,6 +198,20 @@ export default (isComputeWidth) => {
     document.removeEventListener('mouseup', handleMouseMsUp)
     document.removeEventListener('touchmove', handleTouchMove)
     document.removeEventListener('touchend', handleMouseMsUp)
+
+    // 卸载时必须把定时器都清掉：切 `desktopLyric.direction` 会卸载重挂（还有关闭桌面歌词），
+    // 漏掉的 3s 自动滚动恢复 / 600ms 延迟滚动 / `scrollXRTo` 内部 10ms 一步的滚动链
+    // 会继续在已脱离文档的元素上跑（滚动动画约 300ms）。都用本文件已有的清理函数/引用：
+    // `clearLyricScrollTimeout` 管 `timeout`，另外两个按引用清。
+    clearLyricScrollTimeout()
+    if (delayScrollTimeout) {
+      clearTimeout(delayScrollTimeout)
+      delayScrollTimeout = null
+    }
+    if (cancelScrollFn) {
+      cancelScrollFn()
+      cancelScrollFn = null
+    }
   })
 
   return {

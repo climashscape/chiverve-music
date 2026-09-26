@@ -19,15 +19,15 @@ import { setting } from '@lyric/store/state'
  */
 const drag: {
   mode: 'move' | 'resize' | null
-  edge: LX.DesktopLyric.ResizeEdge | undefined
   downScreenX: number
   downScreenY: number
 } = {
   mode: null,
-  edge: undefined,
   downScreenX: 0,
   downScreenY: 0,
 }
+// 缩放手柄（`edge`）只在 start 那一帧随参数下发给主进程，主进程记着它算几何；
+// 渲染侧后续的 update 只报总位移，不需要留一份——别在 drag 上加回 `edge`（只写不读的死状态）。
 
 const screenPos = (clientX: number, clientY: number) => [clientX + window.screenX, clientY + window.screenY]
 
@@ -42,7 +42,6 @@ export const startWindowDrag = (mode: 'move' | 'resize', clientX: number, client
   if (isLockedResize(mode)) return
   const [sx, sy] = screenPos(clientX, clientY)
   drag.mode = mode
-  drag.edge = edge
   drag.downScreenX = sx
   drag.downScreenY = sy
   sendWindowDrag({ type: 'start', mode, edge })
@@ -62,6 +61,5 @@ export const updateWindowDrag = (clientX: number, clientY: number) => {
 export const endWindowDrag = () => {
   if (drag.mode == null) return
   drag.mode = null
-  drag.edge = undefined
   sendWindowDrag({ type: 'end' })
 }

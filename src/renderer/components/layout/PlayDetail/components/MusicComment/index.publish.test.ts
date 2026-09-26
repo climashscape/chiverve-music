@@ -1,6 +1,10 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import MusicComment from './index.vue'
+// 仓库的 SFC 类型 shim（`declare module '*.vue'`）只声明 default export，命名导出只有运行时存在，
+// 所以 tsc 在这行会报 TS2614；`clearOwnPendingComments` 确实由 index.vue 命名导出（会话级待定集合
+// 的清理口，见那边的注释）。shim 将来若支持命名导出，这个 @ts-expect-error 会变成多余指令，届时删掉。
+// @ts-expect-error 见上
+import MusicComment, { clearOwnPendingComments } from './index.vue'
 
 /**
  * 发表/删除评论（真机验收票 03 的界面落点）。
@@ -127,6 +131,9 @@ beforeAll(() => {
 beforeEach(() => {
   host = document.createElement('div')
   document.body.appendChild(host)
+  // 「刚发表、还没公开的评论」现在是**模块级**的会话状态（真正的「本次会话」语义，见 index.vue），
+  // 用例之间必须隔离，否则上一条用例留下的 pending 会并进下一条的列表
+  clearOwnPendingComments()
   mocks.getComment.mockResolvedValue({ comments: [PUBLIC_ITEM], total: 230665, maxPage: 1, page: 1, limit: 20 })
   mocks.getHotComment.mockResolvedValue({ comments: [], total: 0, maxPage: 1, page: 1, limit: 20 })
   mocks.createComment.mockResolvedValue({ source: 'tx', id: 'cm-1', floor: 339355 })
@@ -227,5 +234,36 @@ describe('发表评论', () => {
     expect(wrapper.vm.composerText).toBe('[zcode-verify] from test')
 
     await closeComment(wrapper)
+  })
+})
+
+/**
+ * 「发完看不到」的**回归路径**（2026-09-26 审查）：待定集合必须是**会话级**（模块级）的。
+ *
+ * `PlayDetail/index.vue` 给本组件挂的是 `v-if="visibled"`——关掉播放详情再打开就是一次
+ * 卸载重挂。集合若挂在组件 data 上，重挂后就是空的；而服务端还没把刚发的那条放进公开列表
+ * （票 03 真机实测：晴天上 2 小时仍未进），于是「刚发的那条」又不显示了。
+ */
+describe('发表评论的待定集合跨卸载重挂（会话级）', () => {
+  it('关掉播放详情再打开 → 刚发表、还没公开的那条仍会并到列表顶部', async() => {
+    const first = await openComment()
+    first.vm.composerText = '[zcode-verify] from test'
+    await first.vm.handlePublish()
+    await flushPromises()
+    expect(rowTexts(first).length).toBe(2)
+
+    await closeComment(first)
+
+    // 重挂（模拟关掉播放详情再打开）：公开列表里仍然没有那条，待定集合要还在
+    mocks.getSelfComment.mockClear()
+    const second = await openComment()
+    await flushPromises()
+
+    expect(rowTexts(second).length).toBe(2)
+    expect(rowTexts(second)[0]).toContain('[zcode-verify] from test')
+    expect(rowTexts(second)[0]).toContain('comment__pending_own')
+    expect(mocks.getSelfComment).toHaveBeenCalled()
+
+    await closeComment(second)
   })
 })

@@ -64,6 +64,32 @@ import { getQQCredential } from '@renderer/utils/ipc'
 import music from '@renderer/utils/musicSdk'
 import CommentFloor from './CommentFloor.vue'
 
+/**
+ * 「本次会话」里刚发表、但还没进公开列表的评论 cmId，**按歌曲分组**（模块级单例）。
+ *
+ * 为什么要模块级：公开列表（h5 通道）看不到服务端还没放出来的自己那条（`tx/comment.js`
+ * 文件头第 6 条），所以发表后先靠「自己的评论」通道把它并到列表顶部显示。这个集合若挂在
+ * 组件 data 上，就会随浮层卸载而丢——本组件在 `PlayDetail/index.vue` 是 `v-if="visibled"`
+ * （跟着**播放详情页的开关**走），关掉播放详情再打开就是一次卸载重挂，刚发的那条又只剩
+ * 公开列表（服务端还没放出来），票 03 修过的「发完看不到」症状原样回归（2026-09-26 复核）。
+ *
+ * 合并只认当前歌曲那一组（`getSelfComment` 也是按歌查的）；卸载 / 切歌时用
+ * `pruneOwnPendingComments` 只留当前歌曲的项，避免会话里随切歌无限增长。
+ */
+const ownPendingComments = new Map()
+/** 歌曲对象的稳定标识（新式对象用 `id`，形如 `tx_<songmid>`；老式/测试夹具兜底用 meta 里的 id） */
+const songKeyOf = (musicInfo) => String(musicInfo?.id ?? musicInfo?.meta?.songId ?? musicInfo?.meta?.id ?? '')
+/** 只留这首歌的待定项（卸载 / 切歌 / 换评论目标时调用；空串 = 当前没有歌 → 全清） */
+const pruneOwnPendingComments = (songKey) => {
+  for (const key of [...ownPendingComments.keys()]) {
+    if (key !== songKey) ownPendingComments.delete(key)
+  }
+}
+/** 测试用：清空会话级待定集合（组件自身不调用；模块级单例，用例之间要隔离） */
+export const clearOwnPendingComments = () => {
+  ownPendingComments.clear()
+}
+
 export default {
   name: 'MusicComment',
   components: {
@@ -101,14 +127,6 @@ export default {
        * 没必要留在组件状态里（列表项的 `userId` 就是加密 uin，用来判断哪些评论能删）。
        */
       myEuin: '',
-      /**
-       * 本次会话里刚发表、但还没进公开列表的评论 cmId（`createComment` 的返回值）。
-       *
-       * 为什么要它：公开列表（h5 通道）看不到服务端还没放出来的自己那条（`tx/comment.js`
-       * 文件头第 6 条），所以发表后先靠「自己的评论」通道把它并到列表顶部显示，
-       * 一旦公开列表里有了就把它从这一集合里摘掉（去重靠 cmId）。
-       */
-      ownPendingCmIds: [],
       /**
        * 歌曲总评论条数（标题上的「(N)」）。
        *
@@ -206,6 +224,9 @@ export default {
   },
   beforeUnmount() {
     window.removeEventListener('resize', this.setWidth)
+    // 组件实例要没了：会话级待定集合只留当前这首歌的（关掉播放详情再打开还要靠它合并，
+    // 见模块级 ownPendingComments 的注释；其它歌的待定项不会再被合并，顺手清掉）
+    pruneOwnPendingComments(songKeyOf(this.currentMusicInfo))
   },
   methods: {
     setWidth() {
@@ -273,24 +294,35 @@ export default {
      * 公开列表里一旦出现同一个 cmId，就把它从待定集合里摘掉——此后不再为它多发这一次请求。
      */
     async mergeOwnPendingComments(page) {
-      if (page !== 1 || !this.ownPendingCmIds.length) return
+      if (page !== 1) return
+      const songKey = songKeyOf(this.currentMusicInfo)
+      if (!ownPendingComments.get(songKey)?.length) return
       const visibleInPublicList = () => new Set(this.newComment.list.map(item => item.cmId))
       // 公开列表里已经出现过的 id 直接从待定集合摘掉：服务端已放出来，不必再问那条通道
-      let visible = visibleInPublicList()
-      this.ownPendingCmIds = this.ownPendingCmIds.filter(cmId => !visible.has(cmId))
-      if (!this.ownPendingCmIds.length) return
+      const pruneVisible = () => {
+        const visible = visibleInPublicList()
+        const next = (ownPendingComments.get(songKey) ?? []).filter(cmId => !visible.has(cmId))
+        if (next.length) ownPendingComments.set(songKey, next)
+        else ownPendingComments.delete(songKey)
+        return next
+      }
+      let pendingCmIds = pruneVisible()
+      if (!pendingCmIds.length) return
+      const musicInfo = this.currentMusicInfo
       let own
       try {
-        own = await music.tx.comment.getSelfComment(toOldMusicInfo(this.currentMusicInfo), this.newComment.limit)
+        own = await music.tx.comment.getSelfComment(toOldMusicInfo(musicInfo), this.newComment.limit)
       } catch (err) {
         // 拿不到就维持公开列表原样（最多是「刚发的那条暂时不显示」，不能因此把列表弄坏）
         console.log('[comment] getSelfComment', err)
         return
       }
-      // 请求期间可能又刷新过：重算一次，避免并出一条已经在公开列表里的重复行
-      visible = visibleInPublicList()
+      // 请求期间可能又刷新过 / 切了歌：重算待定集合，且只认「还是当前这首歌」的响应
+      if (musicInfo !== this.currentMusicInfo) return
+      // eslint-disable-next-line require-atomic-updates
+      pendingCmIds = pruneVisible()
       const pending = own
-        .filter(item => this.ownPendingCmIds.includes(item.cmId) && !visible.has(item.cmId))
+        .filter(item => pendingCmIds.includes(item.cmId))
         .map(item => ({ ...item, pending: true }))
       if (pending.length) this.newComment.list = [...pending, ...this.newComment.list]
     },
@@ -372,15 +404,22 @@ export default {
       if (!content) return
       this.composerSending = true
       this.composerTip = ''
+      // 发表是异步的：先记下「这条评论属于哪首歌」，期间切歌也不会把它记到新歌头上
+      const publishedInfo = this.currentMusicInfo
       try {
-        const added = await music.tx.comment.createComment(toOldMusicInfo(this.currentMusicInfo), content, this.replyTarget?.cmId)
+        const added = await music.tx.comment.createComment(toOldMusicInfo(publishedInfo), content, this.replyTarget?.cmId)
         this.composerText = ''
         this.replyTarget = null
         this.composerTip = this.$t('comment__publish_success')
         // 新评论只会出现在「最新评论」里——切到最新页并重拉第 1 页。
         // 记下服务端返回的 id：服务端公开它之前，公开列表（h5）里没有它，就靠
         // mergeOwnPendingComments 从「自己的评论」通道把它并到列表顶部（见数据层文件头第 6 条）
-        if (added?.id) this.ownPendingCmIds.push(String(added.id))
+        if (added?.id) {
+          const songKey = songKeyOf(publishedInfo)
+          const cmIds = ownPendingComments.get(songKey) ?? []
+          if (!cmIds.includes(String(added.id))) cmIds.push(String(added.id))
+          ownPendingComments.set(songKey, cmIds)
+        }
         this.handleToggleTab('new')
         this.handleGetNewComment(this.currentMusicInfo, 1, this.newComment.limit)
       } catch (err) {
@@ -402,7 +441,13 @@ export default {
         // 删掉的正好是当前回复目标时，把回复态收回去（否则会往已删除的评论下回复）
         if (this.replyTarget?.cmId === item.cmId) this.replyTarget = null
         // 已删的 id 从待定集合里去掉，免得后续每次刷新都为它多打一次「自己的评论」请求
-        this.ownPendingCmIds = this.ownPendingCmIds.filter(cmId => cmId !== item.cmId)
+        const songKey = songKeyOf(this.currentMusicInfo)
+        const pendingCmIds = ownPendingComments.get(songKey)
+        if (pendingCmIds) {
+          const next = pendingCmIds.filter(cmId => cmId !== item.cmId)
+          if (next.length) ownPendingComments.set(songKey, next)
+          else ownPendingComments.delete(songKey)
+        }
         this.refreshActiveTab()
       } catch (err) {
         console.log(err)
@@ -419,6 +464,9 @@ export default {
         return
       }
       this.currentMusicInfo = 'progress' in this.musicInfo ? this.musicInfo.metadata.musicInfo : this.musicInfo
+      // 换评论目标（切歌 / 重新打开）：会话级待定集合只留当前这首歌的——待定项只对
+      // 当前歌曲的合并有意义，别的留着就是随会话无限增长（模块级 ownPendingComments 注释）
+      pruneOwnPendingComments(songKeyOf(this.currentMusicInfo))
 
       if (this.currentMusicInfo.source == 'local' || !music[this.currentMusicInfo.source].comment) {
         this.available = false
