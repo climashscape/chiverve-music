@@ -704,6 +704,8 @@
   "setting__play_on_url_fail_strategy_error": "不重試，直接跳過",
   "setting__play_on_url_fail_strategy_retry": "重新整理 URL 重試",
   "setting__play_on_url_fail_strategy_tip": "重新整理 URL 重試：用同一音質重新取得連結，次數見「URL 重新整理次數上限」（改造前的預設行為）。降檔重取：每失敗一次就沿音質階梯降一檔再取，如 flac → 320k → 128k。不重試，直接跳過：按「失敗後自動下一首延遲」提示或跳過，不再發起取流請求。",
+  "setting__play_wy_fallback": "取不到播放位址時用網易雲頂替",
+  "setting__play_wy_fallback_tip": "QQ 音樂取不到播放位址（會員、獨家、下架）時，自動用網易雲的同一首歌頂上繼續播：介面不提示、來源標籤與歌詞封面都不變，所以看不出換過來源。只認歌名、歌手、時長都對得上的版本（時長差 5 秒內），匹配不上就照舊報錯 / 跳過；音質固定 128k（匿名能取到的那一檔）。",
   "setting__play_playQuality": "音質優先順序",
   "setting__play_power_save_blocker": "播放歌曲時阻止電腦休眠",
   "setting__play_retry_url_delay": "出鏈失敗重試間隔（秒）",

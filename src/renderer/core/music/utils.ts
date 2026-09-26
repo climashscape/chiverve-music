@@ -11,6 +11,7 @@ import { appSetting } from '@renderer/store/setting'
 import { langS2T, toNewMusicInfo, toOldMusicInfo } from '@renderer/utils'
 import { requestMsg } from '@renderer/utils/message'
 import { apis } from '@renderer/utils/musicSdk/api-source'
+import { getFallbackMusicUrl, WY_FALLBACK_QUALITY } from './wyFallback'
 
 
 const getOtherSourcePromises = new Map()
@@ -297,11 +298,19 @@ export const getOnlineOtherSourceMusicUrl = async({ musicInfos, quality, onToggl
 
 /**
  * 获取在线音乐URL
+ *
+ * 主源取不到流时，若开了 `player.wyFallback`，会**静默**用网易云的同一首歌顶替（`./wyFallback`）：
+ * 返回的 `musicInfo` 仍是原歌曲对象（来源标签、歌词、封面都不变），只有喂给播放器的 URL 换了出处，
+ * 所以用户看不出换过源。兜底也拿不到时**抛原错误**，上层的提示与失效曲登记因此与没有这个功能时一致。
+ *
+ * @param fallbackFirst 这一次先试兜底、再试主源。只由「播放失败重试用尽」那一次传入
+ *   （`usePlayEvent.handleError`）——主源刚连试两次都没播成，再抢先试一次没意义。
  */
-export const handleGetOnlineMusicUrl = async({ musicInfo, quality, isRefresh }: {
+export const handleGetOnlineMusicUrl = async({ musicInfo, quality, isRefresh, fallbackFirst = false }: {
   musicInfo: LX.Music.MusicInfoOnline
   quality?: LX.Quality
   isRefresh: boolean
+  fallbackFirst?: boolean
 }): Promise<{
   url: string
   musicInfo: LX.Music.MusicInfoOnline
@@ -312,6 +321,19 @@ export const handleGetOnlineMusicUrl = async({ musicInfo, quality, isRefresh }: 
   // console.log(musicInfo.source)
   const targetQuality = quality ?? getPlayQuality(appSetting['player.playQuality'], musicInfo)
 
+  // 兜底取到的档位固定 128k（匿名能取的那一档），上报时必须**如实**——URL 缓存的 key 是
+  // `${id}_${type}`，报错档位会把这条直链存进别的档位（§2.6 硬约束 2）
+  const tryWyFallback = async() => {
+    if (!appSetting['player.wyFallback']) return null
+    const url = await getFallbackMusicUrl(musicInfo).catch(() => null)
+    return url ? { musicInfo, url, quality: WY_FALLBACK_QUALITY, isFromCache: false } : null
+  }
+
+  if (fallbackFirst) {
+    const fallback = await tryWyFallback()
+    if (fallback) return fallback
+  }
+
   let reqPromise
   try {
     reqPromise = musicSdk[musicInfo.source].getMusicUrl(toOldMusicInfo(musicInfo), targetQuality).promise
@@ -320,9 +342,14 @@ export const handleGetOnlineMusicUrl = async({ musicInfo, quality, isRefresh }: 
   }
   return reqPromise.then(({ url, type }: { url: string, type: LX.Quality }) => {
     return { musicInfo, url, quality: type, isFromCache: false }
-  }).catch((err: any) => {
+  // eslint-disable-next-line @typescript-eslint/promise-function-async
+  }).catch(async(err: any) => {
     console.log(err)
-    // 在线源只剩 tx，没有别的源可以重试，直接抛出原错误由上层提示
+    // 用户切歌（取消请求）与限流（服务器繁忙）不试兜底：前者是人已经走了，后者的原因与歌无关
+    // （同 `unavailable.ts` 对这两类的口径）。试了只会多打一次搜索，甚至把 URL 取到一首没人听的歌上。
+    if (err?.message == requestMsg.cancelRequest || err?.message == requestMsg.tooManyRequests) throw err
+    const fallback = await tryWyFallback()
+    if (fallback) return fallback
     throw err
   })
 }

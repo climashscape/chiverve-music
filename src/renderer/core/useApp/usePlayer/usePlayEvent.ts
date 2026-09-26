@@ -10,6 +10,8 @@ import { getDegradedQuality } from '@renderer/core/music/utils'
 export default () => {
   const t = useI18n()
   let retryNum = 0
+  // 网易云兜底本次播放是否已试过：每首歌只插一次，切歌时随 retryNum 一起清零
+  let wyFallbackTried = false
   let prevTimeoutId: string | null = null
 
   let loadingTimeout: NodeJS.Timeout | null = null
@@ -92,6 +94,9 @@ export default () => {
    * - `error`：不重试，直接按 `player.errorSkipDelay` 提示（窗口可见）或跳过（窗口不可见）。
    *
    * `retryNum` 在切歌时清零（`handleSetPlayInfo`），所以两种重试都按「每首歌」重新计数。
+   *
+   * 重试用尽之后还有一步：开着 `player.wyFallback` 时插一次**网易云顶替**（只插一次，见下面
+   * 那段）。它不是「同源重试」的加长，而是换一个源接着放——两条路都会走到最后的提示 / 跳过。
    */
   const handleError = (errCode?: number) => {
     if (!musicInfo.id) return
@@ -118,6 +123,18 @@ export default () => {
       }
     }
 
+    // 主源重试用尽（或降无可降）之后，插一次网易云顶替（`player.wyFallback`）：**只插一次**。
+    // 状态文本沿用「刷新链接」，用户看到的过程与一次普通重试完全一样——这正是「不让用户感知换源」
+    // 所要求的。策略选「不重试」（`error`）时不插：那是用户明说别折腾。
+    if (minfo && onlineMusicInfo && errCode !== 1 && strategy != 'error' &&
+      appSetting['player.wyFallback'] && !wyFallbackTried) {
+      wyFallbackTried = true
+      // isRefresh=true：让 online.ts 先删掉那条打不开的缓存，否则这次会直接命中缓存、又拿到同一个坏 URL
+      setMusicUrl(minfo, true, undefined, true)
+      setAllStatus(t('player__refresh_url'))
+      return
+    }
+
     if (appSetting['player.autoSkipOnError']) {
       if (document.hidden) {
         console.warn('error skip to next')
@@ -131,6 +148,7 @@ export default () => {
 
   const handleSetPlayInfo = () => {
     retryNum = 0
+    wyFallbackTried = false
     prevTimeoutId = null
     clearDelayNextTimeout()
     clearLoadingTimeout()

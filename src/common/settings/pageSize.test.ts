@@ -152,9 +152,13 @@ describe('消费点对账：工单点名的文件都走同一个取值口', () =
     walk(path.resolve(repoRoot, 'src/renderer'))
     // 评论区的 20（MusicComment）不在票 09 点名的清单里（它是评论接口自己的每页条数），
     // 列在这里是为了让「又有人写死一处」立刻可见：要么接取值口，要么把理由补进本用例
+    // 网易云兜底（2026-09-26）的两处同理，都**不是**用户可见分页，跟 `list.pageSize` 无关：
+    // 一个是搜索一次要几个候选（网易搜索接口的 limit），一个是最多试几个候选（内部上限）
     expect(offenders).toEqual([
       'src/renderer/components/layout/PlayDetail/components/MusicComment/index.vue → limit: 20',
       'src/renderer/components/layout/PlayDetail/components/MusicComment/index.vue → limit: 20',
+      'src/renderer/core/music/wyFallback/api.ts → limit = 20',
+      'src/renderer/core/music/wyFallback/match.ts → limit = 3',
     ])
   })
 })

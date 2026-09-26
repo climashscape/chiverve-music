@@ -335,6 +335,12 @@ declare global {
       'player.onUrlFailStrategy': 'retry' | 'degrade' | 'error'
 
       /**
+       * 主源（QQ）取不到流、或取了流也播不成时，静默用网易云的同一首歌顶替
+       * （实现见 `renderer/core/music/wyFallback`）。默认开。
+       */
+      'player.wyFallback': boolean
+
+      /**
        * 播放详情页-是否缩放当前播放的歌词行
        */
       'playDetail.isZoomActiveLrc': boolean

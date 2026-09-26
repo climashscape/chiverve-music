@@ -51,10 +51,15 @@ export const setPic = (datas: {
  * 预加载跑在**本曲快播完、下一首即将上场**的时点，登记它等同「队列已经推到这首了」，
  * 所以不改判据；下载拿到同样的结论也一样（取不到 128k 即真的播不了）。
  */
-export const getMusicUrl = async({ musicInfo, quality, isRefresh }: {
+export const getMusicUrl = async({ musicInfo, quality, isRefresh, fallbackFirst }: {
   musicInfo: LX.Music.MusicInfoOnline
   quality?: LX.Quality
   isRefresh: boolean
+  /**
+   * 这次取流先试网易云兜底、再试主源（透传给 `handleGetOnlineMusicUrl`，理由见那里的注释）。
+   * 由 `setMusicUrl` → `usePlayEvent.handleError`「重试用尽」那一次传入。
+   */
+  fallbackFirst?: boolean
 }): Promise<string> => {
   // if (!musicInfo._types[type]) {
   //   // 兼容旧版酷我源搜索列表过滤128k音质的bug
@@ -81,7 +86,7 @@ export const getMusicUrl = async({ musicInfo, quality, isRefresh }: {
     }
   }
 
-  return handleGetOnlineMusicUrl({ musicInfo, quality, isRefresh }).then(({ url, quality: targetQuality }) => {
+  return handleGetOnlineMusicUrl({ musicInfo, quality, isRefresh, fallbackFirst }).then(({ url, quality: targetQuality }) => {
     void saveMusicUrl(musicInfo, targetQuality, url)
     // 取到过就撤销「失效」标记（表只对登记那一刻成立）
     clearUnavailable(musicInfo.id)

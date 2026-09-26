@@ -448,6 +448,7 @@ export const SETTING_SECTIONS: readonly Section[] = [
       {
         // §2.6 播放稳定性（票 06 新增组）：原本写死在播放核心里的 9 个阈值 + 1 个失败策略。
         // 每一项的默认值 = 改造前消费点上的硬编码常量，所以老配置升级上来行为不变。
+        // （例外：`player.wyFallback` 是 2026-09-26 新增的兜底开关，默认开 = 新行为。）
         // 顺序即组件里的渲染顺序（`sections/play/PlayStability.vue`）：先策略（它决定要不要刷新/降档），
         // 再取流与刷新相关，再卡顿，最后是「操作步长」两项（严格说不属于稳定性，但 spec §5-A 判给了本组）。
         id: 'play_stability',
@@ -455,6 +456,8 @@ export const SETTING_SECTIONS: readonly Section[] = [
         items: [
           // 三档：retry（默认 = 老行为，同源刷新 URL）/ degrade（沿档位阶梯降一档重取）/ error（不重试）
           { key: 'player.onUrlFailStrategy', i18nKey: 'setting__play_on_url_fail_strategy', control: 'checkboxGroup', helpI18nKey: 'setting__play_on_url_fail_strategy_tip' },
+          // 2026-09-26 新增（本组唯一的例外项：默认值不是「改造前常量」，而是新功能默认开）
+          { key: 'player.wyFallback', i18nKey: 'setting__play_wy_fallback', control: 'checkbox', helpI18nKey: 'setting__play_wy_fallback_tip' },
           // 老行为是写死的 2 次（usePlayEvent.ts 的 `retryNum < 2`）；degrade 档下它同时是「最多降几档」
           { key: 'player.retryUrlMaxNum', i18nKey: 'setting__play_retry_url_max_num', control: 'numberInput', helpI18nKey: 'setting__play_retry_url_max_num_tip' },
           // 老行为 25 秒：加载超时先刷新一次 URL，第二次超时直接切歌

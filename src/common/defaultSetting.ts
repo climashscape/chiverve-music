@@ -68,6 +68,9 @@ const defaultSetting: LX.AppSetting = {
   'player.skipStepSeconds': 5, // 快进/快退快捷键的固定步长
   'player.volumeStep': 4, // 音量快捷键的步进，单位「%」（4 = 0.04）
   'player.onUrlFailStrategy': 'retry', // 取流失败策略：retry（默认，= 老行为）/ degrade / error
+  // 主源取不到流时静默用网易云同曲顶替（renderer/core/music/wyFallback）。默认开：这是对「本来要
+  // 跳过的歌」的补救，关掉即回到「取流失败就提示 / 跳过」的老行为
+  'player.wyFallback': true,
   'player.soundEffect.convolution.fileName': '',
   'player.soundEffect.convolution.mainGain': 10,
   'player.soundEffect.convolution.sendGain': 0,

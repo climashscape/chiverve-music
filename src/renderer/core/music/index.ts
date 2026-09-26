@@ -25,12 +25,15 @@ export const getMusicUrl = async({
   isRefresh = false,
   onToggleSource,
   allowToggleSource,
+  fallbackFirst,
 }: {
   musicInfo: LX.Music.MusicInfo | LX.Download.ListItem
   isRefresh?: boolean
   quality?: LX.Quality
   onToggleSource?: (musicInfo?: LX.Music.MusicInfoOnline) => void
   allowToggleSource?: boolean
+  /** 这次先试网易云兜底（只对在线歌曲有意义），理由见 `handleGetOnlineMusicUrl` */
+  fallbackFirst?: boolean
 }): Promise<string> => {
   if ('progress' in musicInfo) {
     return getDownloadMusicUrl({ musicInfo, isRefresh })
@@ -38,7 +41,7 @@ export const getMusicUrl = async({
     return getLocalMusicUrl({ musicInfo, isRefresh, onToggleSource, allowToggleSource })
   } else {
     // 在线源只剩 tx，在线歌曲不存在“换到别的源”，故不再接收换源相关参数
-    return getOnlineMusicUrl({ musicInfo, isRefresh, quality })
+    return getOnlineMusicUrl({ musicInfo, isRefresh, quality, fallbackFirst })
   }
 }
 

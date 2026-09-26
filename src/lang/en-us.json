@@ -704,6 +704,8 @@
   "setting__play_on_url_fail_strategy_error": "Skip without retrying",
   "setting__play_on_url_fail_strategy_retry": "Refresh URL and retry",
   "setting__play_on_url_fail_strategy_tip": "Refresh URL and retry: fetch the link again at the same quality, the count is set by \"URL refresh limit\" (this is the default behavior). Retry at a lower quality: on each failure, step one level down the quality ladder, e.g. flac → 320k → 128k. Skip without retrying: show the error and skip after the delay set below, without fetching again.",
+  "setting__play_wy_fallback": "Fall back to NetEase when no playable URL is found",
+  "setting__play_wy_fallback_tip": "When QQ Music returns no playable URL (VIP-only, exclusive, removed), the same song is played silently from NetEase Cloud Music instead: no message, and the source label, lyrics and cover stay unchanged, so the switch is invisible. Only versions whose title, artist and duration all match (within 5 seconds) are used; when nothing matches, the usual error/skip happens. Quality is fixed at 128k, the only tier available without an account.",
   "setting__play_playQuality": "Preferred sound quality",
   "setting__play_power_save_blocker": "Prevent device from hibernating while playing songs",
   "setting__play_retry_url_delay": "Load failure retry interval (seconds)",

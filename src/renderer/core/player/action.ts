@@ -72,13 +72,13 @@ const diffCurrentMusicInfo = (curMusicInfo: LX.Music.MusicInfo | LX.Download.Lis
 }
 
 let cancelDelayRetry: (() => void) | null = null
-const delayRetry = async(musicInfo: LX.Music.MusicInfo | LX.Download.ListItem, isRefresh = false, quality?: LX.Quality): Promise<string | null> => {
+const delayRetry = async(musicInfo: LX.Music.MusicInfo | LX.Download.ListItem, isRefresh = false, quality?: LX.Quality, fallbackFirst?: boolean): Promise<string | null> => {
   // if (cancelDelayRetry) cancelDelayRetry()
   return new Promise<string | null>((resolve, reject) => {
     const time = getRandom(2, 6)
     setAllStatus(window.i18n.t('player__getting_url_delay_retry', { time }))
     const tiemout = setTimeout(() => {
-      getMusicPlayUrl(musicInfo, isRefresh, true, quality).then((result) => {
+      getMusicPlayUrl(musicInfo, isRefresh, true, quality, fallbackFirst).then((result) => {
         cancelDelayRetry = null
         resolve(result)
       }).catch(async(err: any) => {
@@ -95,8 +95,9 @@ const delayRetry = async(musicInfo: LX.Music.MusicInfo | LX.Download.ListItem, i
 }
 /**
  * @param quality 指定档位（只由失败策略 `degrade` 传入：降档重取）。不传 = 按 `player.playQuality` 现算
+ * @param fallbackFirst 这次取流先试网易云兜底（`player.wyFallback`），由 `setMusicUrl` 透传
  */
-const getMusicPlayUrl = async(musicInfo: LX.Music.MusicInfo | LX.Download.ListItem, isRefresh = false, isRetryed = false, quality?: LX.Quality): Promise<string | null> => {
+const getMusicPlayUrl = async(musicInfo: LX.Music.MusicInfo | LX.Download.ListItem, isRefresh = false, isRetryed = false, quality?: LX.Quality, fallbackFirst?: boolean): Promise<string | null> => {
   // this.musicInfo.url = await getMusicPlayUrl(targetSong, type)
   setAllStatus(window.i18n.t('player__getting_url'))
   if (appSetting['player.autoSkipOnError']) addLoadTimeout()
@@ -109,11 +110,13 @@ const getMusicPlayUrl = async(musicInfo: LX.Music.MusicInfo | LX.Download.ListIt
     musicInfo: toggleMusicInfo,
     isRefresh,
     quality,
+    fallbackFirst,
   }) : Promise.reject(new Error('not found'))).catch(async() => {
     return getMusicUrl({
       musicInfo,
       isRefresh,
       quality,
+      fallbackFirst,
     })
   }).then(url => {
     if (window.lx.isPlayedStop || diffCurrentMusicInfo(musicInfo)) return null
@@ -126,13 +129,13 @@ const getMusicPlayUrl = async(musicInfo: LX.Music.MusicInfo | LX.Download.ListIt
       diffCurrentMusicInfo(musicInfo) ||
       err.message == requestMsg.cancelRequest) return null
 
-    if (err.message == requestMsg.tooManyRequests) return delayRetry(musicInfo, isRefresh, quality)
+    if (err.message == requestMsg.tooManyRequests) return delayRetry(musicInfo, isRefresh, quality, fallbackFirst)
 
     // 「不可播」是确定性结论（所有档位都问过、服务端都没给直链），重取一次也一样：
     // 直接抛给上层去登记 / 跳过，不再白刷一轮（判据见 core/music/unavailable.ts）
     if (isUnavailableError(err)) throw err
 
-    if (!isRetryed) return getMusicPlayUrl(musicInfo, isRefresh, true, quality)
+    if (!isRetryed) return getMusicPlayUrl(musicInfo, isRefresh, true, quality, fallbackFirst)
 
     throw err
   })
@@ -161,7 +164,11 @@ const handleUnavailableMusic = () => {
   setAllStatus(window.i18n.t('player__unavailable_skip_limit', { num: MAX_CONSECUTIVE_UNAVAILABLE_SKIP }))
 }
 
-export const setMusicUrl = (musicInfo: LX.Music.MusicInfo | LX.Download.ListItem, isRefresh?: boolean, quality?: LX.Quality) => {
+/**
+ * @param fallbackFirst 这次先试网易云兜底（只由「播放失败重试用尽」那一次传入，
+ *   见 `usePlayEvent.ts` 的 `handleError`）
+ */
+export const setMusicUrl = (musicInfo: LX.Music.MusicInfo | LX.Download.ListItem, isRefresh?: boolean, quality?: LX.Quality, fallbackFirst?: boolean) => {
   // if (appSetting['player.autoSkipOnError']) addLoadTimeout()
   if (!diffCurrentMusicInfo(musicInfo)) return
   if (cancelDelayRetry) cancelDelayRetry()
@@ -171,7 +178,7 @@ export const setMusicUrl = (musicInfo: LX.Music.MusicInfo | LX.Download.ListItem
     handleUnavailableMusic()
     return
   }
-  void getMusicPlayUrl(musicInfo, isRefresh, false, quality).then((url) => {
+  void getMusicPlayUrl(musicInfo, isRefresh, false, quality, fallbackFirst).then((url) => {
     if (!url) return
     // 真取到流 = 队列没在「连续失效」里打转，跳过计数归零
     unavailableSkipGuard.reset()
