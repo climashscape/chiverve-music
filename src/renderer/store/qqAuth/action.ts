@@ -8,6 +8,7 @@ import {
   onQQAuthStatusChange,
 } from '@renderer/utils/ipc'
 import { resetUserCenter } from '@renderer/store/user/action'
+import { clearFollowSingerCache } from '@renderer/utils/musicSdk/tx/singer'
 import { isShowLoginModal, loginError, loginState, qrcode, qrCreatedAt, status, isRefreshing } from './state'
 
 /**
@@ -40,7 +41,14 @@ export const initQQAuth = async(): Promise<void> => {
   // 主进程刷新成功/失败都会推状态变更；只订阅一次
   if (stopStatusListener == null) {
     stopStatusListener = onQQAuthStatusChange(({ params }) => {
+      // **账号身份变了**（登录 / 登出 / 换号）就作废**数据层**的关注列表缓存：
+      // 那份缓存（`tx/singer.js` 的 `followedSingers`）不带账号维度，留着会让新账号看到上一个账号的关注态。
+      // 界面自己那份关注态表另有 `watch(status.isLogin)` 作废（`components/common/useFollowSinger`），
+      // 两层合起来才盖住「页面上没挂关注键时换号」那个窗口（2026-09-27 登记并修）。
+      // 只在身份真的变了时清：刷新凭证成功/失败也会推状态变更，那种情况清缓存只是白多一次列表请求。
+      const identityChanged = status.isLogin !== params.isLogin || status.musicidMasked !== params.musicidMasked
       Object.assign(status, params)
+      if (identityChanged) clearFollowSingerCache()
     })
   }
 }

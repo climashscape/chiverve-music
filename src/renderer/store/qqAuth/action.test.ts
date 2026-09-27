@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { favAlbumIds, favLists, favPlaylistIds, favSongIds, favSongIdsLoaded, isInited, labels } from '@renderer/store/user/state'
 import { status } from './state'
-import { logout, refreshQrcode } from './action'
+import { initQQAuth, logout, refreshQrcode } from './action'
 
 /**
  * 登录 / 登出对**账号中心缓存**的处置（2026-09-26 审查）。
@@ -26,6 +26,10 @@ const ipc = vi.hoisted(() => ({
 }))
 
 vi.mock('@renderer/utils/ipc', () => ipc)
+// 数据层的关注列表缓存（`tx/singer.js` 的 `followedSingers`）不带账号维度 → 换号必须作废。
+// 这一层只用一个探针替掉，避免把真 tx 链（needle / store）拉进本用例
+const singerCache = vi.hoisted(() => ({ clearFollowSingerCache: vi.fn() }))
+vi.mock('@renderer/utils/musicSdk/tx/singer', () => singerCache)
 // user/action 顶层会 import 真 SDK（本用例不碰取数，换成空壳避免连带初始化）
 vi.mock('@renderer/utils/musicSdk', () => ({
   default: { tx: { user: {}, songList: {} } },
@@ -97,5 +101,37 @@ describe('store/qqAuth/action 的登录态切换：账号中心缓存必须跟�
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+/**
+ * 数据层的关注列表缓存也要在换号时作废（2026-09-27 登记并修的那处边界）。
+ *
+ * 真机症状的形状：`tx/singer.js` 的 `followedSingers` 是**会话级、不带账号维度**的缓存，
+ * 换号后它还留着上一个账号的关注集合 → 新账号在歌手页会看到别人的关注态
+ * （界面那份关注态表另有 `watch(status.isLogin)` 兜，两层合起来才盖住「页面上没挂关注键时换号」）。
+ *
+ * 钉两条：**身份真的变了才清**（主进程刷新凭证成功/失败也会推状态变更，那种情况清缓存只是白打列表请求）；
+ * 登录、登出、换号三种变化都要清。
+ */
+describe('store/qqAuth/action 的登录态切换：数据层关注列表缓存作废', () => {
+  it('身份变化才清缓存；只刷新凭证（身份未变）不清', async() => {
+    ipc.getQQAuthStatus.mockResolvedValue({ ...AUTH_STATUS, isLogin: true, musicidMasked: '***0001' })
+
+    await initQQAuth()
+    const notify = ipc.onQQAuthStatusChange.mock.calls.at(-1)?.[0] as ((payload: { params: unknown }) => void) | undefined
+    expect(typeof notify).toBe('function')
+
+    // ① 只刷新凭证成功/失败：身份没变 → 不清
+    notify!({ params: { ...AUTH_STATUS, isLogin: true, musicidMasked: '***0001', lastRefreshError: 'boom' } })
+    expect(singerCache.clearFollowSingerCache).not.toHaveBeenCalled()
+
+    // ② 登出：身份变了 → 清
+    notify!({ params: { ...AUTH_STATUS, isLogin: false, musicidMasked: null } })
+    expect(singerCache.clearFollowSingerCache).toHaveBeenCalledTimes(1)
+
+    // ③ 换号：登录态没变、账号变了 → 也清（这条就是原来漏掉的窗口）
+    notify!({ params: { ...AUTH_STATUS, isLogin: true, musicidMasked: '***0002' } })
+    expect(singerCache.clearFollowSingerCache).toHaveBeenCalledTimes(2)
   })
 })
