@@ -203,3 +203,49 @@ describe('关注动态：时间线的行交互', () => {
     expect(mocks.push).toHaveBeenCalledWith({ path: '/album', query: { mid: 'album-mid-2' } })
   })
 })
+
+describe('关注动态：时间线的结构（2026-09-27 视觉重做）', () => {
+  it('按发布周分组（周一为起点）：同周归一组、跨周分组、组内保持原有顺序（不重排）', () => {
+    // 2026-09-20（周日）与 09-18（周五）同属 09.14–09.20 周；08-30 属 08.24–08.30 周
+    const list = [
+      item({ id: 1, name: '九月歌一', publishTime: '2026-09-20' }),
+      item({ id: 2, kind: 'album', itemId: 'album-mid-2', name: '九月专', albumMid: 'album-mid-2', albumName: '九月专', trackCount: 3, publishTime: '2026-09-18', music: null }),
+      item({ id: 3, name: '八月歌', publishTime: '2026-08-30' }),
+    ]
+    const wrapper = mountTimeline(list)
+
+    expect(wrapper.findAll('h3')).toHaveLength(2)
+    // 条目按发布时间倒序进来，分组只是相邻归拢，顺序不变
+    const names = wrapper.findAll('li').map(node => node.text())
+    expect(names[0]).toContain('九月歌一')
+    expect(names[1]).toContain('九月专')
+    expect(names[2]).toContain('八月歌')
+  })
+
+  it('封面按 albumMid 拼 QQ 音乐静态图 URL；没有 mid 的行不渲染 img（画底色占位，不是破损图标）', () => {
+    const wrapper = mountTimeline()
+    const covers = wrapper.findAll('img')
+    expect(covers).toHaveLength(1)
+    expect(covers[0].attributes('src')).toBe('https://y.gtimg.cn/music/photo_new/T002R300x300M000album-mid-2.jpg')
+    // 歌行（albumMid 为 null）渲染占位块
+    const placeholders = wrapper.findAll('li').filter(row => !row.find('img').exists())
+    expect(placeholders).toHaveLength(2)
+  })
+
+  it('「本次新增」的表达收在时间轴节点上：fresh 行节点亮主色并带 title，已读行空心', () => {
+    const wrapper = mount(FeedTimeline, {
+      props: { items: items(), freshIds: [3] },
+      global: {
+        stubs: { 'base-menu': BaseMenuStub, 'common-list-add-modal': true, 'common-download-modal': true },
+        mocks: { $t },
+      },
+    })
+
+    // CSS modules 会给类名加 hash 后缀，按子串匹配
+    const dots = wrapper.findAll('li').map(node => node.find('span'))
+    expect(dots[0].classes().some(name => name.includes('dotFresh'))).toBe(false)
+    expect(dots[2].classes().some(name => name.includes('dotFresh'))).toBe(true)
+    expect(dots[2].attributes('title')).toBe('follow__fresh')
+    expect(dots[0].attributes('title')).toBe('')
+  })
+})

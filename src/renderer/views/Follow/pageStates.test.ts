@@ -221,10 +221,11 @@ describe('关注动态：三种页面状态', () => {
     await flushPromises()
     const rows = wrapper.findAll('li')
 
-    expect(rows[0].text()).toContain('follow__fresh')
-    expect(rows[0].classes().some(name => name.includes('freshRow'))).toBe(true)
-    expect(rows[1].text()).not.toContain('follow__fresh')
-    expect(rows[1].classes().some(name => name.includes('freshRow'))).toBe(false)
+    // fresh 的表达收在时间轴节点上（2026-09-27 视觉重做）：亮主色节点 + title，不再渲染「本次新增」文字
+    expect(rows[0].find('span').classes().some(name => name.includes('dotFresh'))).toBe(true)
+    expect(rows[0].find('span').attributes('title')).toBe('follow__fresh')
+    expect(rows[1].find('span').classes().some(name => name.includes('dotFresh'))).toBe(false)
+    expect(rows[1].find('span').attributes('title')).toBe('')
 
     // 角标清零：库里置已读 + 内存里的未读归零（顺序上 freshIds 必须先记下，见 store 的注释）
     // 只写一次：首次读库那一下由 `openFollowFeed` 负责，未读数 watch 不许再插一脚
@@ -245,12 +246,12 @@ describe('关注动态：三种页面状态', () => {
     await loadFollowFeed()
     await flushPromises()
 
-    // 用户就在这一页上：角标不该继续挂着数字，而且这条要算进「本次新增」
+    // 用户就在这一页上：角标不该继续挂着数字，而且这条要算进「本次新增」（节点亮点）
     expect(mocks.markFollowFeedAllRead).toHaveBeenCalledTimes(1)
     expect(followFeedState.unreadCount).toBe(0)
     expect(followFeedState.freshIds).toEqual([7])
     expect(wrapper.text()).toContain('刚落库的新歌')
-    expect(wrapper.text()).toContain('follow__fresh')
+    expect(wrapper.findAll('li').some(row => row.find('span').classes().some(name => name.includes('dotFresh')))).toBe(true)
   })
 })
 
