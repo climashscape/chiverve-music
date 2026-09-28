@@ -101,6 +101,8 @@ export default defineConfig({
             'src/renderer/worker/**/*.test.ts',
             'src/renderer/utils/musicSdk/**/*.test.ts',
             'test/node/**/*.test.ts',
+            // qqctl：账号操作 CLI（scripts/qqctl，入库），纯逻辑测试零网络
+            'scripts/qqctl/**/*.test.mjs',
           ],
         },
       },
