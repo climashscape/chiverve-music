@@ -139,7 +139,7 @@
   "follow__check_failed": "Last check failed: {reason}",
   "follow__monitored": "Monitoring {count} artists",
   "follow__empty": "Now monitoring {count} artists. New releases will show up here",
-  "follow__kind_song": "New song",
+  "follow__kind_song": "New single",
   "follow__kind_album": "New album",
   "follow__album_tracks": "{count} tracks",
   "follow__fresh": "New this time",

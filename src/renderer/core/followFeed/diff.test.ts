@@ -168,8 +168,10 @@ describe('新专聚合：同一张专辑本轮 ≥2 首合并成一行', () => {
     expect(album.itemId).toBe('alb_x')
     expect(album.name).toBe('新专辑')
     expect(album.trackCount).toBe(2)
-    // 专辑行没有播放载荷（点它是进专辑页）
-    expect(album.music).toBe(null)
+    // 专辑行的播放载荷 = 本簇内每首歌的数组（页面上展开即播，2026-09-28 用户拍板）
+    const songs = JSON.parse(album.music!)
+    expect(songs).toHaveLength(2)
+    expect(songs.map((song: { id: string }) => song.id)).toEqual(['tx_s_a', 'tx_s_b'])
     // 日期取组里最新的一条
     expect(album.publishTime).toBe('2026-09-20')
   })

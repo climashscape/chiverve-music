@@ -139,7 +139,7 @@
   "follow__check_failed": "上次檢查失敗：{reason}",
   "follow__monitored": "監控 {count} 位歌手",
   "follow__empty": "已開始監控 {count} 位歌手，有新作品時會出現在這裡",
-  "follow__kind_song": "新歌",
+  "follow__kind_song": "新單曲",
   "follow__kind_album": "新專輯",
   "follow__album_tracks": "{count} 首",
   "follow__fresh": "本次新增",

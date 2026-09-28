@@ -87,12 +87,16 @@ export default {
 <style lang="less" module>
 @import '@renderer/assets/styles/layout.less';
 
-// 内联块（不抢占外层布局）：它出现的三处都在行内/卡片里，块级元素会把版面拆掉
+// 内联块（不抢占外层布局）：它出现的三处都在行内/卡片里，块级元素会把版面拆掉。
+// flex:none + nowrap：所在行（收藏页歌手卡 220px 宽）空间不足时按钮会被压到比文字窄，
+// 「取消关注」就折成两行把卡片撑乱（2026-09-28 真机截图）——按钮宁可把同行文字的省略号挤短些
 .row {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   vertical-align: middle;
+  flex: none;
+  white-space: nowrap;
 }
 .message {
   font-size: 11px;

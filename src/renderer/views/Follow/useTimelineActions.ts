@@ -28,11 +28,15 @@ import useMusicJump from '@renderer/utils/compositions/useMusicJump'
  *      `resolveSingers`（请求歌曲详情拿 multi-singer）在这里没有意义——本页每行只属于一位关注
  *      的歌手；
  *   2. **播放载荷来自 `item.music`**（新式歌曲对象的 JSON），不重新查接口；
- *   3. 专辑行的播放载荷是 `null`（不是「假的 music 对象」），所以它点了不播。
+ *   3. **专辑行点行 = 展开/收起**（2026-09-28 用户拍板：不出动态页就能听专辑）——展开区里
+ *      每首歌单独播，队列 = 专辑内那批歌（载荷也在 `item.music`，是数组）；旧的专辑行
+ *      （载荷缺失）退回「点专辑名进专辑页」。
  */
 
 /** 播放队列的身份（`usePlay` 的 `listId`）；同一页只有一个队列，所以是常量 */
 export const FOLLOW_FEED_TIMELINE_ID = 'follow_feed__timeline'
+/** 专辑展开区的播放队列身份前缀（每张专辑一个队列：`follow_feed__album_<itemId>`） */
+export const FOLLOW_FEED_ALBUM_ID_PREFIX = 'follow_feed__album_'
 
 interface TimelineActionsProps {
   items: LX.FollowFeed.Item[]
@@ -95,6 +99,62 @@ export const useTimelineActions = (props: TimelineActionsProps) => {
     emit: noop,
   })
 
+  // ── 专辑展开（点专辑行 = 展开/收起；展开区点歌即播）────────────────────────────
+
+  /**
+   * 当前展开的专辑行；`null` = 全部收起。同时只允许展开一张（再点另一张就切过去），
+   * 多张同时展开会让「页面有多长」变得难预期。
+   */
+  const expandedAlbumId = ref<number | null>(null)
+
+  /**
+   * 专辑行 `music` 里存的**本簇歌曲数组**（`diff.ts` 写入的 `toNewMusicInfo` 输出数组）。
+   * 旧数据（专辑行 `music == null`）解析不出东西 → 返回空数组，展开钮不渲染，
+   * 点专辑名进专辑页的旧路还在。解析失败同样当空处理，不让脏数据打崩页面。
+   */
+  const albumSongsOf = (item: LX.FollowFeed.Item): LX.Music.MusicInfoOnline[] => {
+    if (item.kind !== 'album' || !item.music) return []
+    try {
+      const parsed: unknown = JSON.parse(item.music)
+      return Array.isArray(parsed) ? parsed as LX.Music.MusicInfoOnline[] : []
+    } catch (err) {
+      console.log('[followFeed] bad album payload', item.id, err)
+      return []
+    }
+  }
+
+  const isAlbumExpanded = (item: LX.FollowFeed.Item): boolean => expandedAlbumId.value === item.id
+
+  const toggleAlbum = (item: LX.FollowFeed.Item) => {
+    expandedAlbumId.value = isAlbumExpanded(item) ? null : item.id
+  }
+
+  /**
+   * 展开区的播放队列：**当前展开专辑**的那批歌。`usePlay` 的 `queueId` 每次点击时读
+   * `props.listId`（getter 传入），所以切到另一张专辑时队列身份跟着换。
+   */
+  const albumPlayProps = {
+    get list() {
+      const album = props.items.find(item => item.id === expandedAlbumId.value)
+      return album ? albumSongsOf(album) : []
+    },
+    get listId() {
+      return `${FOLLOW_FEED_ALBUM_ID_PREFIX}${expandedAlbumId.value ?? 'none'}`
+    },
+  }
+  const { handlePlayMusic: handleAlbumSongPlay } = usePlay({
+    selectedList,
+    props: albumPlayProps,
+    removeAllSelect: noop,
+    emit: noop,
+  })
+
+  /** 展开区里点一首歌 = 从这首开始播，队列 = 这张专辑展开区里的全部歌 */
+  const handleAlbumSongClick = (item: LX.FollowFeed.Item, songIndex: number) => {
+    if (expandedAlbumId.value !== item.id) return
+    void handleAlbumSongPlay(songIndex, true)
+  }
+
   const { jumpToSingerList, copyAlbumLink, openAlbumInQqMusic } = useMusicJump()
 
   /**
@@ -117,12 +177,17 @@ export const useTimelineActions = (props: TimelineActionsProps) => {
   }
 
   /**
-   * 点歌曲行 = 从这首开始播，**队列 = 本页时间线里的全部歌曲行**（按当前顺序）。
-   * `single: true` —— 本页没有多选，走「从这一首连播这一列」。
+   * 点行：歌曲行 = 从这首开始播（队列 = 本页全部歌曲行）；专辑行 = **展开/收起**
+   * （2026-09-28 用户拍板：不出动态页听专辑——展开区里每首歌单独播，见 `handleAlbumSongClick`）。
+   * 专辑行没带载荷的旧数据无歌可展，点了不动作（专辑名进专辑页的旧路仍在）。
    */
   const handleRowClick = (item: LX.FollowFeed.Item) => {
+    if (item.kind === 'album') {
+      if (albumSongsOf(item).length) toggleAlbum(item)
+      return
+    }
     const index = songIndexOf(item)
-    // 专辑行（`music == null`）与载荷坏掉的行：不播，也不报错（行上没有可播的东西）
+    // 载荷坏掉的行：不播，也不报错（行上没有可播的东西）
     if (index < 0) return
     void handlePlayMusic(index, true)
   }
@@ -231,6 +296,11 @@ export const useTimelineActions = (props: TimelineActionsProps) => {
   return {
     // 播放
     handleRowClick,
+    // 专辑展开（点专辑行 = 展开/收起；展开区点歌即播）
+    isAlbumExpanded,
+    toggleAlbum,
+    albumSongsOf,
+    handleAlbumSongClick,
     // 跳转
     jumpToSinger,
     jumpToAlbumRow,

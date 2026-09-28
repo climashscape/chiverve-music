@@ -110,8 +110,10 @@ const itemsFromSongs = (singer: { mid: string, name: string }, songs: FetchedSon
       trackCount: group.length,
       // 发布日期取组里最新的一条：专辑行的日期应当是「这批新歌里最新的那天」
       publishTime: group.reduce((max, item) => (item.publishTime > max ? item.publishTime : max), ''),
-      // 专辑行没有可播放载荷（点它是进专辑页）
-      music: null,
+      // 播放载荷：**本簇内每首歌**的新式歌曲对象数组——专辑行在页面上可以直接展开听
+      // （2026-09-28 用户拍板：不出动态页就能播，不必跳专辑页）。注意只含本轮发现的曲目，
+      // 专辑的全量曲目仍以专辑页为准（点专辑名进页）。
+      music: JSON.stringify(group.map(item => toNewMusicInfo(item.song))),
     })
   }
   return items

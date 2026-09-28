@@ -1,28 +1,25 @@
 <template>
   <div :class="$style.container">
-    <!-- 状态栏与时间线共同收进 max-width：大窗口下不再把行拉到整屏宽 -->
-    <div :class="$style.inner">
-      <!-- 顶部状态行常显（三种页面状态都画它）：「上次检查 + 结果」「手动刷新」「监控中的歌手数」 -->
-      <feed-status-bar
-        :last-success-at="lastSuccessAt"
-        :error-reason="errorReason"
-        :monitored-count="monitoredCount"
-        :is-checking="isChecking"
-        @refresh="refresh"
-      />
-      <div :class="$style.content" class="scroll">
-        <!-- 未登录：给登录引导（不是空列表，也不是报错）。文案与按钮**复用既有 key**
-             （设置页「QQ 账号」节与收藏页/粉丝页用的是同两条），不另起一份 -->
-        <div v-if="state.isLogin === false" :class="$style.center">
-          <p :class="$style.tip">{{ $t('user_center__need_login') }}</p>
-          <base-btn min @click="openLoginModal">{{ $t('qq_auth__login') }}</base-btn>
-        </div>
-        <p v-else-if="state.isLoading" :class="$style.tip">{{ $t('list__loading') }}</p>
-        <!-- 已登录但还没有条目：把「已开始监控 N 位歌手」说出来，别让用户以为它坏了
-             （首次运行的存量作品不产生条目，见 spec） -->
-        <p v-else-if="!items.length" :class="$style.tip">{{ $t('follow__empty', { count: monitoredCount }) }}</p>
-        <feed-timeline v-else :items="items" :fresh-ids="freshIds" />
+    <!-- 顶部状态行常显（三种页面状态都画它）：「上次检查 + 结果」「手动刷新」「监控中的歌手数」 -->
+    <feed-status-bar
+      :last-success-at="lastSuccessAt"
+      :error-reason="errorReason"
+      :monitored-count="monitoredCount"
+      :is-checking="isChecking"
+      @refresh="refresh"
+    />
+    <div :class="$style.content" class="scroll">
+      <!-- 未登录：给登录引导（不是空列表，也不是报错）。文案与按钮**复用既有 key**
+           （设置页「QQ 账号」节与收藏页/粉丝页用的是同两条），不另起一份 -->
+      <div v-if="state.isLogin === false" :class="$style.center">
+        <p :class="$style.tip">{{ $t('user_center__need_login') }}</p>
+        <base-btn min @click="openLoginModal">{{ $t('qq_auth__login') }}</base-btn>
       </div>
+      <p v-else-if="state.isLoading" :class="$style.tip">{{ $t('list__loading') }}</p>
+      <!-- 已登录但还没有条目：把「已开始监控 N 位歌手」说出来，别让用户以为它坏了
+           （首次运行的存量作品不产生条目，见 spec） -->
+      <p v-else-if="!items.length" :class="$style.tip">{{ $t('follow__empty', { count: monitoredCount }) }}</p>
+      <feed-timeline v-else :items="items" :fresh-ids="freshIds" />
     </div>
   </div>
 </template>
@@ -77,17 +74,6 @@ export default {
   color: var(--color-font);
   display: flex;
   flex-flow: column nowrap;
-}
-
-// 内容收口：关注动态是线性阅读的列表，宽窗口下通栏会把行拉得很长（2026-09-27 视觉重做）
-.inner {
-  width: 100%;
-  max-width: 900px;
-  margin: 0 auto;
-  display: flex;
-  flex-flow: column nowrap;
-  flex: auto;
-  min-height: 0;
 }
 
 .content {

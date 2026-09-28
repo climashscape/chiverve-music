@@ -5,69 +5,94 @@
     <section v-for="group in groups" :key="group.key" :class="$style.group">
       <h3 :class="$style.week">{{ weekLabel(group.key) }}</h3>
       <ul :class="$style.list">
-        <!-- 点歌行 = 从这首开始播（队列 = 本页全部歌曲行）；专辑行的行本身不可点，只有名字可点 -->
+        <!-- 点歌行 = 从这首开始播（队列 = 本页全部歌曲行）；专辑行点行 = 展开/收起专辑内歌曲
+             （展开区里点了直接播，不出这一页），专辑名仍可点进专辑页 -->
         <li
           v-for="item in group.items" :key="item.id"
           :class="[
             $style.row,
-            { [$style.playable]: item.kind === 'song' },
+            { [$style.playable]: item.kind === 'song' || (albumSongsMap.get(item.id)?.length ?? 0) > 0 },
           ]"
           @click="handleRowClick(item)"
           @contextmenu.prevent="showRowMenu($event, item)"
         >
-          <!-- 时间轴节点：本次新增的行节点亮主色，已读行空心——新旧的表达收在这里，
-               不再用「本次新增」整句文案压在名字旁。色弱兜底：节点带 title -->
-          <span
-            :class="[$style.dot, { [$style.dotFresh]: isFresh(item) }]"
-            :title="isFresh(item) ? $t('follow__fresh') : ''"
-          />
-          <span :class="$style.coverBox">
-            <!-- 封面按 albumMid 拼 QQ 音乐静态图 URL（`musicSdk/tx/album.js` 的 albumImg 同款）。
-                 缺 mid 的行不渲染 img——空 src 会画出破损图标，用底色块 + 专辑图标占位 -->
-            <img
-              v-if="item.albumMid"
-              :class="$style.cover" loading="lazy" decoding="async"
-              :src="coverUrl(item)" alt=""
-            >
-            <span v-else :class="$style.coverEmpty">
-              <svg version="1.1" xmlns="http://www.w3.org/2000/svg" width="20" height="20">
-                <use xlink:href="#icon-album" />
-              </svg>
-            </span>
-            <!-- 歌曲行 hover 出播放钮：行点击即播的具象提示（专辑行不出——它整行不可播） -->
-            <span v-if="item.kind === 'song'" :class="$style.coverPlay">
-              <svg version="1.1" xmlns="http://www.w3.org/2000/svg" width="14" height="14">
-                <use xlink:href="#icon-play" />
-              </svg>
-            </span>
-          </span>
-          <div :class="$style.body">
-            <div :class="$style.nameLine">
-              <!-- 专辑行的专辑名可点（进专辑页）；歌名点了由整行承担「从这首开始播」。
-                   可点名的 title 写**动作**（跳转提示）、aria-label 写名字——写了 title 就等于占了
-                   可访问名，得用 aria-label 拿回来（在线歌曲表那几列同款，AGENTS §2.5.1 第 11 条） -->
-              <span
-                :class="item.kind === 'album' ? [$style.name, $style.clickable] : $style.name"
-                :title="item.kind === 'album' ? $t('list__jump_album') : item.name"
-                :aria-label="item.name"
-                @click.stop="item.kind === 'album' && jumpToAlbumRow(item)"
-              >{{ item.name }}</span>
-            </div>
-            <div :class="$style.meta">
-              <!-- kind 收进 meta 行首：两种行的区分靠它，但不再让它独占一列把所有行往右推 -->
-              <span :class="$style.kind">
-                {{ item.kind === 'song' ? $t('follow__kind_song') : $t('follow__kind_album') }}
+          <div :class="$style.main">
+            <!-- 时间轴节点：本次新增的行节点亮主色，已读行空心——新旧的表达收在这里，
+                 不再用「本次新增」整句文案压在名字旁。色弱兜底：节点带 title -->
+            <span
+              :class="[$style.dot, { [$style.dotFresh]: isFresh(item) }]"
+              :title="isFresh(item) ? $t('follow__fresh') : ''"
+            />
+            <span :class="$style.coverBox">
+              <!-- 封面按 albumMid 拼 QQ 音乐静态图 URL（`musicSdk/tx/album.js` 的 albumImg 同款）。
+                   缺 mid 的行不渲染 img——空 src 会画出破损图标，用底色块 + 专辑图标占位 -->
+              <img
+                v-if="item.albumMid"
+                :class="$style.cover" loading="lazy" decoding="async"
+                :src="coverUrl(item)" alt=""
+              >
+              <span v-else :class="$style.coverEmpty">
+                <svg version="1.1" xmlns="http://www.w3.org/2000/svg" width="20" height="20">
+                  <use xlink:href="#icon-album" />
+                </svg>
               </span>
-              <!-- `.stop`：点名字是跳转，别把整行的「播放」也带出来 -->
-              <span
-                :class="$style.singer" :title="$t('list__jump_singer')" :aria-label="item.singerName"
-                @click.stop="jumpToSinger(item)"
-              >{{ item.singerName }}</span>
-              <!-- 曲目数只有新专行有（新歌行为 null）；专辑行理论上一定有，缺失时宁可不画 -->
-              <span v-if="item.kind === 'album' && item.trackCount != null">{{ $t('follow__album_tracks', { count: item.trackCount }) }}</span>
-              <span :class="$style.time">{{ item.publishTime }}</span>
+              <!-- 歌曲行 hover 出播放钮：行点击即播的具象提示（专辑行不出——它点行是展开） -->
+              <span v-if="item.kind === 'song'" :class="$style.coverPlay">
+                <svg version="1.1" xmlns="http://www.w3.org/2000/svg" width="14" height="14">
+                  <use xlink:href="#icon-play" />
+                </svg>
+              </span>
+            </span>
+            <div :class="$style.body">
+              <div :class="$style.nameLine">
+                <!-- 专辑行的专辑名可点（进专辑页）；歌名点了由整行承担「从这首开始播」。
+                     可点名的 title 写**动作**（跳转提示）、aria-label 写名字——写了 title 就等于占了
+                     可访问名，得用 aria-label 拿回来（在线歌曲表那几列同款，AGENTS §2.5.1 第 11 条） -->
+                <span
+                  :class="item.kind === 'album' ? [$style.name, $style.clickable] : $style.name"
+                  :title="item.kind === 'album' ? $t('list__jump_album') : item.name"
+                  :aria-label="item.name"
+                  @click.stop="item.kind === 'album' && jumpToAlbumRow(item)"
+                >{{ item.name }}</span>
+                <!-- 专辑展开指示：有歌可展的专辑行才画；展开时箭头翻转 -->
+                <span
+                  v-if="item.kind === 'album' && (albumSongsMap.get(item.id)?.length ?? 0) > 0"
+                  :class="[$style.chevron, { [$style.chevronOpen]: isAlbumExpanded(item) }]"
+                >
+                  <svg version="1.1" xmlns="http://www.w3.org/2000/svg" width="14" height="14">
+                    <use xlink:href="#icon-down" />
+                  </svg>
+                </span>
+              </div>
+              <div :class="$style.meta">
+                <!-- kind 收进 meta 行首：两种行的区分靠它，但不再让它独占一列把所有行往右推 -->
+                <span :class="$style.kind">
+                  {{ item.kind === 'song' ? $t('follow__kind_song') : $t('follow__kind_album') }}
+                </span>
+                <!-- `.stop`：点名字是跳转，别把整行的「播放 / 展开」也带出来 -->
+                <span
+                  :class="$style.singer" :title="$t('list__jump_singer')" :aria-label="item.singerName"
+                  @click.stop="jumpToSinger(item)"
+                >{{ item.singerName }}</span>
+                <!-- 曲目数只有新专行有（新歌行为 null）；专辑行理论上一定有，缺失时宁可不画 -->
+                <span v-if="item.kind === 'album' && item.trackCount != null">{{ $t('follow__album_tracks', { count: item.trackCount }) }}</span>
+                <span :class="$style.time">{{ item.publishTime }}</span>
+              </div>
             </div>
           </div>
+          <!-- 专辑展开区：本簇内（本轮发现）的曲目，点了直接播——不出动态页。
+               只含本轮发现的那批，专辑全量曲目仍以专辑页为准（点专辑名进页） -->
+          <ul v-if="isAlbumExpanded(item)" :class="$style.albumSongs">
+            <li
+              v-for="(song, songIndex) in albumSongsMap.get(item.id)" :key="song.id"
+              :class="$style.albumSong"
+              @click.stop="handleAlbumSongClick(item, songIndex)"
+            >
+              <span :class="$style.albumSongIndex">{{ songIndex + 1 }}</span>
+              <span :class="$style.albumSongName" :title="song.name">{{ song.name }}</span>
+              <span :class="$style.albumSongMeta">{{ song.singer }}</span>
+            </li>
+          </ul>
         </li>
       </ul>
     </section>
@@ -88,14 +113,14 @@ import DownloadModal from '@renderer/components/common/DownloadModal.vue'
 import { useTimelineActions } from '../useTimelineActions'
 
 /**
- * 时间线（关注动态）：**单页、不分组 tab**，按发布月分组的两种行——新歌行与 新专行。
+ * 时间线（关注动态）：**单页、不分 tab**，按发布周分组的两种行——新单曲行与 新专辑行。
  *
  * 视觉语言（2026-09-27 重做）：左侧时间轴脊线 + 行首节点（本次新增亮主色 / 已读空心）+
- * 56px 专辑封面做行的主体视觉 + 周锚头（sticky，周一为一周起点）。参照的是 changelog / 关注流类产品
- * 的通行做法（左侧脊线把「一条时间轴」说出来，日期只放在行内不独占一列）。
+ * 56px 专辑封面做行的主体视觉 + 周锚头（sticky，周一为一周起点）。
+ * 专辑行可**展开**（2026-09-28 用户拍板：不出动态页就能听专辑内歌曲）。
  *
  * 条目与「本次新增」的 id 组都由页面传进来（`items` 已按发布时间倒序，这里**不重排**，
- * 分组只做相邻归拢）；行上的交互（播放 / 跳转 / 右键菜单）全部在 `useTimelineActions` 里，本文件只管画。
+ * 分组只做相邻归拢）；行上的交互（播放 / 展开 / 跳转 / 右键菜单）全部在 `useTimelineActions` 里，本文件只管画。
  */
 export default {
   name: 'FollowFeedTimeline',
@@ -121,14 +146,6 @@ export default {
     const coverUrl = (item: LX.FollowFeed.Item): string =>
       item.albumMid ? `https://y.gtimg.cn/music/photo_new/T002R300x300M000${item.albumMid}.jpg` : ''
 
-    /** 周键：该日期所在周的周一（`YYYY-MM-DD`）。`publishTime` 是 `YYYY-MM-DD`，无时区歧义 */
-    const weekKey = (dateStr: string): string => {
-      const [y, m, d] = dateStr.split('-').map(Number)
-      const date = new Date(y, m - 1, d)
-      date.setDate(date.getDate() - (date.getDay() + 6) % 7)
-      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
-    }
-
     /** 相邻同周归拢成组（key = 该周的周一 `YYYY-MM-DD`；周一为一周起点，中文语境惯例） */
     const groups = computed(() => {
       const out: Array<{ key: string, items: LX.FollowFeed.Item[] }> = []
@@ -140,6 +157,14 @@ export default {
       }
       return out
     })
+
+    /** 周键：该日期所在周的周一（`YYYY-MM-DD`）。`publishTime` 是 `YYYY-MM-DD`，无时区歧义 */
+    const weekKey = (dateStr: string): string => {
+      const [y, m, d] = dateStr.split('-').map(Number)
+      const date = new Date(y, m - 1, d)
+      date.setDate(date.getDate() - (date.getDay() + 6) % 7)
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+    }
 
     // 周锚头文案走 Intl（locale 跟 i18n 的四语键同名：zh-cn / zh-tw / en-us / ko-kr）。
     // 用方法不用 computed：locale 不是响应式依赖，靠切语言时 $t 触发的整体重渲染拿到新值
@@ -153,14 +178,17 @@ export default {
         month: 'short',
         day: 'numeric',
       }).format(date)
-      // 常规跨度只有几周（条目容量有限），同年不带年；跨年那一周两端都带年
+      // 常规跨度只有几周（展示窗口只有两周），同年不带年；跨年那一周两端都带年
       return start.getFullYear() === end.getFullYear()
         ? `${fmt(start)} – ${fmt(end)}`
         : `${fmt(start, true)} – ${fmt(end, true)}`
     }
 
     const {
+      isAlbumExpanded,
+      albumSongsOf,
       handleRowClick,
+      handleAlbumSongClick,
       jumpToSinger,
       jumpToAlbumRow,
       menus,
@@ -178,12 +206,28 @@ export default {
       selectedDownloadMusicInfo,
     } = useTimelineActions(props)
 
+    /**
+     * 专辑行 id → 本簇歌曲（模板里每行都要判「有没有歌可展」，解析一次缓存住，
+     * 别在模板里对同一行反复 `JSON.parse`）。歌曲行不进这张表。
+     */
+    const albumSongsMap = computed(() => {
+      const map = new Map<number, LX.Music.MusicInfoOnline[]>()
+      for (const item of props.items) {
+        if (item.kind !== 'album') continue
+        map.set(item.id, albumSongsOf(item))
+      }
+      return map
+    })
+
     return {
       groups,
       weekLabel,
       coverUrl,
       isFresh,
+      albumSongsMap,
+      isAlbumExpanded,
       handleRowClick,
+      handleAlbumSongClick,
       jumpToSinger,
       jumpToAlbumRow,
       menus,
@@ -231,7 +275,7 @@ export default {
 
 .list {
   position: relative;
-  // 脊线：每组一条（组间被月份锚头断开，节奏感比通天线好），x 对齐行首节点中心（行内 padding 8 + 点半径 4.5）
+  // 脊线：每组一条（组间被周锚头断开，节奏感比通天线好），x 对齐行首节点中心（.main 的 padding 8 + 点半径 4.5）
   &::before {
     content: '';
     position: absolute;
@@ -246,16 +290,22 @@ export default {
 
 .row {
   position: relative;
+  // 双段结构：主行 + 专辑展开区（column 是为了展开区能占满整行宽度）
+  display: flex;
+  flex-flow: column nowrap;
+  transition: background-color @transition-fast;
+}
+
+.main {
   display: flex;
   align-items: center;
   gap: 12px;
   // 左右对称 8px：hover 高亮块包住节点；脊线 left:12 = 这 8px + 点半径 4.5，正好过圆心
   padding: 6px 8px;
-  transition: background-color @transition-fast;
+  min-width: 0;
 }
 
-// 可点样式：歌行整行点了就播。专辑行**不给** pointer / hover——它只有名字可点，
-// 整行看着能点却点了没反应比没有样式更糟
+// 可点样式：歌行整行点了就播；专辑行点了展开。展开区在 .row 里，跟着一起亮
 .playable {
   cursor: pointer;
 
@@ -371,6 +421,22 @@ export default {
   .mixin-ellipsis-1();
 }
 
+.chevron {
+  flex: none;
+  margin-left: auto;
+  color: var(--color-font-label);
+  transition: transform @transition-fast;
+
+  svg {
+    display: block;
+    fill: currentColor;
+  }
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+}
+
 .kind {
   flex: none;
   padding: 1px 6px;
@@ -393,5 +459,47 @@ export default {
 
 .time {
   flex: none;
+}
+
+// 专辑展开区：缩进对齐到文本列（.main 的 padding 8 + 节点 9 + gap 12 + 封面 56 + gap 12 = 97px）
+.albumSongs {
+  margin: 0;
+  padding: 2px 8px 8px 97px;
+}
+
+.albumSong {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 8px;
+  border-radius: @radius-border;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--color-font);
+
+  &:hover {
+    background-color: var(--color-primary-alpha-900);
+  }
+}
+
+.albumSongIndex {
+  flex: none;
+  width: 18px;
+  text-align: right;
+  font-size: 12px;
+  color: var(--color-font-label);
+}
+
+.albumSongName {
+  min-width: 0;
+  .mixin-ellipsis-1();
+}
+
+.albumSongMeta {
+  flex: none;
+  max-width: 40%;
+  font-size: 12px;
+  color: var(--color-font-label);
+  .mixin-ellipsis-1();
 }
 </style>

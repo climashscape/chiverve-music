@@ -139,7 +139,7 @@
   "follow__check_failed": "마지막 확인 실패: {reason}",
   "follow__monitored": "아티스트 {count}명 모니터링 중",
   "follow__empty": "아티스트 {count}명 모니터링을 시작했습니다. 새 작품이 나오면 여기에 표시됩니다",
-  "follow__kind_song": "신곡",
+  "follow__kind_song": "새 싱글",
   "follow__kind_album": "새 앨범",
   "follow__album_tracks": "{count}곡",
   "follow__fresh": "이번에 추가됨",

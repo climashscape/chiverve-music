@@ -150,7 +150,7 @@ describe('关注动态：时间线的行交互', () => {
     ], 1)
   })
 
-  it('专辑行：点行不播（载荷是 null，不造假载荷），点专辑名进专辑页', async() => {
+  it('专辑行：点行不播（播放走展开区），点专辑名进专辑页', async() => {
     const wrapper = mountTimeline()
     const albumRow = wrapper.findAll('li')[1]
 
@@ -160,6 +160,45 @@ describe('关注动态：时间线的行交互', () => {
     await albumRow.find('[aria-label="专辑二"]').trigger('click')
     expect(mocks.push).toHaveBeenCalledWith({ path: '/album', query: { mid: 'album-mid-2' } })
     expect(mocks.playMusicList).not.toHaveBeenCalled()
+  })
+
+  it('专辑行带歌曲载荷：点行展开出本簇歌曲，点一首 = 以专辑为队列从那首播（不出页）', async() => {
+    const albumSongs = [
+      { id: 'tx_alb_song1', name: '专辑歌一', singer: '歌手乙', source: 'tx', interval: '03:00', meta: { songId: 'a1', albumMid: 'album-mid-2', qualitys: [], _qualitys: {} } },
+      { id: 'tx_alb_song2', name: '专辑歌二', singer: '歌手乙', source: 'tx', interval: '03:00', meta: { songId: 'a2', albumMid: 'album-mid-2', qualitys: [], _qualitys: {} } },
+    ]
+    const list = [
+      item({ id: 1, name: '新歌一', itemId: 'tx_s1', music: musicOf('s1', '新歌一') }),
+      item({
+        id: 2,
+        kind: 'album',
+        itemId: 'album-mid-2',
+        name: '专辑二',
+        singerName: '歌手乙',
+        singerMid: 'mid-b',
+        albumMid: 'album-mid-2',
+        albumName: '专辑二',
+        trackCount: 2,
+        publishTime: '2026-09-18',
+        music: JSON.stringify(albumSongs),
+      }),
+    ]
+    const wrapper = mountTimeline(list)
+    const albumRow = wrapper.findAll('li')[1]
+
+    // 点行 = 展开：本簇两首都渲染出来（时间线里的歌曲行不会混进来）
+    expect(wrapper.find('ul').findAll('li').length).toBeLessThan(3)
+    await albumRow.trigger('click')
+    const songRows = albumRow.findAll('li')
+    expect(songRows).toHaveLength(2)
+    expect(songRows[0].text()).toContain('专辑歌一')
+
+    // 点展开区第一首：队列 = 专辑内歌曲（listId 带专辑行 id），从那首开始
+    await songRows[0].trigger('click')
+    expect(mocks.playMusicList).toHaveBeenCalledTimes(1)
+    expect(mocks.playMusicList.mock.calls[0][0]).toBe('follow_feed__album_2')
+    expect(mocks.playMusicList.mock.calls[0][1]).toHaveLength(2)
+    expect(mocks.playMusicList.mock.calls[0][2]).toBe(0)
   })
 
   it('点歌手名进歌手页（用条目自带的 mid，不请求接口），且不顺带播整行', async() => {
