@@ -560,7 +560,7 @@
   "setting__desktop_lyric_scroll_align_center": "中心",
   "setting__desktop_lyric_scroll_align_top": "頂部",
   "setting__desktop_lyric_show_taskbar": "在工作列 / Dock 顯示歌詞視窗",
-  "setting__desktop_lyric_show_taskbar_tip": "此選項作為在螢幕錄影軟體無法擷取歌詞視窗時的變通解決方法；Linux 下受平台限制，需重開歌詞視窗才生效",
+  "setting__desktop_lyric_show_taskbar_tip": "歌詞視窗預設不出現在工作列，錄影軟體因此常擷取不到它；勾選後工作列會多出歌詞視窗項目供其擷取。Linux 下需重開歌詞視窗才生效",
   "setting__dislike_list_input_tip": "標題@演出者\n標題\n@演出者",
   "setting__dislike_list_save_btn": "儲存",
   "setting__dislike_list_tips": "1. 每條一行，若歌曲或者演出者名字中存在「@」符號，需要將其取代成「#」\n2. 指定某演出者的某首歌：標題@演出者\n3. 指定某首歌：標題\n4. 指定某演出者：@演出者",

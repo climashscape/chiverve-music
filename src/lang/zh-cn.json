@@ -560,7 +560,7 @@
   "setting__desktop_lyric_scroll_align_center": "中心",
   "setting__desktop_lyric_scroll_align_top": "顶部",
   "setting__desktop_lyric_show_taskbar": "在任务栏 / 程序坞显示歌词窗口",
-  "setting__desktop_lyric_show_taskbar_tip": "此选项作为在录屏软件无法捕获歌词窗口时的变通解决方法；Linux 下受平台限制，需重开歌词窗才生效",
+  "setting__desktop_lyric_show_taskbar_tip": "歌词窗默认不出现在任务栏，录屏软件因此常抓不到它；勾上后任务栏会多出歌词窗条目供其捕获。Linux 下需重开歌词窗才生效",
   "setting__dislike_list_input_tip": "歌曲名@艺术家\n歌曲名\n@艺术家",
   "setting__dislike_list_save_btn": "保存",
   "setting__dislike_list_tips": "1. 每条一行，若歌曲或者艺术家名字中存在「@」符号，需要将其替换成「#」\n2. 指定某艺术家的某首歌：歌曲名@艺术家\n3. 指定某首歌：歌曲名\n4. 指定某艺术家：@艺术家",
