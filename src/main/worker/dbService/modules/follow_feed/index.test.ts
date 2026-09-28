@@ -12,6 +12,7 @@ import {
   followFeedMarkAllRead,
   followFeedSummary,
   followFeedUnreadCount,
+  followFeedWindowCutoff,
 } from './index'
 
 /**
@@ -118,17 +119,18 @@ describe('条目：去重、排序、未读、载荷', () => {
   })
 
   it('按发布时间倒序读回（同日则后发现的在前）', () => {
+    const cutoff = followFeedWindowCutoff()
     followFeedItemsAdd([
-      buildItem({ itemId: 'tx_s_a', name: '旧歌', publishTime: '2026-08-01' }),
-      buildItem({ itemId: 'tx_s_b', name: '新歌', publishTime: '2026-09-10' }),
-      buildItem({ itemId: 'tx_s_c', name: '不新不旧', publishTime: '2026-08-20' }),
+      buildItem({ itemId: 'tx_s_a', name: '旧歌', publishTime: shiftDate(cutoff, 1) }),
+      buildItem({ itemId: 'tx_s_b', name: '新歌', publishTime: shiftDate(cutoff, 13) }),
+      buildItem({ itemId: 'tx_s_c', name: '不新不旧', publishTime: shiftDate(cutoff, 7) }),
     ])
     expect(followFeedItemsGet().map(item => item.name)).toEqual(['新歌', '不新不旧', '旧歌'])
   })
 
   it('同 (kind, itemId) 重复写入只留一条（同一首歌不会被报两次）', () => {
     const before = followFeedItemsGet().length
-    followFeedItemsAdd([buildItem({ itemId: 'tx_s_b', name: '新歌（重复上报）', publishTime: '2026-09-10' })])
+    followFeedItemsAdd([buildItem({ itemId: 'tx_s_b', name: '新歌（重复上报）', publishTime: shiftDate(followFeedWindowCutoff(), 13) })])
     const after = followFeedItemsGet()
     expect(after).toHaveLength(before)
     // 首条内容不被后来者覆盖：去重是「忽略重复」而不是「用新值替换」
@@ -137,8 +139,8 @@ describe('条目：去重、排序、未读、载荷', () => {
 
   it('歌曲 id 不同则各占一行（专辑行与歌曲行互不干扰，kind 不同也算不同条目）', () => {
     followFeedItemsAdd([
-      buildItem({ itemId: 'alb_z', kind: 'album', name: '新专', trackCount: 12, music: null }),
-      buildItem({ itemId: 'tx_s_d', kind: 'song', name: '专辑里的一首', publishTime: '2026-09-11' }),
+      buildItem({ itemId: 'alb_z', kind: 'album', name: '新专', trackCount: 12, music: null, publishTime: shiftDate(followFeedWindowCutoff(), 5) }),
+      buildItem({ itemId: 'tx_s_d', kind: 'song', name: '专辑里的一首', publishTime: shiftDate(followFeedWindowCutoff(), 6) }),
     ])
     const items = followFeedItemsGet()
     expect(items.find(item => item.itemId == 'alb_z')!.kind).toBe('album')
@@ -149,7 +151,7 @@ describe('条目：去重、排序、未读、载荷', () => {
 
   it('歌曲行的 music 载荷能原样读回（播放队列靠它，不能在中转里丢）', () => {
     const payload = JSON.stringify({ id: 'tx_s_e', name: '带载荷', singer: '歌手乙', source: 'tx', interval: '03:00', meta: { songId: 's_e' } })
-    followFeedItemsAdd([buildItem({ itemId: 'tx_s_e', name: '带载荷', publishTime: '2026-09-12', music: payload })])
+    followFeedItemsAdd([buildItem({ itemId: 'tx_s_e', name: '带载荷', publishTime: shiftDate(followFeedWindowCutoff(), 8), music: payload })])
     expect(followFeedItemsGet().find(item => item.itemId == 'tx_s_e')!.music).toBe(payload)
   })
 
@@ -166,68 +168,56 @@ describe('条目：去重、排序、未读、载荷', () => {
   })
 })
 
-describe('保留 100 条：优先删最旧的已读，未读在 100 条内不许被删', () => {
-  it('110 条（90 已读 + 20 未读）→ 剩 100，删掉的是最旧的 10 条已读，未读 20 条全在', () => {
-    const dir = fs.mkdtempSync(path.join(tmpRoot, 'prune-mixed-'))
+/** 日期加减（`YYYY-MM-DD`），造窗口内/外的测试数据用 */
+const shiftDate = (dateStr: string, days: number): string => {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const date = new Date(y, m - 1, d + days)
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${date.getFullYear()}-${month}-${day}`
+}
+
+describe('展示窗口：只保留本周与上一周（发布时间早于上周一的清掉，条数不设上限）', () => {
+  it('本周 / 上周的条目全留，上周一之前的清掉', () => {
+    const dir = fs.mkdtempSync(path.join(tmpRoot, 'window-basic-'))
     expect(init(dir)).not.toBeNull()
 
-    // 90 条已读：先写，再整体标记已读
-    const readItems = Array.from({ length: 90 }, (_, index) => buildItem({
-      itemId: `tx_read_${index}`,
-      name: `已读${index}`,
-      publishTime: `2026-01-${String((index % 28) + 1).padStart(2, '0')}`,
-    }))
-    followFeedItemsAdd(readItems)
-    followFeedMarkAllRead()
-    expect(followFeedUnreadCount()).toBe(0)
-
-    // 20 条未读
-    const unreadItems = Array.from({ length: 20 }, (_, index) => buildItem({
-      itemId: `tx_unread_${index}`,
-      name: `未读${index}`,
-      publishTime: '2026-09-20',
-    }))
-    followFeedItemsAdd(unreadItems)
+    const cutoff = followFeedWindowCutoff()
+    followFeedItemsAdd([
+      buildItem({ itemId: 'tx_this_week', name: '本周', publishTime: shiftDate(cutoff, 13) }),
+      buildItem({ itemId: 'tx_last_week', name: '上周', publishTime: cutoff }),
+      buildItem({ itemId: 'tx_before_window', name: '上上周', publishTime: shiftDate(cutoff, -1) }),
+      buildItem({ itemId: 'tx_ancient', name: '更早', publishTime: '2026-01-01' }),
+    ])
 
     const items = followFeedItemsGet()
-    expect(items).toHaveLength(100)
-    expect(followFeedUnreadCount()).toBe(20)
-    // 未读一条都没少
-    expect(items.filter(item => item.read === 0)).toHaveLength(20)
-    // 被删的是**最旧的已读**（插入最早的那批）
-    const names = new Set(items.map(item => item.name))
-    expect(names.has('已读0')).toBe(false)
-    expect(names.has('已读9')).toBe(false)
-    expect(names.has('已读10')).toBe(true)
+    expect(items.map(item => item.itemId).sort()).toEqual(['tx_last_week', 'tx_this_week'])
   })
 
-  it('110 条全是未读（没有已读可删）→ 只能删最旧的未读，剩 100', () => {
-    const dir = fs.mkdtempSync(path.join(tmpRoot, 'prune-unread-'))
+  it('窗口内的条数不设上限（120 条全留）', () => {
+    const dir = fs.mkdtempSync(path.join(tmpRoot, 'window-no-limit-'))
     expect(init(dir)).not.toBeNull()
 
-    followFeedItemsAdd(Array.from({ length: 110 }, (_, index) => buildItem({
-      itemId: `tx_all_unread_${index}`,
-      name: `未读${index}`,
-      publishTime: '2026-09-21',
+    const cutoff = followFeedWindowCutoff()
+    followFeedItemsAdd(Array.from({ length: 120 }, (_, index) => buildItem({
+      itemId: `tx_in_window_${index}`,
+      name: `窗内${index}`,
+      publishTime: shiftDate(cutoff, index % 14),
     })))
 
-    const items = followFeedItemsGet()
-    expect(items).toHaveLength(100)
-    expect(followFeedUnreadCount()).toBe(100)
-    const names = new Set(items.map(item => item.name))
-    expect(names.has('未读0')).toBe(false)
-    expect(names.has('未读9')).toBe(false)
-    expect(names.has('未读10')).toBe(true)
+    expect(followFeedItemsGet()).toHaveLength(120)
   })
 
-  it('未满 100 条时一条都不删', () => {
-    const dir = fs.mkdtempSync(path.join(tmpRoot, 'prune-none-'))
+  it('发布时间缺失（空串）的条目视同早于窗口，一并出窗', () => {
+    const dir = fs.mkdtempSync(path.join(tmpRoot, 'window-empty-time-'))
     expect(init(dir)).not.toBeNull()
 
-    followFeedItemsAdd(Array.from({ length: 99 }, (_, index) => buildItem({
-      itemId: `tx_keep_${index}`,
-      name: `保留${index}`,
-    })))
-    expect(followFeedItemsGet()).toHaveLength(99)
+    const cutoff = followFeedWindowCutoff()
+    followFeedItemsAdd([
+      buildItem({ itemId: 'tx_has_time', name: '有日期', publishTime: shiftDate(cutoff, 3) }),
+      buildItem({ itemId: 'tx_no_time', name: '没日期', publishTime: '' }),
+    ])
+
+    expect(followFeedItemsGet().map(item => item.itemId)).toEqual(['tx_has_time'])
   })
 })

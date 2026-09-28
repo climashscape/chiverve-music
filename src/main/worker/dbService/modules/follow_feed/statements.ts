@@ -82,31 +82,17 @@ export const createItemInsertStatement = () => {
   `)
 }
 
-/** 条目总行数（保留策略的判据） */
-export const createItemCountStatement = () => {
-  const db = getDB()
-  return db.prepare<[]>(`
-    SELECT COUNT(*) AS "count"
-    FROM "main"."follow_feed_item"
-  `)
-}
-
 /**
- * 按保留上限删掉最旧的条目。
+ * 窗口清理：删掉发布时间早于上周一的条目（展示窗口 = 本周 + 上一周，见 dbHelper 的口径注释）。
  *
- * `ORDER BY "read" DESC, "id" ASC` 是**保留策略的全部要害**：已读（1）排在未读（0）前面，
- * 所以先删最旧的已读、最后才动未读。这样清理**不会让左栏角标数字莫名变小**——
- * 只有当未读本身就超过上限时，才会按最旧先删（否则表会无界增长）。
+ * `publish_time` 是 `YYYY-MM-DD` 定长格式，字符串比较即日期比较。发布时间缺失（空串）的条目
+ * 也算「早于窗口」，一并出窗——它本来就只能沉在时间线最底下。
  */
 export const createItemPruneStatement = () => {
   const db = getDB()
-  return db.prepare<[{ excess: number }]>(`
+  return db.prepare<[{ cutoff: string }]>(`
     DELETE FROM "main"."follow_feed_item"
-    WHERE "id" IN (
-      SELECT "id" FROM "main"."follow_feed_item"
-      ORDER BY "read" DESC, "id" ASC
-      LIMIT @excess
-    )
+    WHERE "publish_time" < @cutoff
   `)
 }
 

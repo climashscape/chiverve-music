@@ -2,7 +2,6 @@ import { getDB } from '../../db'
 import {
   createBaselineQueryStatement,
   createBaselineUpsertStatement,
-  createItemCountStatement,
   createItemInsertStatement,
   createItemPruneStatement,
   createItemQueryStatement,
@@ -15,12 +14,12 @@ import {
 } from './statements'
 
 /**
- * 条目保留上限（用户拍板：只保留最近 100 条）。
+ * 展示窗口：**本周 + 上一周**（2026-09-28 用户拍板，取代原来的「最近 100 条」容量上限）。
  *
- * 按 604 位关注歌手估算，一年也就几百条，所以 100 条约等于「最近一两个月的动态」。
- * 清理只删**最旧的已读**，未读在 100 条内不会被删——见 `createItemPruneStatement` 的注释。
+ * 窗口的边界 = 上周一（周一为一周起点）。清理发生在写入侧：每轮写入后把 `publish_time`
+ * 早于上周一的条目删掉——发布日期更早的旧作即使被收录/释放进列表（补齐候选里常见）
+ * 也不会出现在动态里。条数不设上限，窗口内的条目全保留。
  */
-export const ITEM_KEEP = 100
 
 /** 读全部基线（一位关注歌手一行） */
 export const queryBaselineAll = () => {
@@ -50,8 +49,17 @@ export const queryItems = () => {
   return createItemQueryStatement().all() as LX.FollowFeed.Item[]
 }
 
+/** 上周一的日期（`YYYY-MM-DD`）——展示窗口的下界：`publish_time` 早于它的条目出窗 */
+export const lastMondayDate = (): string => {
+  const now = new Date()
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7) - 7)
+  const month = String(monday.getMonth() + 1).padStart(2, '0')
+  const day = String(monday.getDate()).padStart(2, '0')
+  return `${monday.getFullYear()}-${month}-${day}`
+}
+
 /**
- * 批量写条目 + 按上限清理，**整段一个事务**。
+ * 批量写条目 + 清掉窗口外（发布时间早于上周一）的条目，**整段一个事务**。
  *
  * 为什么要包事务：写入与清理是一个整体契约——只写不清理会让表无界增长，
  * 只清理不写会删掉不该删的行。中途失败时宁可整批不生效（下一轮检查会重新发现这些条目，
@@ -60,13 +68,12 @@ export const queryItems = () => {
 export const insertItems = (items: LX.FollowFeed.ItemInput[]) => {
   const db = getDB()
   const insertStatement = createItemInsertStatement()
-  const countStatement = createItemCountStatement()
   const pruneStatement = createItemPruneStatement()
   const foundAt = Date.now()
+  const cutoff = lastMondayDate()
   db.transaction((items: LX.FollowFeed.ItemInput[]) => {
     for (const item of items) insertStatement.run({ ...item, foundAt, read: 0 })
-    const total = (countStatement.get() as { count: number }).count
-    if (total > ITEM_KEEP) pruneStatement.run({ excess: total - ITEM_KEEP })
+    pruneStatement.run({ cutoff })
   })(items)
 }
 

@@ -1,6 +1,7 @@
 import {
   insertItems,
   isBackfilled,
+  lastMondayDate,
   markAllRead,
   markBackfilled,
   queryBaselineAll,
@@ -59,3 +60,6 @@ export const followFeedIsBackfilled = (): boolean => isBackfilled()
 export const followFeedMarkBackfilled = () => {
   markBackfilled()
 }
+
+/** 展示窗口的下界（上周一，`YYYY-MM-DD`）——测试用它造窗口内/外的日期 */
+export const followFeedWindowCutoff = () => lastMondayDate()

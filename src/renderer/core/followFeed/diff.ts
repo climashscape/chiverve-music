@@ -143,7 +143,7 @@ export const latestCluster = (songs: FetchedSong[]): FetchedSong[] => {
  * **不是首次静默**（2026-09-28 用户拍板改口径）：首次见到该歌手、以及存量库的一次性补档，
  * 都把最新一簇报出来——QQ 侧「今天释放」的作品发布日期可能是过去几天/几周的
  * （实测：窦唯《菊花赋》发布于 09-19、商潮《洄潮》09-22，但都是新近才进列表），
- * 全静默会让用户开了功能却看不到最近的更新。总量由 `ITEM_KEEP`（100 条）兜底。
+ * 全静默会让用户开了功能却看不到最近的更新。展示窗口（本周 + 上一周）由写入侧清理兜底。
  */
 export const backfillItemsOf = (singer: { mid: string, name: string }, songs: FetchedSong[]): LX.FollowFeed.ItemInput[] =>
   itemsFromSongs(singer, latestCluster(songs))

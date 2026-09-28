@@ -69,8 +69,8 @@ export const defaultCheckDeps: CheckDeps = {
  *      （`backfillItemsOf`，2026-09-28 用户拍板取代首次全静默）——否则新关注/存量库
  *      永远看不到最近的更新；因此首次歌手也要补查（`num: 10`）才够聚合一张专辑；
  *   3. **存量补齐**（`isBackfilled` 为 false 时）：对**全部**关注歌手做一次最新一簇采集，
- *      一次性把 604 位的最新更新都写进库，之后写标记不再跑。总量不上心——`ITEM_KEEP`
- *      （100 条）在写入侧兜底，超出的按「先删已读、再删写入最早」清掉；
+ *      一次性写库，之后写标记不再跑。展示窗口由写入侧兜底（只保留本周 + 上一周，
+ *      发布时间更早的补档在 `insertItems` 的事务里直接出窗），不设条数上限；
  *   4. 基线**每轮都整批重写**（哪怕没有变化）：`updatedAt` 于是等于「上次成功检查的时间」，
  *      这正是页面顶部要显示的那个数——它表示「这一轮跑通了」，不是「这一轮有新东西」。
  */
@@ -123,9 +123,8 @@ export const runCheck = async(deps: CheckDeps = defaultCheckDeps): Promise<Check
     items.push(...diff.items)
   }
 
-  // 写入顺序：补档在前且按发布时间**升序**——`insertItems` 的容量清理按 (已读优先, id 升序) 删，
-  // 于是超量时先丢「时间最旧的补档」；本轮真增量（items）排在后面不会被误删
-  backfill.sort((a, b) => (a.publishTime < b.publishTime ? -1 : 1))
+  // 补档与增量一并写入：展示窗口（本周 + 上一周）由 `insertItems` 的事务在写入后统一清理，
+  // 这里不做条数上的取舍
   const toAdd = [...backfill, ...items]
   if (baselines.length) await deps.saveBaseline(baselines)
   if (toAdd.length) await deps.addItems(toAdd)
