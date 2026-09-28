@@ -343,7 +343,7 @@
   "player__next": "다음 곡",
   "player__open_song_detail": "곡 상세 정보 열기",
   "player__pause": "일시정지",
-  "player__pic_tip": "재생 상세 페이지\n(우클릭하면 \"내 서재\"에서 현재 재생 중인 곡을 찾을 수 있습니다)",
+  "player__pic_tip": "재생 상세 페이지\n(우클릭하면 곡 메뉴가 열립니다)",
   "player__play": "재생",
   "player__play_toggle_mode_list": "순서대로",
   "player__play_toggle_mode_list_loop": "목록 반복",

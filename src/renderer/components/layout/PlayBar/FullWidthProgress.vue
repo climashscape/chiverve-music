@@ -3,7 +3,7 @@
     <div :class="$style.progress">
       <common-progress-bar v-if="!isShowPlayerDetail" :class-name="$style.progressBar" :progress="progress" :handle-transition-end="handleTransitionEnd" :is-active-transition="isActiveTransition" />
     </div>
-    <div :class="$style.picContent" :aria-label="$t('player__pic_tip')" :title="$t('player__pic_tip')" @contextmenu="handleToMusicLocation" @click="showPlayerDetail">
+    <div :class="$style.picContent" :aria-label="$t('player__pic_tip')" :title="$t('player__pic_tip')" @contextmenu="showSongMenu" @click="showPlayerDetail">
       <img v-if="musicInfo.pic" :src="musicInfo.pic" decoding="async" @error="imgError">
       <!-- 无封面时的字标占位（票 04 换掉上游的「L X」字母标）：变体口径同左栏 `Aside/index.vue` 的短名 + 副行 -->
       <div v-else :class="$style.emptyPic" aria-hidden="true">
@@ -44,14 +44,16 @@
         </svg>
       </div>
     </div>
+    <!-- 封面右键菜单（当前播放这一首）：菜单与两个弹窗都挂在它身上，三个宽度变体共用 -->
+    <song-menu ref="songMenuRef" />
   </div>
 </template>
 
 <script>
-import { computed } from '@common/utils/vueTools'
-import { useRouter } from '@common/utils/vueRouter'
+import { computed, ref } from '@common/utils/vueTools'
 import { clipboardWriteText } from '@common/utils/electron'
 import ControlBtns from './ControlBtns.vue'
+import SongMenu from './SongMenu.vue'
 // import PlayProgress from './PlayProgress'
 import usePlayProgress from '@renderer/utils/compositions/usePlayProgress'
 // import { lyric } from '@renderer/core/share/lyric'
@@ -60,7 +62,6 @@ import {
   musicInfo,
   isShowPlayerDetail,
   isPlay,
-  playInfo,
   playMusicInfo,
 } from '@renderer/store/player/state'
 import {
@@ -69,18 +70,16 @@ import {
 } from '@renderer/store/player/action'
 import { appSetting } from '@renderer/store/setting'
 import { togglePlay, playNext, playPrev } from '@renderer/core/player'
-import { LIST_IDS } from '@common/constants'
 import { formatMusicName } from '@renderer/utils'
 
 export default {
   name: 'CorePlayBar',
   components: {
     ControlBtns,
+    SongMenu,
     // PlayProgress,
   },
   setup() {
-    const router = useRouter()
-
     const {
       nowPlayTimeStr,
       maxPlayTimeStr,
@@ -102,19 +101,11 @@ export default {
       setMusicInfo({ pic: null })
     }
 
-    const handleToMusicLocation = () => {
-      const listId = playMusicInfo.listId
-      // 试听列表（`default`）已从界面退场（工单 07 / ADR 0006）：播它时点进度区不再跳转——
-      // 跳过去只会落到「我收藏的歌曲」，与当前播放的列表对不上
-      if (!listId || listId == LIST_IDS.DOWNLOAD || listId == LIST_IDS.DEFAULT || !playMusicInfo.musicInfo) return
-      if (playInfo.playIndex == -1) return
-      void router.push({
-        path: '/list',
-        query: {
-          id: listId,
-          scrollIndex: playInfo.playIndex,
-        },
-      })
+    // 封面右键菜单（替代上游「右击跳列表」的跳转，2026-09-28）：菜单本体在 SongMenu 里，
+    // 这里只把事件转给它——三个宽度变体各自持一份实例，菜单 teleport 到 #root 不受位置影响
+    const songMenuRef = ref(null)
+    const showSongMenu = (event) => {
+      songMenuRef.value?.showMenu(event)
     }
 
     const title = computed(() => {
@@ -143,7 +134,8 @@ export default {
       togglePlay,
       playNext,
       playPrev,
-      handleToMusicLocation,
+      songMenuRef,
+      showSongMenu,
       isShowPlayerDetail,
     }
   },

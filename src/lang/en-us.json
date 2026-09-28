@@ -343,7 +343,7 @@
   "player__next": "Next",
   "player__open_song_detail": "Open song details",
   "player__pause": "Pause",
-  "player__pic_tip": "Playback detail page\n(Right-click to locate the currently playing song in \"Your Library\")",
+  "player__pic_tip": "Playback detail page\n(Right-click for the song menu)",
   "player__play": "Play",
   "player__play_toggle_mode_list": "In Order",
   "player__play_toggle_mode_list_loop": "Repeat Playlist",
