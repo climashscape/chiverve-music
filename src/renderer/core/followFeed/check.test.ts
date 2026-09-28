@@ -5,11 +5,12 @@ import type { FetchedSong, SingerFetch } from './diff'
 /**
  * 一轮检查的编排（票 04/05 的接缝①：注入假 tx 与假存储，不碰网络也不碰库）。
  *
- * 钉的是四条**外部行为**：
- *   1. 首次静默：没有基线行时不产条目、且**不补查**（604 位歌手的第一轮只要 21 个请求）；
- *   2. 只对「最新一首相对基线有变化」的歌手补查（一轮通常 0–3 位，别变成 604 次补查）；
+ * 钉的是五条**外部行为**：
+ *   1. 首次见到歌手（没有基线行）→ 建基线 + **补齐它的最新一簇**（要补查拿 num:10）；
+ *   2. 只对「最新一首相对基线有变化」的歌手补查（常规轮通常 0–3 位，别变成 604 次补查）；
  *   3. 局部失败（`ok: false`）**不推进那些歌手的基线**——这样失败会在下一轮自然补上；
- *   4. 基线每轮整批重写（`updatedAt` = 上次跑通的时间），条目只在有新东西时写。
+ *   4. **存量补齐**（`isBackfilled` 为 false）：本轮对全体歌手补查并补档，且只在整轮全成功时写标记；
+ *   5. 基线每轮整批重写（`updatedAt` = 上次跑通的时间），条目只在有新东西时写。
  */
 
 const buildSong = (mid: string, albumMid = 'alb_default'): FetchedSong => ({
@@ -27,7 +28,12 @@ const baselineOf = (mid: string, latestSongId: string | null): LX.FollowFeed.Bas
   updatedAt: 1,
 })
 
-/** 造一份假依赖；每个方法都是 spy，断言只看它们收到什么 */
+/**
+ * 造一份假依赖；每个方法都是 spy，断言只看它们收到什么。
+ *
+ * `isBackfilled` 默认 **true**（存量补齐已完成）——绝大多数用例测的是日常增量轮；
+ * 测首次/补齐的用例显式传 `isBackfilled: async () => false`。
+ */
 const buildDeps = (over: Partial<CheckDeps> & { scan?: SingerFetch[], detail?: SingerFetch[] } = {}) => {
   const getFollowedSingers = vi.fn(async() => [{ mid: 'm1', name: '歌手一' }])
   const getLatestSongs = vi.fn(async(mids: string[], num: number) => {
@@ -36,46 +42,97 @@ const buildDeps = (over: Partial<CheckDeps> & { scan?: SingerFetch[], detail?: S
   const saveBaseline = vi.fn(async(_rows: LX.FollowFeed.BaselineInput[]) => undefined)
   const addItems = vi.fn(async(_items: LX.FollowFeed.ItemInput[]) => undefined)
   const loadBaseline = vi.fn(async() => [] as LX.FollowFeed.Baseline[])
+  const isBackfilled = vi.fn(async() => true)
+  const markBackfilled = vi.fn(async() => undefined)
   return {
     getFollowedSingers: over.getFollowedSingers ?? getFollowedSingers,
     getLatestSongs: over.getLatestSongs ?? getLatestSongs,
     loadBaseline: over.loadBaseline ?? loadBaseline,
     saveBaseline: over.saveBaseline ?? saveBaseline,
     addItems: over.addItems ?? addItems,
-    _spies: { getFollowedSingers, getLatestSongs, saveBaseline, addItems, loadBaseline },
+    isBackfilled: over.isBackfilled ?? isBackfilled,
+    markBackfilled: over.markBackfilled ?? markBackfilled,
+    _spies: { getFollowedSingers, getLatestSongs, saveBaseline, addItems, loadBaseline, isBackfilled, markBackfilled },
   }
 }
 
-describe('首次运行：静默建基线、不补查、不产条目', () => {
-  it('没有基线行 → 只写基线（每位一行），条目一条都不写', async() => {
+describe('首次运行（存量补齐）：建基线 + 每位歌手的最新一簇，并写一次性标记', () => {
+  it('没有基线行且未补档 → 基线全写 + 最新一簇入库（同专聚合）+ 写标记', async() => {
     const deps = buildDeps({
+      isBackfilled: vi.fn(async() => false),
       loadBaseline: vi.fn(async() => []),
       getFollowedSingers: vi.fn(async() => [{ mid: 'm1', name: '歌手一' }, { mid: 'm2', name: '歌手二' }]),
       scan: [buildFetched('m1', [buildSong('s1')]), buildFetched('m2', [buildSong('s2')])],
+      detail: [
+        buildFetched('m1', [buildSong('s1', 'alb_a'), buildSong('s1b', 'alb_a')]),
+        buildFetched('m2', [buildSong('s2', 'alb_b')]),
+      ],
     })
 
     const result = await runCheck(deps)
 
-    expect(result).toEqual({ scanned: 2, newItems: 0, detailed: 0 })
-    expect(deps._spies.saveBaseline).toHaveBeenCalledTimes(1)
+    expect(result).toEqual({ scanned: 2, newItems: 0, detailed: 2, backfilled: true })
     expect(deps._spies.saveBaseline.mock.calls[0][0]).toEqual([
       { singerMid: 'm1', latestSongId: 'tx_s1', latestSongTime: '2026-09-20' },
       { singerMid: 'm2', latestSongId: 'tx_s2', latestSongTime: '2026-09-20' },
     ])
-    expect(deps._spies.addItems).not.toHaveBeenCalled()
+    // 补齐条目：m1 同专辑两条 → 一行新专；m2 单曲行（聚合规则与增量同源）
+    expect(deps._spies.addItems).toHaveBeenCalledTimes(1)
+    const added = deps._spies.addItems.mock.calls[0][0]
+    expect(added).toHaveLength(2)
+    expect(added[0]).toMatchObject({ kind: 'album', itemId: 'alb_a', trackCount: 2 })
+    expect(added[1]).toMatchObject({ kind: 'song', itemId: 'tx_s2' })
+    expect(deps._spies.markBackfilled).toHaveBeenCalledTimes(1)
   })
 
-  it('首次的运行**只发一轮扫描**（没有第二次「补查」请求）', async() => {
+  it('首次运行要发两轮请求（扫描 + 补查）——最新一簇需要 num:10，不能只有首首', async() => {
     const deps = buildDeps({
+      isBackfilled: vi.fn(async() => false),
       loadBaseline: vi.fn(async() => []),
       getFollowedSingers: vi.fn(async() => [{ mid: 'm1', name: '歌手一' }]),
       scan: [buildFetched('m1', [buildSong('s1')])],
+      detail: [buildFetched('m1', [buildSong('s1')])],
     })
 
     await runCheck(deps)
 
-    expect(deps._spies.getLatestSongs).toHaveBeenCalledTimes(1)
-    expect(deps._spies.getLatestSongs.mock.calls[0][1]).toBe(1)
+    expect(deps._spies.getLatestSongs).toHaveBeenCalledTimes(2)
+    expect(deps._spies.getLatestSongs.mock.calls[1][0]).toEqual(['m1'])
+    expect(deps._spies.getLatestSongs.mock.calls[1][1]).toBe(DETAIL_SONG_NUM)
+  })
+
+  it('有歌手本轮失败 → **不写标记**（下一轮重来，别把没补到的人永久漏掉）', async() => {
+    const deps = buildDeps({
+      isBackfilled: vi.fn(async() => false),
+      loadBaseline: vi.fn(async() => []),
+      getFollowedSingers: vi.fn(async() => [{ mid: 'm1', name: '歌手一' }, { mid: 'm2', name: '歌手二' }]),
+      scan: [buildFetched('m1', [buildSong('s1')]), failedFetch('m2')],
+      detail: [buildFetched('m1', [buildSong('s1')])],
+    })
+
+    const result = await runCheck(deps)
+
+    expect(result.backfilled).toBe(false)
+    expect(deps._spies.markBackfilled).not.toHaveBeenCalled()
+  })
+
+  it('已补档的库：新关注的歌手（没有基线行）也补最新一簇，但不重跑存量补齐', async() => {
+    const deps = buildDeps({
+      // isBackfilled 默认 true
+      loadBaseline: vi.fn(async() => [baselineOf('m0', 'tx_x')]),
+      getFollowedSingers: vi.fn(async() => [{ mid: 'm0', name: '老歌手' }, { mid: 'm1', name: '新关注' }]),
+      scan: [buildFetched('m0', [buildSong('x')]), buildFetched('m1', [buildSong('s1', 'alb_a'), buildSong('s1b', 'alb_a')])],
+      detail: [buildFetched('m1', [buildSong('s1', 'alb_a'), buildSong('s1b', 'alb_a')])],
+    })
+
+    const result = await runCheck(deps)
+
+    expect(result.backfilled).toBe(false)
+    expect(deps._spies.markBackfilled).not.toHaveBeenCalled()
+    // 老歌手最新一首就是标记（没变化）→ 不补查；新关注的进补查名单
+    expect(deps._spies.getLatestSongs.mock.calls[1][0]).toEqual(['m1'])
+    expect(deps._spies.addItems.mock.calls[0][0]).toHaveLength(1)
+    expect(deps._spies.addItems.mock.calls[0][0][0]).toMatchObject({ kind: 'album', itemId: 'alb_a' })
   })
 })
 
@@ -111,7 +168,7 @@ describe('补查：只对「最新一首变了」的歌手发第二次请求', (
 
     const result = await runCheck(deps)
 
-    expect(result).toEqual({ scanned: 1, newItems: 0, detailed: 0 })
+    expect(result).toEqual({ scanned: 1, newItems: 0, detailed: 0, backfilled: false })
     expect(deps._spies.getLatestSongs).toHaveBeenCalledTimes(1)
     expect(deps._spies.addItems).not.toHaveBeenCalled()
     // 重写基线让「上次成功检查」的时间往前走——它表示这一轮跑通了，不是「有新东西」
@@ -159,7 +216,7 @@ describe('局部失败：不让失败的歌手推进基线', () => {
 
     const result = await runCheck(deps)
 
-    expect(result).toEqual({ scanned: 1, newItems: 0, detailed: 0 })
+    expect(result).toEqual({ scanned: 1, newItems: 0, detailed: 0, backfilled: false })
     expect(deps._spies.saveBaseline.mock.calls[0][0]).toEqual([{ singerMid: 'm1', latestSongId: null, latestSongTime: null }])
   })
 
@@ -194,7 +251,7 @@ describe('整轮的前置失败与空名单', () => {
 
     const result = await runCheck(deps)
 
-    expect(result).toEqual({ scanned: 0, newItems: 0, detailed: 0 })
+    expect(result).toEqual({ scanned: 0, newItems: 0, detailed: 0, backfilled: false })
     expect(deps._spies.getLatestSongs).not.toHaveBeenCalled()
     expect(deps._spies.saveBaseline).not.toHaveBeenCalled()
   })

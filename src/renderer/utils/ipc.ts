@@ -861,3 +861,11 @@ export const getFollowFeedSummary = async(): Promise<LX.FollowFeed.Summary> => {
 export const markFollowFeedAllRead = async() => {
   return rendererInvoke(FOLLOW_FEED_EVENT_NAME.mark_all_read)
 }
+/** 存量补齐是否已完成（一次性标记） */
+export const isFollowFeedBackfilled = async(): Promise<boolean> => {
+  return rendererInvoke<boolean>(FOLLOW_FEED_EVENT_NAME.is_backfilled)
+}
+/** 标记存量补齐已完成（整轮全成功才写） */
+export const markFollowFeedBackfilled = async() => {
+  return rendererInvoke(FOLLOW_FEED_EVENT_NAME.mark_backfilled)
+}

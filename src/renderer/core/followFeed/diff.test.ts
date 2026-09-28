@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { diffSinger, newSongIdOf, type FetchedSong } from './diff'
+import { backfillItemsOf, diffSinger, latestCluster, newSongIdOf, type FetchedSong } from './diff'
 
 /**
  * 关注动态的增量判据（票 05 的接缝①：纯函数，无网络无库）。
@@ -55,7 +55,7 @@ describe('新式歌曲 id（条目去重键 / 基线标记）', () => {
   })
 })
 
-describe('首次静默：没有基线行时只建基线、不产条目', () => {
+describe('首次：`diffSinger` 自身不产条目（最新一簇由 check 侧走 backfillItemsOf）', () => {
   it('三条歌也不产条目，基线推到最新那条', () => {
     const result = diffSinger(singer, [
       buildFetched({ mid: 's_new', publishTime: '2026-09-20' }),
@@ -69,6 +69,53 @@ describe('首次静默：没有基线行时只建基线、不产条目', () => {
     const result = diffSinger(singer, [buildFetched({ mid: 's_first' })], baselineOf())
     expect(result.items).toHaveLength(1)
     expect(result.items[0].itemId).toBe('tx_s_first')
+  })
+})
+
+describe('补齐：最新一簇（首次见到歌手 / 存量补档的入口，2026-09-28 用户拍板取代首次全静默）', () => {
+  it('最新一簇 = 列表头开始、与第一首**同专辑的连续曲目**（一张专辑整批进列表的形态）', () => {
+    const songs = [
+      buildFetched({ mid: 's_a1', albumMid: 'alb_new', albumName: '新专', publishTime: '2026-09-20' }),
+      buildFetched({ mid: 's_a2', albumMid: 'alb_new', albumName: '新专', publishTime: '2026-09-20' }),
+      buildFetched({ mid: 's_b', albumMid: 'alb_old', albumName: '旧专', publishTime: '2026-08-01' }),
+    ]
+    expect(latestCluster(songs).map(item => item.song.songmid)).toEqual(['s_a1', 's_a2'])
+  })
+
+  it('到第二张专辑为止：头两首同专算一簇，后面的旧专曲目不进补齐（「最新」不是「最近十首」）', () => {
+    const songs = [
+      buildFetched({ mid: 's_a', albumMid: 'alb_x' }),
+      buildFetched({ mid: 's_b', albumMid: 'alb_x' }),
+      buildFetched({ mid: 's_c', albumMid: 'alb_y' }),
+    ]
+    expect(latestCluster(songs).map(item => item.song.songmid)).toEqual(['s_a', 's_b'])
+  })
+
+  it('没有专辑 mid 的头一首只取它自己（不聚合）', () => {
+    const songs = [
+      buildFetched({ mid: 's_a', albumMid: '' }),
+      buildFetched({ mid: 's_b', albumMid: '' }),
+    ]
+    expect(latestCluster(songs).map(item => item.song.songmid)).toEqual(['s_a'])
+    // 空列表安全
+    expect(latestCluster([])).toEqual([])
+  })
+
+  it('backfillItemsOf：聚合规则与增量同源（同专 ≥2 首 → 一行新专），字段够页面渲染', () => {
+    const items = backfillItemsOf({ mid: 'mid_a', name: '周杰伦' }, [
+      buildFetched({ mid: 's_a1', albumMid: 'alb_x', albumName: '新专', publishTime: '2026-09-20' }),
+      buildFetched({ mid: 's_a2', albumMid: 'alb_x', albumName: '新专', publishTime: '2026-09-19' }),
+      buildFetched({ mid: 's_old', albumMid: 'alb_old' }),
+    ])
+    expect(items).toHaveLength(1)
+    expect(items[0]).toMatchObject({
+      kind: 'album',
+      itemId: 'alb_x',
+      singerMid: 'mid_a',
+      singerName: '周杰伦',
+      trackCount: 2,
+      publishTime: '2026-09-20',
+    })
   })
 })
 

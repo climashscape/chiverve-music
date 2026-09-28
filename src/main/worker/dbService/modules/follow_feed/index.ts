@@ -1,6 +1,8 @@
 import {
   insertItems,
+  isBackfilled,
   markAllRead,
+  markBackfilled,
   queryBaselineAll,
   queryItems,
   querySummary,
@@ -48,4 +50,12 @@ export const followFeedSummary = (): LX.FollowFeed.Summary => querySummary()
 /** 全部标为已读（进入页面时调用） */
 export const followFeedMarkAllRead = () => {
   markAllRead()
+}
+
+/** 存量补齐是否已完成（一次性标记，`db_info` 的 kv） */
+export const followFeedIsBackfilled = (): boolean => isBackfilled()
+
+/** 标记存量补齐已完成（整轮全成功才写，见 `core/followFeed/check.ts`） */
+export const followFeedMarkBackfilled = () => {
+  markBackfilled()
 }

@@ -147,3 +147,36 @@ export const createMarkAllReadStatement = () => {
     WHERE "read" = 0
   `)
 }
+
+/**
+ * `db_info` 的键值读写（存量补齐的一次性标记用）。
+ *
+ * 为什么不新开表：`db_info` 是从上游继承的通用键值表（`migrate.ts` 的 `version` 就在里面），
+ * 加一行数据**不触碰任何建表 SQL**，也就不会踩 `verifyDB` 的逐字符比对与 `DB_VERSION` 的迁移流程。
+ */
+export const createKvQueryStatement = () => {
+  const db = getDB()
+  return db.prepare<[string]>(`
+    SELECT "field_value" AS "value"
+    FROM "main"."db_info"
+    WHERE "field_name" = ?
+  `)
+}
+
+/** kv 的写：先 UPDATE、没改到行再 INSERT（`db_info` 里可能根本没有这一行，同 `migrate.ts` 的写法） */
+export const createKvUpsertStatement = () => {
+  const db = getDB()
+  return db.prepare<[{ name: string, value: string }]>(`
+    UPDATE "main"."db_info"
+    SET "field_value" = @value
+    WHERE "field_name" = @name
+  `)
+}
+
+export const createKvInsertStatement = () => {
+  const db = getDB()
+  return db.prepare<[{ name: string, value: string }]>(`
+    INSERT INTO "main"."db_info" ("field_name", "field_value")
+    VALUES (@name, @value)
+  `)
+}

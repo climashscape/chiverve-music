@@ -29,4 +29,10 @@ export default () => {
   mainHandle(FOLLOW_FEED_EVENT_NAME.mark_all_read, async() => {
     await global.lx.worker.dbService.followFeedMarkAllRead()
   })
+  mainHandle<boolean>(FOLLOW_FEED_EVENT_NAME.is_backfilled, async() => {
+    return global.lx.worker.dbService.followFeedIsBackfilled()
+  })
+  mainHandle(FOLLOW_FEED_EVENT_NAME.mark_backfilled, async() => {
+    await global.lx.worker.dbService.followFeedMarkBackfilled()
+  })
 }

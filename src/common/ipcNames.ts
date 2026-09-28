@@ -50,6 +50,8 @@ const modules = {
     get_unread_count: 'get_unread_count',
     get_summary: 'get_summary',
     mark_all_read: 'mark_all_read',
+    is_backfilled: 'is_backfilled',
+    mark_backfilled: 'mark_backfilled',
   },
   winMain: {
     focus: 'focus',

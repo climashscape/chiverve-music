@@ -6,6 +6,9 @@ import {
   createItemInsertStatement,
   createItemPruneStatement,
   createItemQueryStatement,
+  createKvInsertStatement,
+  createKvQueryStatement,
+  createKvUpsertStatement,
   createMarkAllReadStatement,
   createSummaryStatement,
   createUnreadCountStatement,
@@ -81,4 +84,20 @@ export const queryUnreadCount = () => {
 /** 全部标为已读 */
 export const markAllRead = () => {
   createMarkAllReadStatement().run()
+}
+
+/** 存量补齐的一次性标记键（`db_info` 的 kv） */
+const BACKFILL_FLAG = 'follow_feed_backfilled'
+
+/** 存量补齐是否已完成：「每位歌手最新一簇」的全量采集只跑一次 */
+export const isBackfilled = (): boolean => {
+  const row = createKvQueryStatement().get(BACKFILL_FLAG) as { value: string } | undefined
+  return row != null && row.value !== ''
+}
+
+/** 标记存量补齐已完成（值记完成时刻的毫秒时间戳，方便排查） */
+export const markBackfilled = () => {
+  const value = String(Date.now())
+  const result = createKvUpsertStatement().run({ name: BACKFILL_FLAG, value })
+  if (result.changes === 0) createKvInsertStatement().run({ name: BACKFILL_FLAG, value })
 }
